@@ -1953,6 +1953,11 @@ function load() {
   if (!S.futurelog) S.futurelog = [];
   if (!S.migrationPuffer) S.migrationPuffer = [];
   if (!TODAY.feedItems) TODAY.feedItems = [];
+  // One-time migration: move feedItems from old S location to TODAY
+  if (S.feedItems && S.feedItems.length && TODAY.feedItems.length === 0) {
+    TODAY.feedItems = S.feedItems;
+    delete S.feedItems;
+  }
   if (!S.feedLastReadwise) S.feedLastReadwise = '';
   if (!S.feedLastRaindrop) S.feedLastRaindrop = '';
   if (!S.feedLastHighlights) S.feedLastHighlights = '';
