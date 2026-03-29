@@ -2322,6 +2322,11 @@ function load() {
   if (!S.futurelog) S.futurelog = [];
   if (!S.migrationPuffer) S.migrationPuffer = [];
   if (!TODAY.feedItems) TODAY.feedItems = [];
+  // Strip any feedItems that don't belong to today
+  TODAY.feedItems = TODAY.feedItems.filter(function(i) {
+    var d = i.loadedAt ? i.loadedAt.slice(0,10) : (i.date ? i.date.slice(0,10) : today());
+    return d === today();
+  });
   if (!TODAY.plan) TODAY.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
   // One-time migration: move feedItems from old S location to TODAY
   if (S.feedItems && S.feedItems.length && TODAY.feedItems.length === 0) {
@@ -3816,12 +3821,19 @@ function mergeDays(localDays, remoteDays) {
 function mergeToday(local, remote) {
   if (!remote || remote.date !== today()) return local;
   if (!local  || local.date  !== today()) return remote;
+  var t = today();
+  // Only keep feedItems loaded today
+  var mergedFeed = mergeById(local.feedItems||[], remote.feedItems||[], 'id')
+    .filter(function(i) {
+      var d = i.loadedAt ? i.loadedAt.slice(0,10) : (i.date ? i.date.slice(0,10) : t);
+      return d === t;
+    });
   return {
-    date:       today(),
+    date:       t,
     reviewDone: local.reviewDone || remote.reviewDone,
     cards:      mergeById(local.cards||[],   remote.cards||[],   'id'),
     objects:    mergeById(local.objects||[], remote.objects||[], 'id'),
-    feedItems:  mergeById(local.feedItems||[], remote.feedItems||[], 'id'),
+    feedItems:  mergedFeed,
     plan:       (local.plan && local.plan.intentionen) ? local.plan : (remote.plan || local.plan)
   };
 }
