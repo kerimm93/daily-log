@@ -2,8 +2,13 @@
 <html lang="de">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <title>Daily Log</title>
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#111110">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Daily Log">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
 
@@ -1831,10 +1836,21 @@ select:focus { outline: none; border-color: var(--border-mid); }
     <label style="margin-top:10px">Gist ID</label>
     <input type="text" id="cfgGistId" placeholder="abc123...">
 
-    <div class="btn-row" style="margin-top:18px">
+    <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+      <div style="font-family:var(--mono);font-size:0.64rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:10px">Speicher & Daten</div>
+      <div id="storageBar" style="height:6px;background:var(--border);border-radius:3px;margin-bottom:6px;overflow:hidden">
+        <div id="storageBarFill" style="height:100%;background:var(--green);border-radius:3px;transition:width .3s"></div>
+      </div>
+      <div style="font-family:var(--mono);font-size:0.64rem;color:var(--ink-dim);margin-bottom:10px" id="storageInfo">Berechne…</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-ghost" onclick="compactOldDays(30)" title="Rohkarten aus Tagen älter als 30 Tage entfernen">🗜 Alte Tage komprimieren</button>
+        <button class="btn btn-sm btn-ghost" onclick="exportData()" title="Exportiert alle Daten">↓ Vollständiger Export</button>
+      </div>
+      <div id="compactInfo" style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim);margin-top:6px"></div>
+    </div>
+    <div class="btn-row" style="margin-top:14px">
       <button class="btn btn-primary" onclick="saveSettings()">Speichern</button>
       <button class="btn" onclick="closeModal('settingsModal')">Abbrechen</button>
-      <button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="exportData()" title="Exportiert alle Daten: Tage, Objekte, Future Log, Karten">↓ Vollständiger Daten-Export</button>
     </div>
   </div>
 </div>
@@ -1905,7 +1921,7 @@ function toast(msg) {
   t.textContent = msg; t.classList.add('show');
   setTimeout(function(){ t.classList.remove('show'); }, 2600);
 }
-function openModal(id)  { document.getElementById(id).classList.remove('hidden'); }
+function openModal(id)  { document.getElementById(id).classList.remove('hidden'); if (id === 'settingsModal') setTimeout(updateStorageDisplay, 50); }
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
 // ════════════════════════════════════════════════
@@ -4833,6 +4849,80 @@ document.addEventListener('keydown', function(e) {
 });
 
 
+// ════════════════════════════════════════════════
+// Storage Management
+// ════════════════════════════════════════════════
+function getStorageSize() {
+  try {
+    var data = localStorage.getItem(LKEY) || '';
+    return new Blob([data]).size;
+  } catch(e) { return 0; }
+}
+
+function updateStorageDisplay() {
+  var size = getStorageSize();
+  var kb   = Math.round(size / 1024);
+  var mb   = (size / (1024*1024)).toFixed(2);
+  var pct  = Math.min(100, Math.round(size / (5 * 1024 * 1024) * 100));
+
+  var fill = document.getElementById('storageBarFill');
+  var info = document.getElementById('storageInfo');
+  if (!fill || !info) return;
+
+  // Color: green < 50%, orange 50-80%, red > 80%
+  fill.style.width = pct + '%';
+  fill.style.background = pct > 80 ? 'var(--red)' : pct > 50 ? 'var(--orange)' : 'var(--green)';
+
+  var dayCount = (S.days||[]).length;
+  var objCount = (S.days||[]).reduce(function(n, d){ return n + (d.objects ? d.objects.length : 0); }, 0);
+  var zettelCount = (S.zettels||[]).length;
+
+  info.textContent = mb + ' MB von ~5 MB (' + pct + '%) · ' + dayCount + ' Tage · ' + objCount + ' Objekte · ' + zettelCount + ' Zettel';
+
+  if (pct > 80) {
+    info.style.color = 'var(--red)';
+    info.textContent += ' ⚠ Speicher fast voll — Alte Tage komprimieren';
+  } else {
+    info.style.color = '';
+  }
+}
+
+function compactOldDays(keepDays) {
+  keepDays = keepDays || 30;
+  var cutoff = new Date();
+  cutoff.setDate(cutoff.getDate() - keepDays);
+  var cutoffStr = cutoff.toISOString().split('T')[0];
+
+  var before = getStorageSize();
+  var compacted = 0;
+
+  S.days = (S.days||[]).map(function(day) {
+    if (day.date >= cutoffStr) return day; // keep recent days intact
+    // Older days: keep objects + summary, drop raw cards
+    if (day.cards && day.cards.length > 0) {
+      day._cardsCompacted = day.cards.length;
+      day.cards = [];
+      compacted++;
+    }
+    return day;
+  });
+
+  save();
+  var after = getStorageSize();
+  var savedKb = Math.round((before - after) / 1024);
+
+  var infoEl = document.getElementById('compactInfo');
+  if (infoEl) {
+    infoEl.textContent = compacted > 0
+      ? '✓ ' + compacted + ' Tage komprimiert, ' + savedKb + ' KB freigegeben'
+      : 'Keine alten Tage zu komprimieren (alle < ' + keepDays + ' Tage alt)';
+    infoEl.style.color = 'var(--green)';
+  }
+  updateStorageDisplay();
+  toast('Komprimiert — ' + savedKb + ' KB freigegeben');
+}
+
+
 function init() {
   load();
   document.getElementById('headerDate').textContent = todayDE();
@@ -4846,6 +4936,13 @@ function init() {
 }
 
 init();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('sw.js').catch(function() {});
+  });
+}
 </script>
 </body>
 </html>
