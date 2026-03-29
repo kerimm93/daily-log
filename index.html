@@ -1871,25 +1871,14 @@ select:focus { outline: none; border-color: var(--border-mid); }
 
     <!-- Export section -->
     <div class="section" style="border-color:var(--accent-dim)">
-      <div class="section-title">
-        Tage exportieren & importieren
-        <button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="selectAllDays()">Alle wählen</button>
-      </div>
+      <div class="section-title">Vergangene Tage importieren</div>
       <p style="font-family:var(--serif);font-size:0.85rem;color:var(--ink-mid);line-height:1.65;margin-bottom:12px">
-        Wähle Tage aus, kopiere den Export-Prompt und schicke ihn an Claude. Das zurückgegebene JSON importierst du hier.
+        Kopiere den Import-Prompt, füge deine Notizen ein und schick ihn an Claude.
+        Das zurückgegebene JSON importierst du hier — du kannst beim Import das Datum überschreiben.
       </p>
-
-      <div class="btn-row" style="margin-bottom:12px">
-        <button class="btn btn-primary btn-sm" onclick="generateDayExportPrompt()">Export-Prompt generieren</button>
+      <div class="btn-row">
+        <button class="btn btn-primary btn-sm" onclick="generateDayExportPrompt()">↓ Import-Prompt kopieren</button>
         <button class="btn btn-sm btn-ghost" onclick="openImportModal()">↑ JSON importieren</button>
-      </div>
-
-      <div class="prompt-block" id="dayExportBlock" style="display:none">
-        <div class="prompt-block-header">
-          <span class="prompt-block-label">Export-Prompt</span>
-          <button class="btn btn-sm" onclick="copyDayExportPrompt()">Kopieren</button>
-        </div>
-        <pre id="dayExportPromptText" style="max-height:300px"></pre>
       </div>
     </div>
 
@@ -3430,16 +3419,6 @@ function selectAllDays() {
 }
 
 function generateDayExportPrompt() {
-  var dates = Object.keys(selectedExportDays).sort();
-  if (!dates.length) { toast('Keine Tage ausgewählt.'); return; }
-
-  var dayData = dates.map(function(date) {
-    var day = (S.days||[]).find(function(d){ return d.date === date; });
-    if (!day) return null;
-    var cards = (day.cards||[]).map(function(c){ return c.text || ''; }).filter(Boolean);
-    return { date: date, cards: cards };
-  }).filter(Boolean);
-
   var cfg = S.config.context || '';
   var prompt = [
     '# Tage-Import für Daily Log App',
@@ -3489,20 +3468,16 @@ function generateDayExportPrompt() {
     '',
   ].filter(function(l){ return l !== null; });
 
-  dayData.forEach(function(day) {
-    prompt.push('### ' + day.date);
-    day.cards.forEach(function(c, i) {
-      prompt.push((i+1) + '. ' + c.slice(0, 800));
-    });
-    prompt.push('');
-  });
+  prompt.push('## Deine Notizen');
+  prompt.push('');
+  prompt.push('Füge hier deinen Text ein — Tagesprotokoll, Voice-Memo-Transkript oder Journal-Einträge.');
+  prompt.push('Gib das Datum im Format YYYY-MM-DD am Anfang an.');
+  prompt.push('');
+  prompt.push('--- HIER TEXT EINFÜGEN ---');
 
   var text = prompt.join('\n');
-  var block = document.getElementById('dayExportBlock');
-  var pre   = document.getElementById('dayExportPromptText');
-  if (block) block.style.display = 'block';
-  if (pre)   pre.textContent = text;
-  toast('Prompt für ' + dates.length + ' Tag(e) generiert');
+  copyText(text, '✓ Import-Prompt kopiert');
+  toast('Import-Prompt kopiert — füge deine Notizen ein und schick ihn an Claude');
 }
 
 function copyDayExportPrompt() {
@@ -3521,6 +3496,8 @@ function openImportModal() {
 function runDayImport() {
   var ta  = document.getElementById('importJsonText');
   var fb  = document.getElementById('importFeedback');
+  var dateEl = document.getElementById('importDate');
+  var overrideDate = (dateEl && dateEl.value) ? dateEl.value : null;
   if (!ta) return;
   var raw = ta.value.trim();
   // Strip markdown code fences if present
@@ -3544,14 +3521,15 @@ function runDayImport() {
   var totalDays = 0;
 
   days.forEach(function(dayData) {
-    if (!dayData.date || !dayData.objects) return;
+    var targetDate = overrideDate || dayData.date;
+    if (!targetDate || !dayData.objects) return;
     totalDays++;
 
     // Find or create day in S.days
-    var existing = (S.days||[]).find(function(d){ return d.date === dayData.date; });
+    var existing = (S.days||[]).find(function(d){ return d.date === targetDate; });
     if (!existing) {
       if (!S.days) S.days = [];
-      existing = { date: dayData.date, cards: [], objects: [] };
+      existing = { date: targetDate, cards: [], objects: [] };
       S.days.push(existing);
     }
     if (!existing.objects) existing.objects = [];
@@ -5044,10 +5022,12 @@ function renderFeedList() {
   var items = TODAY.feedItems || [];
   var todayStr = today();
   var filtered = items.filter(function(i) {
-    // Date filter: use loadedAt (when user imported) as primary
-    // Falls back to item date only if no loadedAt
-    var checkDate = i.loadedAt ? i.loadedAt.slice(0, 10) : (i.date ? i.date.slice(0, 10) : null);
-    if (checkDate && checkDate !== todayStr) return false;
+    // Date filter: use loadedAt as primary, fall back to item date
+    // Items with no date at all are shown only for viewDate
+    var checkDate = i.loadedAt
+      ? i.loadedAt.slice(0, 10)
+      : (i.date ? i.date.slice(0, 10) : viewDate);
+    if (checkDate !== viewDate) return false;
     // Hide processed items (adopted/ignored) unless explicitly showing all
     if (feedFilter !== 'all' && i.status && i.status !== 'open') return false;
     if (feedFilter === 'readwise')  return i.source === 'readwise';
@@ -6439,9 +6419,14 @@ if ('serviceWorker' in navigator) {
   <div class="modal-box" style="max-width:580px">
     <div class="modal-title">↑ Tage importieren</div>
     <p style="font-family:var(--serif);font-size:0.88rem;color:var(--ink-mid);line-height:1.65;margin-bottom:14px">
-      Füge das JSON ein, das Claude zurückgegeben hat. Die Objekte werden den jeweiligen vergangenen Tagen hinzugefügt.
+      Füge das JSON ein, das Claude zurückgegeben hat.
     </p>
-    <textarea id="importJsonText" style="min-height:180px;font-family:var(--mono);font-size:0.72rem" placeholder='{ "days": [ { "date": "2026-03-20", "objects": [...] } ] }'></textarea>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
+      <label style="font-family:var(--mono);font-size:0.7rem;color:var(--ink-mid)">Datum überschreiben:</label>
+      <input type="date" id="importDate" style="font-family:var(--mono);font-size:0.78rem;padding:6px 10px">
+      <span style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim)">(leer = Datum aus JSON)</span>
+    </div>
+    <textarea id="importJsonText" style="min-height:180px;font-family:var(--mono);font-size:0.72rem" placeholder='{ "days": [ { "date": "2026-03-29", "objects": [...] } ] }'></textarea>
     <div id="importFeedback" style="font-family:var(--mono);font-size:0.7rem;color:var(--ink-dim);margin-top:8px;min-height:1.2em"></div>
     <div class="btn-row" style="margin-top:14px">
       <button class="btn btn-primary" onclick="runDayImport()">Importieren</button>
