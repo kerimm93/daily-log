@@ -1868,6 +1868,32 @@ select:focus { outline: none; border-color: var(--border-mid); }
   <!-- Tab: Verlauf                               -->
   <!-- ══════════════════════════════════════════ -->
   <div id="panel-verlauf" class="panel">
+
+    <!-- Export section -->
+    <div class="section" style="border-color:var(--accent-dim)">
+      <div class="section-title">
+        Tage exportieren & importieren
+        <button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="selectAllDays()">Alle wählen</button>
+      </div>
+      <p style="font-family:var(--serif);font-size:0.85rem;color:var(--ink-mid);line-height:1.65;margin-bottom:12px">
+        Wähle Tage aus, kopiere den Export-Prompt und schicke ihn an Claude. Das zurückgegebene JSON importierst du hier.
+      </p>
+
+      <div class="btn-row" style="margin-bottom:12px">
+        <button class="btn btn-primary btn-sm" onclick="generateDayExportPrompt()">Export-Prompt generieren</button>
+        <button class="btn btn-sm btn-ghost" onclick="openImportModal()">↑ JSON importieren</button>
+      </div>
+
+      <div class="prompt-block" id="dayExportBlock" style="display:none">
+        <div class="prompt-block-header">
+          <span class="prompt-block-label">Export-Prompt</span>
+          <button class="btn btn-sm" onclick="copyDayExportPrompt()">Kopieren</button>
+        </div>
+        <pre id="dayExportPromptText" style="max-height:300px"></pre>
+      </div>
+    </div>
+
+    <!-- History list -->
     <div class="section">
       <div class="section-title">Gespeicherte Tage</div>
       <div id="historyList"><div class="empty-state">Noch keine gespeicherten Tage.</div></div>
@@ -3360,24 +3386,209 @@ function finishDay() {
 // ════════════════════════════════════════════════
 // History
 // ════════════════════════════════════════════════
+var selectedExportDays = {};
+
 function renderHistory() {
   var container = document.getElementById('historyList');
   if (!S.days || !S.days.length) {
     container.innerHTML = '<div class="empty-state">Noch keine gespeicherten Tage.</div>';
     return;
   }
-  container.innerHTML = S.days.slice(0, 30).map(function(day) {
-    var objCount = day.objects ? day.objects.filter(function(o){ return !o.dismissed; }).length : 0;
+  container.innerHTML = S.days.slice(0, 60).map(function(day) {
+    var objCount  = day.objects ? day.objects.filter(function(o){ return !o.dismissed; }).length : 0;
     var cardCount = day.cards ? day.cards.length : 0;
-    return '<div style="padding:12px 0; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:baseline; gap:12px">' +
-      '<div>' +
-        '<div style="font-family:var(--mono); font-size:0.78rem; color:var(--ink)">' + esc(day.date) + '</div>' +
-        '<div style="font-family:var(--mono); font-size:0.63rem; color:var(--ink-dim); margin-top:3px">' +
+    var hasCards  = cardCount > 0;
+    var checked   = selectedExportDays[day.date] ? 'checked' : '';
+    var d = new Date(day.date + 'T00:00:00');
+    var label = d.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
+    return '<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">' +
+      '<input type="checkbox" ' + checked + (hasCards ? '' : ' disabled title="Keine Rohdaten"') +
+        ' style="width:15px;height:15px;accent-color:var(--accent);flex-shrink:0;cursor:pointer"' +
+        ' onchange="toggleExportDay(\'' + day.date + '\',this.checked)">' +
+      '<div style="flex:1;cursor:pointer" onclick="navToDate(\'' + day.date + '\');switchTab(\'sammeln\')">' +
+        '<div style="font-family:var(--mono);font-size:0.78rem;color:var(--ink)">' + esc(day.date) +
+          ' <span style="color:var(--ink-dim);font-size:0.65rem">· ' + label + '</span></div>' +
+        '<div style="font-family:var(--mono);font-size:0.63rem;color:var(--ink-dim);margin-top:2px">' +
           cardCount + ' Karten · ' + objCount + ' Objekte' +
+          (!hasCards ? ' <span style="color:var(--orange)">· keine Rohdaten</span>' : '') +
         '</div>' +
       '</div>' +
     '</div>';
   }).join('');
+}
+
+function toggleExportDay(date, checked) {
+  if (checked) selectedExportDays[date] = true;
+  else delete selectedExportDays[date];
+}
+
+function selectAllDays() {
+  (S.days||[]).forEach(function(day) {
+    if (day.cards && day.cards.length) selectedExportDays[day.date] = true;
+  });
+  renderHistory();
+}
+
+function generateDayExportPrompt() {
+  var dates = Object.keys(selectedExportDays).sort();
+  if (!dates.length) { toast('Keine Tage ausgewählt.'); return; }
+
+  var dayData = dates.map(function(date) {
+    var day = (S.days||[]).find(function(d){ return d.date === date; });
+    if (!day) return null;
+    var cards = (day.cards||[]).map(function(c){ return c.text || ''; }).filter(Boolean);
+    return { date: date, cards: cards };
+  }).filter(Boolean);
+
+  var cfg = S.config.context || '';
+  var prompt = [
+    '# Tage-Import für Daily Log App',
+    '',
+    'Ich habe eine Journal-App in der ich täglich Karten (Rohnotizen) sammle.',
+    'Bitte extrahiere aus den folgenden Karten strukturierte Objekte für jeden Tag.',
+    '',
+    cfg ? '## Kontext über mich\n' + cfg + '\n' : null,
+    '## Deine Aufgabe',
+    'Für jeden Tag unten: lies alle Karten und extrahiere daraus Objekte.',
+    'Gib das Ergebnis als JSON zurück — **nur JSON, kein Text davor oder danach**.',
+    '',
+    '## JSON-Format',
+    '```',
+    '{',
+    '  "days": [',
+    '    {',
+    '      "date": "YYYY-MM-DD",',
+    '      "objects": [',
+    '        {',
+    '          "id": "generated-uuid",',
+    '          "text": "Konkreter Objekttext",',
+    '          "typ": "aufgabe|notiz|idee|ereignis|referenz",',
+    '          "status": "open|x|>|<",',
+    '          "zeit": "HH:MM oder leer",',
+    '          "energie": "niedrig|normal|hoch oder leer",',
+    '          "contexts": ["@kontext1"]',
+    '        }',
+    '      ]',
+    '    }',
+    '  ]',
+    '}',
+    '```',
+    '',
+    '## Extraktionsregeln',
+    '- Aufgaben (Aktionsverb + Objekt) → typ: "aufgabe"',
+    '- Notizen, Beobachtungen, Fakten → typ: "notiz"',
+    '- Ideen, Einfälle → typ: "idee"',
+    '- Ereignisse, Treffen, was passiert ist → typ: "ereignis"',
+    '- Referenzen, Links, Buchverweise → typ: "referenz"',
+    '- Status ">" wenn migriert/verschoben, "x" wenn erledigt, "<" wenn terminiert',
+    '- @kontext aus dem Text extrahieren wenn vorhanden',
+    '- Jeden Sinnabschnitt als eigenes Objekt, nicht alles in ein Objekt',
+    '- IDs als kurze eindeutige Strings wie "imp-20260320-001"',
+    '',
+    '## Rohdaten',
+    '',
+  ].filter(function(l){ return l !== null; });
+
+  dayData.forEach(function(day) {
+    prompt.push('### ' + day.date);
+    day.cards.forEach(function(c, i) {
+      prompt.push((i+1) + '. ' + c.slice(0, 800));
+    });
+    prompt.push('');
+  });
+
+  var text = prompt.join('\n');
+  var block = document.getElementById('dayExportBlock');
+  var pre   = document.getElementById('dayExportPromptText');
+  if (block) block.style.display = 'block';
+  if (pre)   pre.textContent = text;
+  toast('Prompt für ' + dates.length + ' Tag(e) generiert');
+}
+
+function copyDayExportPrompt() {
+  var pre = document.getElementById('dayExportPromptText');
+  if (pre && pre.textContent) copyText(pre.textContent, '✓ Export-Prompt kopiert');
+}
+
+function openImportModal() {
+  var ta = document.getElementById('importJsonText');
+  var fb = document.getElementById('importFeedback');
+  if (ta) ta.value = '';
+  if (fb) fb.textContent = '';
+  openModal('importModal');
+}
+
+function runDayImport() {
+  var ta  = document.getElementById('importJsonText');
+  var fb  = document.getElementById('importFeedback');
+  if (!ta) return;
+  var raw = ta.value.trim();
+  // Strip markdown code fences if present
+  raw = raw.replace(/^```json?\n?/, '').replace(/\n?```$/, '').trim();
+
+  var parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch(e) {
+    if (fb) fb.textContent = '✗ Ungültiges JSON: ' + e.message;
+    return;
+  }
+
+  var days = parsed.days || parsed;
+  if (!Array.isArray(days)) {
+    if (fb) fb.textContent = '✗ Erwartet { "days": [...] } oder ein Array von Tagen.';
+    return;
+  }
+
+  var totalObjs = 0;
+  var totalDays = 0;
+
+  days.forEach(function(dayData) {
+    if (!dayData.date || !dayData.objects) return;
+    totalDays++;
+
+    // Find or create day in S.days
+    var existing = (S.days||[]).find(function(d){ return d.date === dayData.date; });
+    if (!existing) {
+      if (!S.days) S.days = [];
+      existing = { date: dayData.date, cards: [], objects: [] };
+      S.days.push(existing);
+    }
+    if (!existing.objects) existing.objects = [];
+
+    // Merge objects by id (don't duplicate)
+    var existingIds = existing.objects.map(function(o){ return o.id; });
+    var added = 0;
+    (dayData.objects||[]).forEach(function(obj) {
+      if (!obj.id) obj.id = 'imp-' + dayData.date + '-' + Math.random().toString(36).slice(2,7);
+      if (existingIds.indexOf(obj.id) === -1) {
+        obj.createdAt = obj.createdAt || (dayData.date + 'T12:00:00.000Z');
+        obj.imported  = true;
+        existing.objects.push(obj);
+        added++;
+      }
+    });
+    totalObjs += added;
+
+    // Register any new contexts
+    (dayData.objects||[]).forEach(function(obj) {
+      if (obj.contexts) obj.contexts.forEach(function(c) {
+        if (!S.config.contexts) S.config.contexts = [];
+        if (!S.config.contexts.includes(c)) S.config.contexts.push(c);
+      });
+    });
+  });
+
+  // Sort S.days by date desc
+  S.days.sort(function(a, b){ return b.date > a.date ? 1 : -1; });
+
+  save();
+  gistAutoSyncDebounced();
+  renderHistory();
+
+  if (fb) fb.textContent = '✓ ' + totalObjs + ' Objekte in ' + totalDays + ' Tag(e) importiert.';
+  if (fb) fb.style.color = 'var(--green)';
+  toast('✓ Import abgeschlossen: ' + totalObjs + ' Objekte');
 }
 
 // ════════════════════════════════════════════════
@@ -6217,6 +6428,25 @@ if ('serviceWorker' in navigator) {
       ⬡ Zettel <span class="nav-drawer-badge" id="dbadge-zettel" style="display:none">0</span>
     </button>
     <button class="nav-drawer-item" id="dnav-verlauf" onclick="drawerNav('verlauf')">◷ Verlauf</button>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- Day Import Modal                               -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="modal-bg hidden" id="importModal">
+  <div class="modal-box" style="max-width:580px">
+    <div class="modal-title">↑ Tage importieren</div>
+    <p style="font-family:var(--serif);font-size:0.88rem;color:var(--ink-mid);line-height:1.65;margin-bottom:14px">
+      Füge das JSON ein, das Claude zurückgegeben hat. Die Objekte werden den jeweiligen vergangenen Tagen hinzugefügt.
+    </p>
+    <textarea id="importJsonText" style="min-height:180px;font-family:var(--mono);font-size:0.72rem" placeholder='{ "days": [ { "date": "2026-03-20", "objects": [...] } ] }'></textarea>
+    <div id="importFeedback" style="font-family:var(--mono);font-size:0.7rem;color:var(--ink-dim);margin-top:8px;min-height:1.2em"></div>
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-primary" onclick="runDayImport()">Importieren</button>
+      <button class="btn btn-ghost" onclick="closeModal('importModal')">Abbrechen</button>
+    </div>
   </div>
 </div>
 
