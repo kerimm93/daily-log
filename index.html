@@ -1,0 +1,1743 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daily Log</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
+
+:root {
+  --bg:         #111110;
+  --bg-mid:     #161614;
+  --surface:    #1c1c1a;
+  --surface-2:  #222220;
+  --surface-3:  #2a2a27;
+  --border:     #2c2c29;
+  --border-mid: #3a3a36;
+
+  --ink:        #e6e4dc;
+  --ink-mid:    #9a9890;
+  --ink-dim:    #4e4c46;
+
+  --accent:     #c4b48e;
+  --accent-dim: #6e6248;
+  --green:      #6a9870;
+  --green-bg:   rgba(106,152,112,0.08);
+  --red:        #9e5a52;
+  --red-bg:     rgba(158,90,82,0.08);
+  --blue:       #6282a0;
+  --blue-bg:    rgba(98,130,160,0.08);
+  --orange:     #b07848;
+  --orange-bg:  rgba(176,120,72,0.08);
+  --purple:     #7e6a9e;
+  --purple-bg:  rgba(126,106,158,0.08);
+
+  --serif: 'Lora', Georgia, serif;
+  --mono:  'JetBrains Mono', 'Courier New', monospace;
+  --r: 5px;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 16px; }
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--serif);
+  min-height: 100vh;
+  line-height: 1.7;
+}
+
+/* ── Layout ── */
+#app { max-width: 860px; margin: 0 auto; padding: 28px 18px 80px; }
+
+/* ── Header ── */
+.app-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 16px;
+  margin-bottom: 24px;
+}
+.app-title { font-family: var(--serif); font-weight: 600; font-size: 1rem; letter-spacing: 0.01em; }
+.app-date  { font-family: var(--mono); font-size: 0.72rem; color: var(--ink-dim); letter-spacing: 0.04em; }
+.header-right { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+
+/* ── Tabs ── */
+.tabs {
+  display: flex;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 22px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  gap: 0;
+}
+.tabs::-webkit-scrollbar { display: none; }
+.tab-btn {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: 9px 16px 11px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: color .15s, border-color .15s;
+  position: relative;
+}
+.tab-btn:hover { color: var(--ink-mid); }
+.tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+.tab-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 16px; height: 16px;
+  background: var(--accent-dim);
+  color: var(--bg);
+  border-radius: 8px;
+  font-size: 0.6rem;
+  font-weight: 600;
+  padding: 0 4px;
+  margin-left: 5px;
+  vertical-align: middle;
+}
+
+/* ── Panels ── */
+.panel { display: none; }
+.panel.active { display: block; animation: fadeIn .12s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(2px); } to { opacity: 1; transform: none; } }
+
+/* ── Section ── */
+.section {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 18px 20px;
+  margin-bottom: 14px;
+}
+.section-title {
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* ── Forms ── */
+label {
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+  display: block;
+  margin-bottom: 5px;
+}
+textarea, input[type="text"], input[type="password"] {
+  width: 100%;
+  background: var(--bg-mid);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  color: var(--ink);
+  font-family: var(--serif);
+  font-size: 0.93rem;
+  line-height: 1.7;
+  padding: 11px 13px;
+  resize: vertical;
+  transition: border-color .15s;
+}
+textarea:focus, input:focus { outline: none; border-color: var(--border-mid); }
+textarea { min-height: 120px; }
+.input-meta {
+  font-family: var(--mono);
+  font-size: 0.63rem;
+  color: var(--ink-dim);
+  margin-top: 5px;
+  display: flex;
+  gap: 12px;
+}
+.input-meta span.lit { color: var(--accent-dim); }
+
+/* ── Buttons ── */
+.btn {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  padding: 8px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  cursor: pointer;
+  background: var(--surface-2);
+  color: var(--ink-mid);
+  transition: background .12s, color .12s, border-color .12s;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 34px;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--surface-3); color: var(--ink); border-color: var(--border-mid); }
+.btn:active { transform: translateY(1px); }
+.btn:disabled { opacity: 0.35; cursor: not-allowed; transform: none; }
+.btn-primary { background: var(--accent); color: #111110; border-color: var(--accent); font-weight: 600; }
+.btn-primary:hover { background: #d0c09e; border-color: #d0c09e; color: #111110; }
+.btn-ghost { background: none; border-color: transparent; color: var(--ink-dim); }
+.btn-ghost:hover { background: var(--surface-2); border-color: var(--border); color: var(--ink-mid); }
+.btn-danger { background: var(--red-bg); border-color: var(--red); color: var(--red); }
+.btn-danger:hover { background: rgba(158,90,82,0.18); }
+.btn-sm { font-size: 0.62rem; padding: 5px 10px; min-height: 28px; }
+.btn-row { display: flex; gap: 7px; flex-wrap: wrap; margin-top: 11px; }
+
+/* ── Card System ── */
+.card-list { display: flex; flex-direction: column; gap: 10px; }
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+  transition: border-color .15s;
+}
+.card:hover { border-color: var(--border-mid); }
+.card.processed { border-color: var(--green); }
+.card.selected { border-color: var(--accent); }
+
+.card-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--bg-mid);
+  border-bottom: 1px solid var(--border);
+  cursor: pointer;
+  user-select: none;
+}
+.card-time {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  color: var(--ink-dim);
+  letter-spacing: 0.04em;
+  flex-shrink: 0;
+}
+.card-type-badge {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.card-type-log    { background: var(--blue-bg);   color: var(--blue); }
+.card-type-voice  { background: var(--purple-bg); color: var(--purple); }
+.card-type-email  { background: var(--orange-bg); color: var(--orange); }
+.card-type-free   { background: var(--surface-3); color: var(--ink-dim); }
+
+.card-preview {
+  font-family: var(--serif);
+  font-size: 0.84rem;
+  color: var(--ink-mid);
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: italic;
+}
+.card-status {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--ink-dim);
+  flex-shrink: 0;
+}
+.card-status.done { color: var(--green); }
+.card-chevron {
+  color: var(--ink-dim);
+  font-size: 0.7rem;
+  flex-shrink: 0;
+  transition: transform .15s;
+}
+.card.open .card-chevron { transform: rotate(90deg); }
+
+.card-body { display: none; padding: 14px; border-top: 1px solid var(--border); }
+.card.open .card-body { display: block; }
+
+.card-raw {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  color: var(--ink-mid);
+  line-height: 1.65;
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 12px;
+  max-height: 260px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+/* ── Objects ── */
+.obj-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+
+.obj-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--r);
+  border: 1px solid var(--border);
+  background: var(--bg-mid);
+  transition: border-color .12s;
+}
+.obj-item.dismissed { opacity: 0.35; }
+
+.obj-icon {
+  font-size: 0.85rem;
+  flex-shrink: 0;
+  margin-top: 2px;
+  width: 18px;
+  text-align: center;
+}
+.obj-content { flex: 1; min-width: 0; }
+.obj-text {
+  font-family: var(--serif);
+  font-size: 0.88rem;
+  color: var(--ink);
+  line-height: 1.55;
+}
+.obj-meta {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--ink-dim);
+  margin-top: 2px;
+}
+.obj-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+.obj-type-label {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  letter-spacing: 0.05em;
+  padding: 2px 6px;
+  border-radius: 3px;
+  margin-top: 3px;
+  display: inline-block;
+}
+.t-aufgabe    { background: var(--blue-bg);   color: var(--blue);   border: 1px solid rgba(98,130,160,0.2); }
+.t-ereignis   { background: var(--green-bg);  color: var(--green);  border: 1px solid rgba(106,152,112,0.2); }
+.t-notiz      { background: var(--surface-3); color: var(--ink-mid);border: 1px solid var(--border); }
+.t-idee       { background: var(--orange-bg); color: var(--orange); border: 1px solid rgba(176,120,72,0.2); }
+.t-zitat      { background: var(--purple-bg); color: var(--purple); border: 1px solid rgba(126,106,158,0.2); }
+.t-sop        { background: var(--red-bg);    color: var(--red);    border: 1px solid rgba(158,90,82,0.2); }
+.t-beobachtung{ background: var(--blue-bg);   color: var(--blue);   border: 1px solid rgba(98,130,160,0.2); }
+
+/* ── Prompt Block ── */
+.prompt-block {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  margin-top: 12px;
+}
+.prompt-block-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+}
+.prompt-block-label {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+.prompt-block pre {
+  font-family: var(--mono);
+  font-size: 0.76rem;
+  line-height: 1.6;
+  color: var(--ink-mid);
+  padding: 14px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+/* Result paste area */
+.result-area {
+  margin-top: 10px;
+}
+.result-area textarea {
+  font-family: var(--mono);
+  font-size: 0.78rem;
+  min-height: 100px;
+  border-color: var(--accent-dim);
+}
+.result-area textarea:focus { border-color: var(--accent); }
+
+/* ── Pipeline Nav ── */
+.pipeline-nav {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  overflow: hidden;
+}
+.pipe-step {
+  flex: 1;
+  text-align: center;
+  padding: 9px 4px;
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  letter-spacing: 0.03em;
+  color: var(--ink-dim);
+  background: var(--surface);
+  border-right: 1px solid var(--border);
+  cursor: pointer;
+  transition: background .12s, color .12s;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pipe-step:last-child { border-right: none; }
+.pipe-step:hover { background: var(--surface-2); color: var(--ink-mid); }
+.pipe-step.active { background: var(--surface-2); color: var(--accent); }
+.pipe-step.done { color: var(--green); }
+.pipe-icon { display: block; font-size: 0.85rem; margin-bottom: 1px; }
+
+/* ── Objects Summary ── */
+.obj-summary {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.obj-count {
+  font-family: var(--mono);
+  font-size: 0.64rem;
+  padding: 4px 9px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  color: var(--ink-dim);
+}
+
+/* ── Notice ── */
+.notice {
+  font-family: var(--serif);
+  font-size: 0.85rem;
+  color: var(--ink-mid);
+  line-height: 1.7;
+  background: var(--bg-mid);
+  border-left: 2px solid var(--border-mid);
+  padding: 9px 13px;
+  border-radius: 0 var(--r) var(--r) 0;
+  margin-bottom: 12px;
+}
+.notice.ok   { border-left-color: var(--green); }
+.notice.warn { border-left-color: var(--accent-dim); }
+
+/* ── Empty state ── */
+.empty-state {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--ink-dim);
+  font-family: var(--serif);
+  font-size: 0.9rem;
+  font-style: italic;
+}
+
+/* ── Modal ── */
+.modal-bg {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(3px);
+  z-index: 300;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+.modal-bg.hidden { display: none; }
+.modal-box {
+  background: var(--surface);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--r);
+  padding: 26px;
+  max-width: 520px;
+  width: 100%;
+  max-height: 90vh;
+  overflow-y: auto;
+}
+.modal-title {
+  font-family: var(--mono);
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  margin-bottom: 18px;
+}
+
+/* ── Toast ── */
+#toast {
+  position: fixed;
+  bottom: 22px; left: 50%;
+  transform: translateX(-50%) translateY(70px);
+  background: var(--surface-2);
+  border: 1px solid var(--border-mid);
+  color: var(--ink-mid);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  padding: 9px 16px;
+  border-radius: 20px;
+  transition: transform .22s ease;
+  pointer-events: none;
+  z-index: 500;
+  white-space: nowrap;
+}
+#toast.show { transform: translateX(-50%) translateY(0); }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: var(--bg); }
+::-webkit-scrollbar-thumb { background: var(--border-mid); border-radius: 2px; }
+
+/* ── Responsive ── */
+@media (max-width: 600px) {
+  #app { padding: 16px 12px 60px; }
+  .section { padding: 14px; }
+  .pipe-step { font-size: 0.55rem; }
+}
+
+/* ── Select type dropdown ── */
+select {
+  background: var(--bg-mid);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  padding: 5px 8px;
+  cursor: pointer;
+}
+select:focus { outline: none; border-color: var(--border-mid); }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- Header -->
+  <header class="app-header">
+    <div>
+      <div class="app-title">Daily Log</div>
+      <div class="app-date" id="headerDate"></div>
+    </div>
+    <div class="header-right">
+      <button class="btn btn-sm btn-ghost" onclick="openModal('settingsModal')">⚙ Einstellungen</button>
+    </div>
+  </header>
+
+  <!-- Tabs -->
+  <div class="tabs">
+    <button class="tab-btn active" onclick="switchTab('sammeln')" id="tab-sammeln">
+      Sammeln <span class="tab-badge" id="badge-karten">0</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('objekte')" id="tab-objekte">
+      Objekte <span class="tab-badge" id="badge-objekte">0</span>
+    </button>
+    <button class="tab-btn" onclick="switchTab('abschluss')" id="tab-abschluss">
+      Abschluss
+    </button>
+    <button class="tab-btn" onclick="switchTab('verlauf')" id="tab-verlauf">
+      Verlauf
+    </button>
+  </div>
+
+  <!-- ══════════════════════════════════════════ -->
+  <!-- Tab: Sammeln                               -->
+  <!-- ══════════════════════════════════════════ -->
+  <div id="panel-sammeln" class="panel active">
+
+    <!-- Neue Karte hinzufügen -->
+    <div class="section">
+      <div class="section-title">Neue Karte hinzufügen</div>
+
+      <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; align-items:center">
+        <label style="margin:0; white-space:nowrap">Typ:</label>
+        <select id="newCardType">
+          <option value="log">📋 Getippter Log</option>
+          <option value="voice">🎙 Voice-Memo-Export</option>
+          <option value="email">✉ E-Mail-Report</option>
+          <option value="free">📝 Freier Text</option>
+        </select>
+      </div>
+
+      <textarea id="newCardText" placeholder="Inhalt hier einfügen – Zeitstempel-Bullets, Voice-Memo-Obsidian-Export, E-Mail-Report, oder freier Text..."></textarea>
+      <div class="input-meta">
+        <span id="newCardWordCount">0 Wörter</span>
+        <span id="newCardLines">0 Zeilen</span>
+      </div>
+
+      <div class="btn-row">
+        <button class="btn btn-primary" onclick="addCard()">+ Karte speichern</button>
+        <button class="btn btn-ghost btn-sm" onclick="clearNewCard()">Leeren</button>
+      </div>
+    </div>
+
+    <!-- Co-Pilot -->
+    <div class="section" id="copilotSection" style="border-color: var(--accent-dim)">
+      <div class="section-title">Co-Pilot · Fokus-Modus</div>
+      <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:12px">
+        Generiert einen Prompt mit dem bisherigen Tag als Kontext — für einen begleitenden Chat der dich durch einen Fokus-Block führt. Den Abschlussbericht importierst du danach als neue Karte.
+      </p>
+      <div class="btn-row">
+        <button class="btn btn-sm" style="border-color:var(--accent-dim); color:var(--accent)" onclick="openModal('copilotModal')">⊕ Co-Pilot starten</button>
+        <button class="btn btn-ghost btn-sm" onclick="openModal('copilotImportModal')">↩ Bericht importieren</button>
+      </div>
+    </div>
+
+    <!-- Karten-Liste -->
+    <div class="section">
+      <div class="section-title">
+        Heutige Karten
+        <span style="margin-left:auto; font-family:var(--mono); font-size:0.6rem; color:var(--ink-dim)" id="kartenMeta"></span>
+      </div>
+      <div id="cardList" class="card-list">
+        <div class="empty-state">Noch keine Karten für heute.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════ -->
+  <!-- Tab: Objekte                               -->
+  <!-- ══════════════════════════════════════════ -->
+  <div id="panel-objekte" class="panel">
+
+    <!-- Objekt-Übersicht -->
+    <div class="section">
+      <div class="section-title">Extrahierte Objekte heute</div>
+      <div class="obj-summary" id="objSummary"></div>
+      <div id="objectList" class="obj-list">
+        <div class="empty-state">Noch keine Objekte extrahiert.<br>Gehe zu einer Karte und generiere einen Extraktions-Prompt.</div>
+      </div>
+    </div>
+
+    <!-- Karten zur Extraktion -->
+    <div class="section">
+      <div class="section-title">Karten zur Objekt-Extraktion</div>
+      <div id="extractCardList" class="card-list">
+        <div class="empty-state">Keine Karten vorhanden.</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════ -->
+  <!-- Tab: Abschluss                             -->
+  <!-- ══════════════════════════════════════════ -->
+  <div id="panel-abschluss" class="panel">
+
+    <!-- Pipeline Nav -->
+    <div class="pipeline-nav">
+      <div class="pipe-step active" id="pnav-1" onclick="goPipeStep(1)">
+        <span class="pipe-icon">✓</span>Aufgaben
+      </div>
+      <div class="pipe-step" id="pnav-2" onclick="goPipeStep(2)">
+        <span class="pipe-icon">📎</span>Scanner
+      </div>
+      <div class="pipe-step" id="pnav-3" onclick="goPipeStep(3)">
+        <span class="pipe-icon">📝</span>Daily Note
+      </div>
+      <div class="pipe-step" id="pnav-4" onclick="goPipeStep(4)">
+        <span class="pipe-icon">◦</span>BuJo
+      </div>
+      <div class="pipe-step" id="pnav-5" onclick="goPipeStep(5)">
+        <span class="pipe-icon">⬡</span>Zettelkasten
+      </div>
+    </div>
+
+    <!-- Schritt 1 -->
+    <div id="pipe-1" class="pipe-panel">
+      <div class="section">
+        <div class="section-title">Schritt 1 · Aufgaben-Extraktion</div>
+        <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
+          Extrahiert alle Aufgaben, To-dos und Next-Steps – explizite und implizite. Nutzt strukturierte Objekte + rohe Karten als Input.
+        </p>
+        <button class="btn btn-primary" onclick="generatePipePrompt(1)">Prompt generieren</button>
+        <div id="pipe-out-1" style="display:none">
+          <div class="prompt-block">
+            <div class="prompt-block-header">
+              <span class="prompt-block-label">Schritt 1 – Aufgaben</span>
+              <button class="btn btn-sm" onclick="copyPipePrompt(1)">Kopieren</button>
+            </div>
+            <pre id="pipe-text-1"></pre>
+          </div>
+          <div class="btn-row"><button class="btn" onclick="goPipeStep(2)">Weiter →</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Schritt 2 -->
+    <div id="pipe-2" class="pipe-panel" style="display:none">
+      <div class="section">
+        <div class="section-title">Schritt 2 · 📎 Forensischer Scanner</div>
+        <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
+          Findet Kandidaten für Weiterverarbeitung: Proto-Atomic Notes, SOP-Kandidaten, Poetry/Prosa, Systembeobachtungen, Zitate – mit Konfidenz-Score.
+        </p>
+        <button class="btn btn-primary" onclick="generatePipePrompt(2)">Prompt generieren</button>
+        <div id="pipe-out-2" style="display:none">
+          <div class="prompt-block">
+            <div class="prompt-block-header">
+              <span class="prompt-block-label">Schritt 2 – Scanner</span>
+              <button class="btn btn-sm" onclick="copyPipePrompt(2)">Kopieren</button>
+            </div>
+            <pre id="pipe-text-2"></pre>
+          </div>
+          <div class="btn-row"><button class="btn" onclick="goPipeStep(3)">Weiter →</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Schritt 3 -->
+    <div id="pipe-3" class="pipe-panel" style="display:none">
+      <div class="section">
+        <div class="section-title">Schritt 3 · Daily Note</div>
+        <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
+          Vollständige, verlustfreie Daily Note im Obsidian-Markdown-Format.
+        </p>
+        <button class="btn btn-primary" onclick="generatePipePrompt(3)">Prompt generieren</button>
+        <div id="pipe-out-3" style="display:none">
+          <div class="prompt-block">
+            <div class="prompt-block-header">
+              <span class="prompt-block-label">Schritt 3 – Daily Note</span>
+              <button class="btn btn-sm" onclick="copyPipePrompt(3)">Kopieren</button>
+            </div>
+            <pre id="pipe-text-3"></pre>
+          </div>
+          <div class="btn-row"><button class="btn" onclick="goPipeStep(4)">Weiter →</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Schritt 4 -->
+    <div id="pipe-4" class="pipe-panel" style="display:none">
+      <div class="section">
+        <div class="section-title">Schritt 4 · BuJo-Fassung</div>
+        <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
+          Kompakte Rapid-Logging-Version für das E-Paper-Tablet.
+        </p>
+        <button class="btn btn-primary" onclick="generatePipePrompt(4)">Prompt generieren</button>
+        <div id="pipe-out-4" style="display:none">
+          <div class="prompt-block">
+            <div class="prompt-block-header">
+              <span class="prompt-block-label">Schritt 4 – BuJo</span>
+              <button class="btn btn-sm" onclick="copyPipePrompt(4)">Kopieren</button>
+            </div>
+            <pre id="pipe-text-4"></pre>
+          </div>
+          <div class="btn-row"><button class="btn" onclick="goPipeStep(5)">Weiter →</button></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Schritt 5 -->
+    <div id="pipe-5" class="pipe-panel" style="display:none">
+      <div class="section">
+        <div class="section-title">Schritt 5 · Zettelkasten-Export</div>
+        <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
+          Atomare Obsidian-Notizen mit YAML-Frontmatter und Wikilinks.
+        </p>
+        <button class="btn btn-primary" onclick="generatePipePrompt(5)">Prompt generieren</button>
+        <div id="pipe-out-5" style="display:none">
+          <div class="prompt-block">
+            <div class="prompt-block-header">
+              <span class="prompt-block-label">Schritt 5 – Zettelkasten</span>
+              <button class="btn btn-sm" onclick="copyPipePrompt(5)">Kopieren</button>
+            </div>
+            <pre id="pipe-text-5"></pre>
+          </div>
+          <div class="notice ok" style="margin-top:14px">✓ Alle Schritte abgeschlossen.</div>
+          <div class="btn-row">
+            <button class="btn btn-primary" onclick="finishDay()">Tag abschließen & speichern</button>
+            <button class="btn" onclick="exportAllPipePrompts()">Alle 5 als .txt</button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Alle auf einmal -->
+    <div class="section" style="margin-top:8px">
+      <div class="section-title">Alle 5 Schritte auf einmal</div>
+      <button class="btn btn-sm" onclick="generateAllPipePrompts()">Alle generieren</button>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════ -->
+  <!-- Tab: Verlauf                               -->
+  <!-- ══════════════════════════════════════════ -->
+  <div id="panel-verlauf" class="panel">
+    <div class="section">
+      <div class="section-title">Gespeicherte Tage</div>
+      <div id="historyList"><div class="empty-state">Noch keine gespeicherten Tage.</div></div>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- Co-Pilot Start Modal                           -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="modal-bg hidden" id="copilotModal">
+  <div class="modal-box">
+    <div class="modal-title">⊕ Co-Pilot · Fokus-Modus starten</div>
+    <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
+      Kopiere den Prompt in einen neuen Chat (ChatGPT, Claude, etc.).<br>
+      Der Co-Pilot kennt deinen bisherigen Tag und begleitet dich durch den Fokus-Block.<br>
+      Am Ende: "Fokus-Modus beenden" sagen → Bericht kopieren → hier importieren.
+    </p>
+
+    <div style="margin-bottom:10px">
+      <label>Fokus-Thema / Intention (optional)</label>
+      <input type="text" id="copilotFocus" placeholder="z.B. Artikel schreiben, Braindump, Planung nächste Woche...">
+    </div>
+
+    <div style="margin-bottom:10px">
+      <label>Energie-Level jetzt</label>
+      <select id="copilotEnergie" style="width:100%">
+        <option value="">— nicht angeben —</option>
+        <option value="hoch">Hoch</option>
+        <option value="mittel">Mittel</option>
+        <option value="niedrig">Niedrig</option>
+      </select>
+    </div>
+
+    <div class="prompt-block" style="margin-top:14px">
+      <div class="prompt-block-header">
+        <span class="prompt-block-label">Co-Pilot-Prompt</span>
+        <button class="btn btn-sm" onclick="copyCopilotPrompt()">Kopieren</button>
+      </div>
+      <pre id="copilotPromptText" style="max-height:260px; display:none"></pre>
+      <div id="copilotPromptPlaceholder" style="padding:14px; font-family:var(--mono); font-size:0.72rem; color:var(--ink-dim)">
+        Klicke "Prompt generieren" um den Kontext-Prompt zu erstellen.
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-primary" onclick="generateCopilotPrompt()">Prompt generieren</button>
+      <button class="btn" onclick="closeModal('copilotModal')">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- Co-Pilot Bericht Import Modal                  -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="modal-bg hidden" id="copilotImportModal">
+  <div class="modal-box">
+    <div class="modal-title">↩ Fokus-Bericht importieren</div>
+    <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
+      Füge den Abschlussbericht aus dem Co-Pilot-Chat ein.<br>
+      Er wird als neue Karte gespeichert und kann danach extrahiert werden.
+    </p>
+    <label>Bericht-Text einfügen</label>
+    <textarea id="copilotImportText" style="min-height:160px" placeholder="Den Abschlussbericht aus dem Chat hier einfügen..."></textarea>
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-primary" onclick="importCopilotReport()">Als Karte speichern</button>
+      <button class="btn" onclick="closeModal('copilotImportModal')">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- Extraction Modal                               -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="modal-bg hidden" id="extractModal">
+  <div class="modal-box">
+    <div class="modal-title">Objekte extrahieren</div>
+    <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
+      1. Kopiere den Prompt unten in ChatGPT oder Claude.<br>
+      2. Füge das JSON-Ergebnis in das Feld darunter ein.<br>
+      3. Klicke "Objekte importieren".
+    </p>
+
+    <div class="prompt-block" id="extractPromptBlock">
+      <div class="prompt-block-header">
+        <span class="prompt-block-label">Extraktions-Prompt</span>
+        <button class="btn btn-sm" onclick="copyExtractPrompt()">Kopieren</button>
+      </div>
+      <pre id="extractPromptText" style="max-height:200px"></pre>
+    </div>
+
+    <div class="result-area" style="margin-top:14px">
+      <label>KI-Ergebnis einfügen (JSON)</label>
+      <textarea id="extractResult" placeholder='[
+  {"typ": "aufgabe", "text": "E-Mail an Markus beantworten", "zeit": "10:00", "kontext": ""},
+  {"typ": "ereignis", "text": "Plenum fällt aus", "zeit": "14:53", "kontext": ""},
+  {"typ": "notiz", "text": "...", "zeit": "", "kontext": ""}
+]'></textarea>
+    </div>
+
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-primary" onclick="importObjects()">Objekte importieren</button>
+      <button class="btn" onclick="closeModal('extractModal')">Abbrechen</button>
+    </div>
+    <div id="extractNotice" style="margin-top:10px"></div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- Settings Modal                                 -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="modal-bg hidden" id="settingsModal">
+  <div class="modal-box">
+    <div class="modal-title">Einstellungen</div>
+
+    <label>Name / Kürzel</label>
+    <input type="text" id="cfgName" placeholder="z.B. K.">
+
+    <label style="margin-top:14px">System-Kontext (CONFIG)</label>
+    <textarea id="cfgContext" style="min-height:110px; font-family:var(--mono); font-size:0.76rem" placeholder="Maxime, Systemregeln, Zettelkasten-Tags – wird in alle Prompts eingebettet."></textarea>
+
+    <label style="margin-top:14px">GitHub Gist Token (optional)</label>
+    <input type="password" id="cfgGistToken" placeholder="ghp_...">
+
+    <label style="margin-top:10px">Gist ID</label>
+    <input type="text" id="cfgGistId" placeholder="abc123...">
+
+    <div class="btn-row" style="margin-top:18px">
+      <button class="btn btn-primary" onclick="saveSettings()">Speichern</button>
+      <button class="btn" onclick="closeModal('settingsModal')">Abbrechen</button>
+      <button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="exportData()">JSON Export</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ════════════════════════════════════════════════
+// State
+// ════════════════════════════════════════════════
+var LKEY           = 'dailylog_v2';
+var GIST_TOKEN_KEY = 'dailylog_gist_token';
+var GIST_ID_KEY    = 'dailylog_gist_id';
+var GIST_FILE      = 'dailylog_v2_data.json';
+
+var S = {
+  days: [],
+  config: { name: '', context: '' },
+  _lastExported: ''
+};
+
+// Today's working data (not yet in S.days)
+var TODAY = {
+  date: '',
+  cards: [],      // {id, time, type, text, processed}
+  objects: []     // {id, cardId, typ, text, zeit, kontext, dismissed}
+};
+
+var currentExtractCardId = null;
+var currentPipeStep = 1;
+var pipeStepsDone = {};
+
+// ════════════════════════════════════════════════
+// Utils
+// ════════════════════════════════════════════════
+function uid() { return String(Date.now()) + String(Math.random()).slice(2,8); }
+function today() { return new Date().toISOString().split('T')[0]; }
+function todayDE() { return new Date().toLocaleDateString('de-DE', {weekday:'long', year:'numeric', month:'long', day:'numeric'}); }
+function nowTime() {
+  var d = new Date();
+  return d.getHours().toString().padStart(2,'0') + ':' + d.getMinutes().toString().padStart(2,'0');
+}
+function esc(s) {
+  if (!s) return '';
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+function toast(msg) {
+  var t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(function(){ t.classList.remove('show'); }, 2600);
+}
+function openModal(id)  { document.getElementById(id).classList.remove('hidden'); }
+function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+// ════════════════════════════════════════════════
+// Persistence
+// ════════════════════════════════════════════════
+function save() {
+  S._lastExported = new Date().toISOString();
+  var payload = { S: S, TODAY: TODAY };
+  try { localStorage.setItem(LKEY, JSON.stringify(payload)); } catch(e) { toast('⚠ Speicherfehler'); }
+  gistAutoSyncDebounced();
+}
+
+function load() {
+  try {
+    var d = localStorage.getItem(LKEY);
+    if (d) {
+      var p = JSON.parse(d);
+      if (p.S) S = p.S;
+      if (p.TODAY) TODAY = p.TODAY;
+    }
+  } catch(e) {}
+  // Defaults
+  if (!S.days) S.days = [];
+  if (!S.config) S.config = { name: '', context: '' };
+  if (!TODAY.date) TODAY.date = today();
+  if (!TODAY.cards) TODAY.cards = [];
+  if (!TODAY.objects) TODAY.objects = [];
+
+  // Reset if new day
+  if (TODAY.date !== today()) {
+    TODAY = { date: today(), cards: [], objects: [] };
+    save();
+  }
+}
+
+// ════════════════════════════════════════════════
+// Tabs
+// ════════════════════════════════════════════════
+function switchTab(name) {
+  ['sammeln','objekte','abschluss','verlauf'].forEach(function(t) {
+    document.getElementById('panel-' + t).classList.remove('active');
+    document.getElementById('tab-' + t).classList.remove('active');
+  });
+  document.getElementById('panel-' + name).classList.add('active');
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'objekte') renderObjectsTab();
+  if (name === 'verlauf') renderHistory();
+}
+
+// ════════════════════════════════════════════════
+// Cards — Sammeln Tab
+// ════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', function() {
+  var ta = document.getElementById('newCardText');
+  if (ta) ta.addEventListener('input', updateNewCardMeta);
+});
+
+function updateNewCardMeta() {
+  var text = document.getElementById('newCardText').value;
+  var words = text.trim() ? text.trim().split(/\s+/).length : 0;
+  var lines = text.trim() ? text.split('\n').filter(function(l){ return l.trim(); }).length : 0;
+  var wc = document.getElementById('newCardWordCount');
+  var lc = document.getElementById('newCardLines');
+  wc.textContent = words + ' Wörter';
+  wc.className = words > 0 ? 'lit' : '';
+  lc.textContent = lines + ' Zeilen';
+}
+
+function addCard() {
+  var text = document.getElementById('newCardText').value.trim();
+  if (!text) { toast('Kein Inhalt eingegeben.'); return; }
+  var type = document.getElementById('newCardType').value;
+  var card = {
+    id: uid(),
+    time: nowTime(),
+    type: type,
+    text: text,
+    processed: false
+  };
+  TODAY.cards.unshift(card);
+  save();
+  clearNewCard();
+  renderCardList();
+  updateBadges();
+  toast('Karte gespeichert · ' + card.time);
+}
+
+function clearNewCard() {
+  document.getElementById('newCardText').value = '';
+  updateNewCardMeta();
+}
+
+function deleteCard(id) {
+  TODAY.cards = TODAY.cards.filter(function(c){ return c.id !== id; });
+  // also remove objects from this card
+  TODAY.objects = TODAY.objects.filter(function(o){ return o.cardId !== id; });
+  save();
+  renderCardList();
+  updateBadges();
+  toast('Karte gelöscht');
+}
+
+function typeLabel(type) {
+  switch(type) {
+    case 'log':   return '<span class="card-type-badge card-type-log">📋 Log</span>';
+    case 'voice': return '<span class="card-type-badge card-type-voice">🎙 Voice</span>';
+    case 'email': return '<span class="card-type-badge card-type-email">✉ Mail</span>';
+    default:      return '<span class="card-type-badge card-type-free">📝 Frei</span>';
+  }
+}
+
+function renderCardList() {
+  var container = document.getElementById('cardList');
+  if (!TODAY.cards.length) {
+    container.innerHTML = '<div class="empty-state">Noch keine Karten für heute.</div>';
+    document.getElementById('kartenMeta').textContent = '';
+    return;
+  }
+  var processed = TODAY.cards.filter(function(c){ return c.processed; }).length;
+  document.getElementById('kartenMeta').textContent = processed + '/' + TODAY.cards.length + ' verarbeitet';
+
+  container.innerHTML = TODAY.cards.map(function(card) {
+    var preview = card.text.split('\n')[0].slice(0, 60);
+    var objCount = TODAY.objects.filter(function(o){ return o.cardId === card.id && !o.dismissed; }).length;
+    return '<div class="card' + (card.processed ? ' processed' : '') + '" id="card-' + card.id + '">' +
+      '<div class="card-header" onclick="toggleCard(\'' + card.id + '\')">' +
+        '<span class="card-time">' + esc(card.time) + '</span>' +
+        typeLabel(card.type) +
+        '<span class="card-preview">' + esc(preview) + '</span>' +
+        (objCount ? '<span class="card-status done">' + objCount + ' Obj.</span>' : '') +
+        (card.processed ? '<span class="card-status done">✓</span>' : '') +
+        '<span class="card-chevron">›</span>' +
+      '</div>' +
+      '<div class="card-body">' +
+        '<div class="card-raw">' + esc(card.text) + '</div>' +
+        '<div class="btn-row">' +
+          '<button class="btn btn-primary btn-sm" onclick="openExtract(\'' + card.id + '\')">→ Objekte extrahieren</button>' +
+          '<button class="btn btn-sm btn-danger" onclick="deleteCard(\'' + card.id + '\')">Löschen</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function toggleCard(id) {
+  var el = document.getElementById('card-' + id);
+  if (el) el.classList.toggle('open');
+}
+
+// ════════════════════════════════════════════════
+// Extraction
+// ════════════════════════════════════════════════
+function openExtract(cardId) {
+  var card = TODAY.cards.find(function(c){ return c.id === cardId; });
+  if (!card) return;
+  currentExtractCardId = cardId;
+
+  var prompt = buildExtractionPrompt(card);
+  document.getElementById('extractPromptText').textContent = prompt;
+  document.getElementById('extractResult').value = '';
+  document.getElementById('extractNotice').innerHTML = '';
+  openModal('extractModal');
+}
+
+function buildExtractionPrompt(card) {
+  var typeNames = { log: 'getippter Tages-Log', voice: 'Voice-Memo-Transkript(e)', email: 'E-Mail-Report', free: 'freier Text' };
+  var cfg = S.config.context || '';
+  return [
+    '# Objekt-Extraktion · ' + today() + ' · ' + card.time,
+    '',
+    cfg ? '## System-Kontext\n' + cfg + '\n' : null,
+    '## Aufgabe',
+    'Extrahiere alle Objekte aus dem folgenden ' + (typeNames[card.type] || 'Text') + '.',
+    '',
+    '## Objekt-Typen',
+    '- **aufgabe** – To-do, explizit oder implizit',
+    '- **ereignis** – Was passiert ist (Zeitstempel wenn vorhanden)',
+    '- **notiz** – Beobachtung, Gedanke, Fakt',
+    '- **idee** – Neue Idee, Proto-Gedanke, Einfall',
+    '- **zitat** – Zitierenswerter Satz (eigen oder fremd)',
+    '- **sop** – Wiederholbarer Prozess/Schritt der dokumentiert werden sollte',
+    '- **beobachtung** – Systembeobachtung zu Energie, Verhalten, Mustern',
+    '',
+    '## Ausgabe-Format (NUR gültiges JSON, kein Prosatext drumherum)',
+    '```json',
+    '[',
+    '  {"typ": "aufgabe", "text": "Aufgabentext", "zeit": "HH:MM oder leer", "kontext": "optionaler Kontext"},',
+    '  {"typ": "ereignis", "text": "Ereignistext", "zeit": "14:53", "kontext": ""}',
+    ']',
+    '```',
+    '',
+    '## Wichtig',
+    '- Nichts erfinden, nur was im Text steht',
+    '- Zeitstempel aus dem Text übernehmen wenn vorhanden',
+    '- Bei Voice-Memos: Zeitstempel aus dem Dateinamen (Format: YYYY-MM-DD HHMMSS) extrahieren',
+    '- Implizite Aufgaben ("ich sollte", "muss noch", "wäre gut wenn") als aufgabe erfassen',
+    '',
+    '## Input',
+    '```',
+    card.text,
+    '```'
+  ].filter(function(l){ return l !== null; }).join('\n');
+}
+
+function copyExtractPrompt() {
+  var text = document.getElementById('extractPromptText').textContent;
+  copyText(text, 'Extraktions-Prompt kopiert');
+}
+
+function importObjects() {
+  var raw = document.getElementById('extractResult').value.trim();
+  if (!raw) { showExtractNotice('Kein Inhalt eingefügt.', 'warn'); return; }
+
+  // Try to extract JSON from markdown code blocks if present
+  var jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
+  var jsonStr = jsonMatch ? jsonMatch[1].trim() : raw;
+
+  var objs;
+  try {
+    objs = JSON.parse(jsonStr);
+  } catch(e) {
+    showExtractNotice('Kein gültiges JSON. Bitte nur das JSON-Array einfügen (ohne ```).', 'warn');
+    return;
+  }
+  if (!Array.isArray(objs)) { showExtractNotice('Erwartet ein JSON-Array [...].', 'warn'); return; }
+
+  var added = 0;
+  objs.forEach(function(obj) {
+    if (!obj.typ || !obj.text) return;
+    TODAY.objects.push({
+      id: uid(),
+      cardId: currentExtractCardId,
+      typ: obj.typ.toLowerCase(),
+      text: obj.text,
+      zeit: obj.zeit || '',
+      kontext: obj.kontext || '',
+      dismissed: false
+    });
+    added++;
+  });
+
+  // Mark card as processed
+  var card = TODAY.cards.find(function(c){ return c.id === currentExtractCardId; });
+  if (card) card.processed = true;
+
+  save();
+  renderCardList();
+  updateBadges();
+  closeModal('extractModal');
+  toast(added + ' Objekte importiert');
+}
+
+function showExtractNotice(msg, type) {
+  var el = document.getElementById('extractNotice');
+  el.innerHTML = '<div class="notice ' + (type === 'warn' ? 'warn' : 'ok') + '">' + esc(msg) + '</div>';
+}
+
+// ════════════════════════════════════════════════
+// Objects Tab
+// ════════════════════════════════════════════════
+var OBJ_ICONS = {
+  aufgabe:     '☐',
+  ereignis:    '◯',
+  notiz:       '−',
+  idee:        '!',
+  zitat:       '"',
+  sop:         '⟳',
+  beobachtung: '~'
+};
+
+function renderObjectsTab() {
+  renderObjectList();
+  renderExtractCards();
+}
+
+function renderObjectList() {
+  var container = document.getElementById('objectList');
+  var active = TODAY.objects.filter(function(o){ return !o.dismissed; });
+
+  // Summary counts
+  var counts = {};
+  active.forEach(function(o){ counts[o.typ] = (counts[o.typ]||0) + 1; });
+  var summaryEl = document.getElementById('objSummary');
+  summaryEl.innerHTML = Object.keys(counts).map(function(k) {
+    return '<span class="obj-count t-' + k + '">' + (OBJ_ICONS[k]||'·') + ' ' + k + ' · ' + counts[k] + '</span>';
+  }).join('');
+
+  if (!active.length) {
+    container.innerHTML = '<div class="empty-state">Noch keine Objekte extrahiert.</div>';
+    return;
+  }
+
+  container.innerHTML = TODAY.objects.map(function(obj) {
+    var cardTime = '';
+    var card = TODAY.cards.find(function(c){ return c.id === obj.cardId; });
+    if (card) cardTime = card.time;
+    return '<div class="obj-item' + (obj.dismissed ? ' dismissed' : '') + '" id="obj-' + obj.id + '">' +
+      '<div class="obj-icon">' + (OBJ_ICONS[obj.typ] || '·') + '</div>' +
+      '<div class="obj-content">' +
+        '<div class="obj-text">' + esc(obj.text) + '</div>' +
+        '<div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:4px">' +
+          '<span class="obj-type-label t-' + obj.typ + '">' + obj.typ + '</span>' +
+          (obj.zeit ? '<span class="obj-meta">' + esc(obj.zeit) + '</span>' : '') +
+          (obj.kontext ? '<span class="obj-meta" style="font-style:italic">' + esc(obj.kontext.slice(0,40)) + '</span>' : '') +
+          (cardTime ? '<span class="obj-meta">Karte · ' + esc(cardTime) + '</span>' : '') +
+        '</div>' +
+      '</div>' +
+      '<div class="obj-actions">' +
+        (!obj.dismissed ?
+          '<button class="btn btn-sm btn-ghost" onclick="dismissObj(\'' + obj.id + '\')" title="Verwerfen">×</button>' :
+          '<button class="btn btn-sm btn-ghost" onclick="restoreObj(\'' + obj.id + '\')" title="Wiederherstellen">↩</button>'
+        ) +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function renderExtractCards() {
+  var container = document.getElementById('extractCardList');
+  if (!TODAY.cards.length) {
+    container.innerHTML = '<div class="empty-state">Keine Karten vorhanden. Zuerst im Tab "Sammeln" Karten hinzufügen.</div>';
+    return;
+  }
+  container.innerHTML = TODAY.cards.map(function(card) {
+    var preview = card.text.split('\n')[0].slice(0, 55);
+    var objCount = TODAY.objects.filter(function(o){ return o.cardId === card.id && !o.dismissed; }).length;
+    return '<div class="card' + (card.processed ? ' processed' : '') + '">' +
+      '<div class="card-header" style="cursor:default">' +
+        '<span class="card-time">' + esc(card.time) + '</span>' +
+        typeLabel(card.type) +
+        '<span class="card-preview">' + esc(preview) + '</span>' +
+        (objCount ? '<span class="card-status done">' + objCount + ' Obj.</span>' : '') +
+        (card.processed ? '<span class="card-status done">✓</span>' : '') +
+      '</div>' +
+      '<div style="padding:10px 14px; display:flex; gap:8px">' +
+        '<button class="btn btn-sm btn-primary" onclick="openExtract(\'' + card.id + '\')">' +
+          (card.processed ? '↻ Neu extrahieren' : '→ Extrahieren') +
+        '</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function dismissObj(id) {
+  var obj = TODAY.objects.find(function(o){ return o.id === id; });
+  if (obj) { obj.dismissed = true; save(); renderObjectList(); updateBadges(); }
+}
+
+function restoreObj(id) {
+  var obj = TODAY.objects.find(function(o){ return o.id === id; });
+  if (obj) { obj.dismissed = false; save(); renderObjectList(); updateBadges(); }
+}
+
+// ════════════════════════════════════════════════
+// Badges
+// ════════════════════════════════════════════════
+function updateBadges() {
+  document.getElementById('badge-karten').textContent = TODAY.cards.length;
+  var activeObjs = TODAY.objects.filter(function(o){ return !o.dismissed; }).length;
+  document.getElementById('badge-objekte').textContent = activeObjs;
+}
+
+// ════════════════════════════════════════════════
+// Pipeline Prompts
+// ════════════════════════════════════════════════
+function getInputSummary() {
+  var lines = [];
+  var activeObjs = TODAY.objects.filter(function(o){ return !o.dismissed; });
+
+  if (activeObjs.length) {
+    lines.push('## Strukturierte Objekte (' + activeObjs.length + ')');
+    activeObjs.forEach(function(o) {
+      var line = '[' + o.typ.toUpperCase() + ']';
+      if (o.zeit) line += ' ' + o.zeit;
+      line += ' ' + o.text;
+      if (o.kontext) line += ' (' + o.kontext + ')';
+      lines.push(line);
+    });
+    lines.push('');
+  }
+
+  var unprocessed = TODAY.cards.filter(function(c){ return !c.processed; });
+  if (unprocessed.length) {
+    lines.push('## Rohe Karten (noch nicht extrahiert)');
+    unprocessed.forEach(function(card) {
+      lines.push('\n--- Karte ' + card.time + ' [' + card.type + '] ---');
+      lines.push(card.text);
+    });
+  }
+
+  return lines.join('\n');
+}
+
+function buildPipePrompt(n) {
+  var input = getInputSummary();
+  var cfg = S.config.context || '';
+  var dateStr = today() + ' · ' + todayDE();
+
+  if (n === 1) return [
+    '# Aufgaben-Extraktion · ' + dateStr,
+    '', cfg ? '## System-Kontext\n' + cfg + '\n' : null,
+    '## Maxime\n"Alles erfassen · nichts übersehen · nichts verlieren"',
+    '',
+    '## Aufgabe',
+    'Extrahiere ALLE Aufgaben, To-dos und Next-Steps – explizite und implizite.',
+    'Zähle dazu: Checkboxen `- [ ]`, implizite To-dos, Aufgaben aus Nebenbemerkungen,',
+    'Klammern, PS, Nachträgen, Voice-Memos.',
+    '',
+    'Format pro Aufgabe:',
+    '```\n- [ ] [Aufgabe] | [Kontext] | [Frist oder "offen"] | [Quelle]\n```',
+    'Zähle: X explizite / Y implizite.',
+    '',
+    '## Tages-Input', input
+  ].filter(function(l){ return l !== null; }).join('\n');
+
+  if (n === 2) return [
+    '# 📎 Forensischer Scanner · ' + dateStr,
+    '', cfg ? '## System-Kontext\n' + cfg + '\n' : null,
+    '## Aufgabe\nDurchsuche den Input nach Kandidaten für Weiterverarbeitung.',
+    '',
+    '## Kategorien (mit Konfidenz: sicher/unsicher)',
+    '**Poetry/Prosa Freewriting** · **Proto-Atomic Note** · **SOP-Kandidat**',
+    '**Systembeobachtung** · **Zitat/Textstelle** · **Prozess/Regel/Heuristik** · **Muster**',
+    '',
+    'Format:\n```\n📎 [Kategorie] | Konfidenz: [sicher/unsicher]\nText: "..."\nHinweis: [...]\n```',
+    '',
+    '## Tages-Input', input
+  ].filter(function(l){ return l !== null; }).join('\n');
+
+  if (n === 3) return [
+    '# Daily Note Erstellung · ' + dateStr,
+    '', cfg ? '## System-Kontext\n' + cfg + '\n' : null,
+    '## Aufgabe\nErstelle eine vollständige, verlustfreie Daily Note im Obsidian-Markdown-Format.',
+    '',
+    '## Regeln\n- Vollständig, nichts weglassen außer Duplikaten\n- Auch Wochen später verständlich',
+    '- Alle Zeitstempel erhalten\n- Strukturierte Objekte bereits eingearbeitet',
+    '',
+    '## Frontmatter\n```yaml\n---\ndatum: ' + today() + '\ntags: [daily-note]\nenergie: []\n---\n```',
+    '',
+    '## Abschnitte: Überblick · Tageslog · Offene Aufgaben · Erkenntnisse · Verknüpfungen',
+    '',
+    '## Tages-Input', input
+  ].filter(function(l){ return l !== null; }).join('\n');
+
+  if (n === 4) return [
+    '# BuJo-Fassung · ' + dateStr,
+    '',
+    '## Aufgabe\nKompakte Rapid-Logging-Version für E-Paper-Tablet.',
+    '',
+    '## Symbole\n・ Aufgabe (offen) · ✕ erledigt · > migriert · ◯ Ereignis · − Notiz · ! Experiment · ★ Anti-Library',
+    '',
+    '## Reihenfolge\nAufgaben → Ereignisse → Notizen → Experimente → Anti-Library → Journal (4–7 Sätze)',
+    '',
+    '## Tages-Input', input
+  ].filter(function(l){ return l !== null; }).join('\n');
+
+  if (n === 5) return [
+    '# Zettelkasten-Export · ' + dateStr,
+    '', cfg ? '## System-Kontext\n' + cfg + '\n' : null,
+    '## Aufgabe\nGeneriere atomare Obsidian-Notizen aus den 📎-Scanner-Kandidaten.',
+    '',
+    '## Regeln: Eine Idee pro Notiz · Titel als vollständige Aussage · [[Wikilinks]]',
+    '',
+    '## Format pro Notiz\n```markdown\n---\ntitel: [Aussage]\nerstellt: ' + today() + '\ntags: []\nquelle: daily-note/' + today() + '\n---\n\n[Inhalt]\n\n## Verbindungen\n- [[...]]\n```',
+    '',
+    '## Tages-Input', input
+  ].filter(function(l){ return l !== null; }).join('\n');
+
+  return '';
+}
+
+function generatePipePrompt(n) {
+  var text = buildPipePrompt(n);
+  document.getElementById('pipe-text-' + n).textContent = text;
+  document.getElementById('pipe-out-' + n).style.display = 'block';
+  pipeStepsDone[n] = true;
+  var nav = document.getElementById('pnav-' + n);
+  if (nav) nav.classList.add('done');
+  toast('Prompt ' + n + ' generiert');
+}
+
+function copyPipePrompt(n) {
+  var text = document.getElementById('pipe-text-' + n).textContent;
+  copyText(text, '✓ Prompt ' + n + ' kopiert');
+}
+
+function goPipeStep(n) {
+  for (var i = 1; i <= 5; i++) {
+    var panel = document.getElementById('pipe-' + i);
+    var nav   = document.getElementById('pnav-' + i);
+    if (panel) panel.style.display = (i === n) ? 'block' : 'none';
+    if (nav) { nav.classList.remove('active'); if (i === n) nav.classList.add('active'); }
+  }
+  currentPipeStep = n;
+}
+
+function generateAllPipePrompts() {
+  for (var i = 1; i <= 5; i++) generatePipePrompt(i);
+  goPipeStep(1);
+  toast('Alle 5 Prompts generiert');
+}
+
+function exportAllPipePrompts() {
+  var parts = [];
+  for (var i = 1; i <= 5; i++) {
+    var text = document.getElementById('pipe-text-' + i).textContent || buildPipePrompt(i);
+    parts.push('═══════ SCHRITT ' + i + ' ═══════\n\n' + text);
+  }
+  var blob = new Blob([parts.join('\n\n\n')], { type: 'text/plain;charset=utf-8' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a'); a.href = url; a.download = 'daily-prompts-' + today() + '.txt';
+  a.click(); URL.revokeObjectURL(url);
+  toast('Prompts exportiert');
+}
+
+// ════════════════════════════════════════════════
+// Finish Day
+// ════════════════════════════════════════════════
+function finishDay() {
+  var entry = {
+    id: uid(),
+    date: today(),
+    cards: JSON.parse(JSON.stringify(TODAY.cards)),
+    objects: JSON.parse(JSON.stringify(TODAY.objects)),
+    createdAt: new Date().toISOString()
+  };
+  S.days.unshift(entry);
+  TODAY = { date: today(), cards: [], objects: [] };
+  pipeStepsDone = {};
+  save();
+  renderCardList();
+  updateBadges();
+  for (var i = 1; i <= 5; i++) {
+    var el = document.getElementById('pipe-out-' + i);
+    if (el) el.style.display = 'none';
+    var nav = document.getElementById('pnav-' + i);
+    if (nav) nav.classList.remove('done');
+  }
+  switchTab('verlauf');
+  toast('✓ Tag gespeichert');
+}
+
+// ════════════════════════════════════════════════
+// History
+// ════════════════════════════════════════════════
+function renderHistory() {
+  var container = document.getElementById('historyList');
+  if (!S.days || !S.days.length) {
+    container.innerHTML = '<div class="empty-state">Noch keine gespeicherten Tage.</div>';
+    return;
+  }
+  container.innerHTML = S.days.slice(0, 30).map(function(day) {
+    var objCount = day.objects ? day.objects.filter(function(o){ return !o.dismissed; }).length : 0;
+    var cardCount = day.cards ? day.cards.length : 0;
+    return '<div style="padding:12px 0; border-bottom:1px solid var(--border); display:flex; justify-content:space-between; align-items:baseline; gap:12px">' +
+      '<div>' +
+        '<div style="font-family:var(--mono); font-size:0.78rem; color:var(--ink)">' + esc(day.date) + '</div>' +
+        '<div style="font-family:var(--mono); font-size:0.63rem; color:var(--ink-dim); margin-top:3px">' +
+          cardCount + ' Karten · ' + objCount + ' Objekte' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+// ════════════════════════════════════════════════
+// Settings
+// ════════════════════════════════════════════════
+function loadSettingsUI() {
+  document.getElementById('cfgName').value = S.config.name || '';
+  document.getElementById('cfgContext').value = S.config.context || '';
+  document.getElementById('cfgGistToken').value = localStorage.getItem(GIST_TOKEN_KEY) || '';
+  document.getElementById('cfgGistId').value = localStorage.getItem(GIST_ID_KEY) || '';
+}
+
+function saveSettings() {
+  S.config.name    = document.getElementById('cfgName').value.trim();
+  S.config.context = document.getElementById('cfgContext').value.trim();
+  var token = document.getElementById('cfgGistToken').value.trim();
+  var gid   = document.getElementById('cfgGistId').value.trim();
+  if (token) localStorage.setItem(GIST_TOKEN_KEY, token);
+  if (gid)   localStorage.setItem(GIST_ID_KEY, gid);
+  save();
+  closeModal('settingsModal');
+  toast('Einstellungen gespeichert');
+}
+
+function exportData() {
+  var payload = { version: 2, exported: new Date().toISOString(), days: S.days, today: TODAY, config: { name: S.config.name, context: S.config.context } };
+  var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  var url = URL.createObjectURL(blob);
+  var a = document.createElement('a'); a.href = url; a.download = 'daily-log-export-' + today() + '.json';
+  a.click(); URL.revokeObjectURL(url);
+  toast('JSON exportiert');
+}
+
+// ════════════════════════════════════════════════
+// Copy helper
+// ════════════════════════════════════════════════
+function copyText(text, msg) {
+  // Fallback function using execCommand
+  function fallbackCopy() {
+    var ta = document.createElement('textarea');
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.top = '0';
+    ta.style.left = '0';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    try {
+      document.execCommand('copy');
+      toast(msg || '✓ Kopiert');
+    } catch(e) {
+      toast('⚠ Kopieren fehlgeschlagen – bitte manuell kopieren');
+    }
+    document.body.removeChild(ta);
+  }
+
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function(){
+      toast(msg || '✓ Kopiert');
+    }).catch(function(){
+      fallbackCopy();
+    });
+  } else {
+    fallbackCopy();
+  }
+}
+
+// ════════════════════════════════════════════════
+// Gist Sync
+// ════════════════════════════════════════════════
+var gistTimer = null;
+function gistAutoSyncDebounced() {
+  var token = localStorage.getItem(GIST_TOKEN_KEY);
+  var gid   = localStorage.getItem(GIST_ID_KEY);
+  if (!token || !gid) return;
+  if (gistTimer) clearTimeout(gistTimer);
+  gistTimer = setTimeout(function(){
+    gistTimer = null;
+    var payload = { version: 2, exported: new Date().toISOString(), days: S.days, today: TODAY, config: { name: S.config.name, context: S.config.context } };
+    fetch('https://api.github.com/gists/' + gid, {
+      method: 'PATCH',
+      headers: { 'Authorization': 'token ' + token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ files: { [GIST_FILE]: { content: JSON.stringify(payload, null, 2) } } })
+    }).then(function(r){ if (r.ok) toast('☁ Synced'); });
+  }, 30000);
+}
+
+// ════════════════════════════════════════════════
+// Co-Pilot
+// ════════════════════════════════════════════════
+function buildCopilotContext() {
+  var lines = [];
+  var activeObjs = TODAY.objects.filter(function(o){ return !o.dismissed; });
+
+  if (activeObjs.length) {
+    lines.push('## Bisherige strukturierte Objekte des Tages');
+    activeObjs.forEach(function(o) {
+      var line = '[' + o.typ.toUpperCase() + ']';
+      if (o.zeit) line += ' ' + o.zeit;
+      line += ' ' + o.text;
+      if (o.kontext) line += ' (' + o.kontext + ')';
+      lines.push(line);
+    });
+    lines.push('');
+  }
+
+  var rawCards = TODAY.cards.filter(function(c){ return !c.processed; });
+  if (rawCards.length) {
+    lines.push('## Noch nicht extrahierte Karten');
+    rawCards.forEach(function(c) {
+      lines.push('\n[' + c.type.toUpperCase() + ' · ' + c.time + ']');
+      lines.push(c.text);
+    });
+  }
+
+  return lines.join('\n');
+}
+
+function generateCopilotPrompt() {
+  var focus   = document.getElementById('copilotFocus').value.trim();
+  var energie = document.getElementById('copilotEnergie').value;
+  var cfg     = S.config.context || '';
+  var ctx     = buildCopilotContext();
+  var hasCtx  = ctx.trim().length > 0;
+
+  var parts = [
+    '# Co-Pilot-Modus · ' + today() + ' · ' + nowTime(),
+    '',
+    cfg ? '## System-Kontext\n' + cfg + '\n' : null,
+    '## Deine Rolle',
+    'Du bist mein Tagesbegleit- und Fokus-Assistent.',
+    'Begleite mich aktiv durch diesen Fokus-Block: priorisiere, strukturiere Optionen,',
+    'denke mit, halte alles fest.',
+    '',
+    'Maxime: "Alles erfassen · nichts bewerten · nichts vorwegnehmen · nichts verlieren"',
+    '',
+    focus ? '## Fokus-Intention\n' + focus + '\n' : null,
+    energie ? '## Energie-Level\n' + energie + '\n' : null,
+    hasCtx ? '## Bisheriger Tag\n' + ctx + '\n' : '## Bisheriger Tag\n(Noch keine Einträge heute.)\n',
+    '## Ablauf',
+    '1. Lies den bisherigen Tageskontext.',
+    '2. Bestätige kurz was du weißt und was der Fokus ist.',
+    '3. Begleite mich durch den Fokus-Block — stelle bei Bedarf eine Frage auf einmal.',
+    '4. Wenn ich "Fokus-Modus beenden" sage: erstelle einen strukturierten Abschlussbericht',
+    '   mit folgenden Abschnitten:',
+    '   - Was wurde gemacht / besprochen',
+    '   - Erkenntnisse & Entscheidungen',
+    '   - Neue Aufgaben & Next Steps',
+    '   - Offene Fragen',
+    '   (Dieser Bericht wird direkt in den Daily Log importiert.)',
+    '',
+    '## Start',
+    'Beginne mit einer kurzen Zusammenfassung des bisherigen Tages (2-3 Sätze)',
+    'und frage nach dem ersten Schritt.'
+  ].filter(function(l){ return l !== null; }).join('\n');
+
+  document.getElementById('copilotPromptText').textContent = parts;
+  document.getElementById('copilotPromptText').style.display = 'block';
+  document.getElementById('copilotPromptPlaceholder').style.display = 'none';
+}
+
+function copyCopilotPrompt() {
+  var text = document.getElementById('copilotPromptText').textContent;
+  if (!text || text === document.getElementById('copilotPromptPlaceholder').textContent) {
+    generateCopilotPrompt();
+  }
+  text = document.getElementById('copilotPromptText').textContent;
+  copyText(text, '✓ Co-Pilot-Prompt kopiert');
+}
+
+function importCopilotReport() {
+  var text = document.getElementById('copilotImportText').value.trim();
+  if (!text) { toast('Kein Text eingefügt.'); return; }
+  var card = {
+    id: uid(),
+    time: nowTime(),
+    type: 'free',
+    text: '# Co-Pilot-Bericht · ' + nowTime() + '\n\n' + text,
+    processed: false
+  };
+  TODAY.cards.unshift(card);
+  save();
+  document.getElementById('copilotImportText').value = '';
+  closeModal('copilotImportModal');
+  renderCardList();
+  updateBadges();
+  toast('✓ Bericht als Karte gespeichert');
+}
+
+// ════════════════════════════════════════════════
+// Init
+// ════════════════════════════════════════════════
+function init() {
+  load();
+  document.getElementById('headerDate').textContent = todayDE();
+  loadSettingsUI();
+  renderCardList();
+  updateBadges();
+}
+
+init();
+</script>
+</body>
+</html>
