@@ -1424,6 +1424,8 @@ select:focus { outline: none; border-color: var(--border-mid); }
       </div>
       <div class="btn-row" style="margin-top:14px">
         <button class="btn btn-sm btn-ghost" onclick="openModal('zettelAddModal')">+ Zettel manuell hinzufügen</button>
+        <button class="btn btn-sm btn-primary" onclick="exportZettelZip()">↓ Als ZIP exportieren</button>
+        <button class="btn btn-sm btn-ghost" onclick="exportZettelSingle()">↓ Als einzelne .md</button>
       </div>
     </div>
 
@@ -4382,6 +4384,119 @@ function addZettelManual() {
   document.getElementById('zettelBody').value  = '';
   document.getElementById('zettelTags').value  = '';
   toast('Zettel gespeichert');
+}
+
+
+// ════════════════════════════════════════════════
+// Zettel Export (ZIP + single MD)
+// ════════════════════════════════════════════════
+
+function zettelToMarkdown(z) {
+  // Generate timestamp-based filename prefix: YYYYMMDDHHmmss
+  var d = z.createdAt ? new Date(z.createdAt) : new Date();
+  var ts = d.getFullYear().toString() +
+    String(d.getMonth()+1).padStart(2,'0') +
+    String(d.getDate()).padStart(2,'0') +
+    String(d.getHours()).padStart(2,'0') +
+    String(d.getMinutes()).padStart(2,'0') +
+    String(d.getSeconds()).padStart(2,'0');
+
+  // Determine tag from type
+  var tag = z.type || 'proto-atomic';
+  var tagMap = {
+    'proto-atomic': 'proto-atomic',
+    'poetry':       'poetry_freewriting',
+    'sop':          'sop',
+    'notiz':        'proto-atomic'
+  };
+  var obsTag = tagMap[tag] || 'proto-atomic';
+
+  // Title without colon (Obsidian Refactor strips colons)
+  var title = (z.title || 'Ohne Titel').replace(/:/g, ' –');
+
+  // Desc: first sentence or first 80 chars of body
+  var desc = z.body ? z.body.replace(/\n/g, ' ').slice(0, 120) : title;
+
+  // Build frontmatter
+  var fm = '---\nalias: ' + title + '\ntitle: ' + title + '\ndesc: ' + desc + '\ntags:\n  - ' + obsTag + '\n---\n\n';
+
+  // Build body
+  var body = '## ' + title + '\n\n' + (z.body || '') + '\n';
+
+  // Source reference
+  if (z.source && z.source !== 'manuell') {
+    body += '\n**Quelle:** ' + z.source + '\n';
+  }
+  if (z.sourceText) {
+    body += '\n**Original:** ' + z.sourceText.slice(0, 200) + (z.sourceText.length > 200 ? '…' : '') + '\n';
+  }
+
+  return { ts: ts, filename: ts + '.md', content: fm + body };
+}
+
+async function exportZettelZip() {
+  var kept = (S.zettels||[]).filter(function(z){ return z.kept; });
+  if (!kept.length) { toast('Keine behaltenen Zettel.'); return; }
+
+  // Build ZIP using fflate (loaded inline) or fallback to multi-file download
+  try {
+    // Try to use JSZip from CDN
+    var files = kept.map(zettelToMarkdown);
+
+    // Load JSZip dynamically
+    var script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    script.onload = function() {
+      var zip = new JSZip();
+      files.forEach(function(f) { zip.file(f.filename, f.content); });
+      zip.generateAsync({ type: 'blob' }).then(function(blob) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'zettel-' + today() + '.zip';
+        a.click();
+        URL.revokeObjectURL(url);
+        toast('✓ ZIP mit ' + files.length + ' Zetteln exportiert');
+      });
+    };
+    script.onerror = function() {
+      // Fallback: export as single combined MD
+      exportZettelSingle();
+    };
+    document.head.appendChild(script);
+  } catch(e) {
+    exportZettelSingle();
+  }
+}
+
+function exportZettelSingle() {
+  var kept = (S.zettels||[]).filter(function(z){ return z.kept; });
+  if (!kept.length) { toast('Keine behaltenen Zettel.'); return; }
+
+  if (kept.length === 1) {
+    // Single file — export directly as .md
+    var f = zettelToMarkdown(kept[0]);
+    var blob = new Blob([f.content], { type: 'text/markdown;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = f.filename;
+    a.click(); URL.revokeObjectURL(url);
+    toast('✓ ' + f.filename + ' exportiert');
+  } else {
+    // Multiple files: export as combined .md with separators
+    // Each file clearly delimited so user can split manually
+    var combined = kept.map(function(z) {
+      var f = zettelToMarkdown(z);
+      return '<!-- FILE: ' + f.filename + ' -->\n' + f.content;
+    }).join('\n\n---\n\n');
+
+    var blob = new Blob([combined], { type: 'text/markdown;charset=utf-8' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = 'zettel-kombiniert-' + today() + '.md';
+    a.click(); URL.revokeObjectURL(url);
+    toast('✓ ' + kept.length + ' Zettel als kombinierte .md exportiert');
+  }
 }
 
 
