@@ -2035,6 +2035,8 @@ select:focus { outline: none; border-color: var(--border-mid); }
       <div style="font-family:var(--mono);font-size:0.64rem;color:var(--ink-dim);margin-bottom:10px" id="storageInfo">Berechne…</div>
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-sm btn-ghost" onclick="compactOldDays(30)" title="Rohkarten aus Tagen älter als 30 Tage entfernen">🗜 Alte Tage komprimieren</button>
+        <button class="btn btn-sm" id="btnGistPush" onclick="gistPush(false)">☁ Jetzt speichern</button>
+        <button class="btn btn-sm btn-ghost" id="btnGistPull" onclick="gistPull()">↓ Von Gist laden</button>
         <button class="btn btn-sm btn-ghost" onclick="exportData()" title="Exportiert alle Daten">↓ Vollständiger Export</button>
       </div>
       <div id="compactInfo" style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim);margin-top:6px"></div>
@@ -3191,6 +3193,11 @@ function copyText(text, msg) {
 // Gist Sync
 // ════════════════════════════════════════════════
 var gistTimer = null;
+
+function gistPayload() {
+  return { version: 2, exported: new Date().toISOString(), S: S, TODAY: TODAY };
+}
+
 function gistAutoSyncDebounced() {
   var token = localStorage.getItem(GIST_TOKEN_KEY);
   var gid   = localStorage.getItem(GIST_ID_KEY);
@@ -3198,13 +3205,244 @@ function gistAutoSyncDebounced() {
   if (gistTimer) clearTimeout(gistTimer);
   gistTimer = setTimeout(function(){
     gistTimer = null;
-    var payload = { version: 2, exported: new Date().toISOString(), days: S.days, today: TODAY, config: { name: S.config.name, context: S.config.context } };
-    fetch('https://api.github.com/gists/' + gid, {
+    gistPush(true); // silent auto-push
+  }, 30000);
+}
+
+async function gistPush(silent) {
+  var token = localStorage.getItem(GIST_TOKEN_KEY);
+  var gid   = localStorage.getItem(GIST_ID_KEY);
+  if (!token || !gid) { toast('Kein Token oder Gist-ID konfiguriert.'); return; }
+  var btn = document.getElementById('btnGistPush');
+  if (btn) btn.textContent = '⏳ Speichern…';
+  try {
+    var r = await fetch('https://api.github.com/gists/' + gid, {
       method: 'PATCH',
       headers: { 'Authorization': 'token ' + token, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ files: { [GIST_FILE]: { content: JSON.stringify(payload, null, 2) } } })
-    }).then(function(r){ if (r.ok) toast('☁ Synced'); });
-  }, 30000);
+      body: JSON.stringify({ files: { [GIST_FILE]: { content: JSON.stringify(gistPayload(), null, 2) } } })
+    });
+    if (r.ok) {
+      if (!silent) toast('☁ Daten gespeichert');
+      else toast('☁ Synced');
+    } else {
+      var err = await r.json();
+      toast('Fehler: ' + (err.message || r.status));
+    }
+  } catch(e) {
+    toast('Sync-Fehler: ' + e.message);
+  } finally {
+    if (btn) btn.textContent = '☁ Jetzt speichern';
+  }
+}
+
+async function gistPull(silent) {
+  var token = localStorage.getItem(GIST_TOKEN_KEY);
+  var gid   = localStorage.getItem(GIST_ID_KEY);
+  if (!token || !gid) {
+    if (!silent) toast('Kein Token oder Gist-ID konfiguriert.');
+    return false;
+  }
+  var btn = document.getElementById('btnGistPull');
+  if (btn && !silent) btn.textContent = '⏳ Laden…';
+  try {
+    var r = await fetch('https://api.github.com/gists/' + gid, {
+      headers: { 'Authorization': 'token ' + token }
+    });
+    if (!r.ok) {
+      if (!silent) toast('Fehler: ' + r.status);
+      return false;
+    }
+    var data = await r.json();
+    var file = data.files && data.files[GIST_FILE];
+    if (!file || !file.content) {
+      if (!silent) toast('Keine Daten im Gist gefunden.');
+      return false;
+    }
+    var parsed = JSON.parse(file.content);
+
+    // Compare timestamps — only pull if Gist is newer
+    var gistTime   = parsed.exported || '0';
+    var localTime  = (S && S._lastExported) || '0';
+    var gistNewer  = gistTime > localTime;
+
+    if (!gistNewer && !silent) {
+      toast('Lokale Daten sind aktuell — kein Pull nötig.');
+      return false;
+    }
+    if (!gistNewer && silent) return false; // local is up to date
+
+    if (parsed.S) S = parsed.S;
+    if (parsed.TODAY && parsed.TODAY.date === today()) TODAY = parsed.TODAY;
+
+    // Ensure defaults
+    if (!S.days) S.days = [];
+    if (!S.futurelog) S.futurelog = [];
+    if (!S.migrationPuffer) S.migrationPuffer = [];
+    if (!S.zettels) S.zettels = [];
+    if (!S.config) S.config = { name: '', context: '' };
+    if (!S.feedLastReadwise) S.feedLastReadwise = '';
+    if (!S.feedLastRaindrop) S.feedLastRaindrop = '';
+    if (!S.feedLastHighlights) S.feedLastHighlights = '';
+    if (!TODAY.cards) TODAY.cards = [];
+    if (!TODAY.objects) TODAY.objects = [];
+    if (!TODAY.feedItems) TODAY.feedItems = [];
+    if (!TODAY.plan) TODAY.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
+
+    save();
+    renderCardList();
+    updateBadges();
+    updateReviewBadge();
+    updateFLBadge();
+    updateFeedBadge();
+    updateZettelBadge();
+    if (!silent) toast('✓ Daten vom Gist geladen (' + gistTime.slice(0,10) + ')');
+    else toast('☁ Sync: neuere Daten geladen');
+    return true;
+  } catch(e) {
+    if (!silent) toast('Pull-Fehler: ' + e.message);
+    return false;
+  } finally {
+    if (btn && !silent) btn.textContent = '↓ Von Gist laden';
+  }
+}
+
+// ────────────────────────────────────────────────
+// Merge helpers
+// ────────────────────────────────────────────────
+
+function mergeById(localArr, remoteArr, idKey) {
+  // Build map from both arrays, remote wins on same id+timestamp
+  var map = {};
+  (localArr||[]).forEach(function(item) {
+    map[item[idKey]] = item;
+  });
+  (remoteArr||[]).forEach(function(item) {
+    var existing = map[item[idKey]];
+    if (!existing) {
+      map[item[idKey]] = item; // new item from remote
+    } else {
+      // Keep whichever was updated more recently
+      var localTs  = existing.createdAt || existing.updatedAt || '0';
+      var remoteTs = item.createdAt     || item.updatedAt     || '0';
+      if (remoteTs > localTs) map[item[idKey]] = item;
+    }
+  });
+  return Object.values(map);
+}
+
+function mergeDays(localDays, remoteDays) {
+  // Build map by date — for each date, keep the version with more objects
+  // (or newer createdAt if same count)
+  var map = {};
+  (localDays||[]).forEach(function(day) { map[day.date] = day; });
+  (remoteDays||[]).forEach(function(day) {
+    var existing = map[day.date];
+    if (!existing) {
+      map[day.date] = day;
+    } else {
+      var localObjs  = (existing.objects||[]).length;
+      var remoteObjs = (day.objects||[]).length;
+      if (remoteObjs > localObjs) {
+        map[day.date] = day;
+      } else if (remoteObjs === localObjs) {
+        // Same count — merge objects by id
+        map[day.date] = Object.assign({}, existing, {
+          objects: mergeById(existing.objects||[], day.objects||[], 'id')
+        });
+      }
+      // else keep local (more objects)
+    }
+  });
+  // Sort descending by date
+  return Object.values(map).sort(function(a,b){ return b.date > a.date ? 1 : -1; });
+}
+
+function mergeToday(local, remote) {
+  if (!remote || remote.date !== today()) return local;
+  if (!local  || local.date  !== today()) return remote;
+  return {
+    date:       today(),
+    reviewDone: local.reviewDone || remote.reviewDone,
+    cards:      mergeById(local.cards||[],   remote.cards||[],   'id'),
+    objects:    mergeById(local.objects||[], remote.objects||[], 'id'),
+    feedItems:  mergeById(local.feedItems||[], remote.feedItems||[], 'id'),
+    plan:       (local.plan && local.plan.intentionen) ? local.plan : (remote.plan || local.plan)
+  };
+}
+
+function mergeS(local, remote) {
+  return {
+    days:            mergeDays(local.days||[], remote.days||[]),
+    futurelog:       mergeById(local.futurelog||[], remote.futurelog||[], 'id'),
+    migrationPuffer: mergeById(local.migrationPuffer||[], remote.migrationPuffer||[], 'id'),
+    zettels:         mergeById(local.zettels||[], remote.zettels||[], 'id'),
+    feedLastReadwise:  (local.feedLastReadwise||'') > (remote.feedLastReadwise||'')  ? local.feedLastReadwise  : remote.feedLastReadwise,
+    feedLastRaindrop:  (local.feedLastRaindrop||'') > (remote.feedLastRaindrop||'')  ? local.feedLastRaindrop  : remote.feedLastRaindrop,
+    feedLastHighlights:(local.feedLastHighlights||'') > (remote.feedLastHighlights||'') ? local.feedLastHighlights : remote.feedLastHighlights,
+    config:          local.config || remote.config,
+    _lastExported:   local._lastExported || remote._lastExported
+  };
+}
+
+async function gistSync() {
+  var token = localStorage.getItem(GIST_TOKEN_KEY);
+  var gid   = localStorage.getItem(GIST_ID_KEY);
+  if (!token || !gid) return;
+
+  try {
+    var r = await fetch('https://api.github.com/gists/' + gid, {
+      headers: { 'Authorization': 'token ' + token }
+    });
+    if (!r.ok) return; // silent fail on startup
+
+    var data   = await r.json();
+    var file   = data.files && data.files[GIST_FILE];
+    if (!file || !file.content) {
+      // Gist is empty — push local data
+      await gistPush(true);
+      return;
+    }
+
+    var remote = JSON.parse(file.content);
+    var gistTime  = remote.exported || '0';
+    var localTime = S._lastExported || '0';
+
+    if (gistTime === localTime) return; // identical, nothing to do
+
+    // Merge both sides
+    var mergedS     = mergeS(S, remote.S || {});
+    var mergedToday = mergeToday(TODAY, remote.TODAY || {});
+
+    S     = mergedS;
+    TODAY = mergedToday;
+
+    // Ensure defaults
+    if (!S.config) S.config = { name: '', context: '' };
+    if (!TODAY.cards) TODAY.cards = [];
+    if (!TODAY.objects) TODAY.objects = [];
+    if (!TODAY.feedItems) TODAY.feedItems = [];
+    if (!TODAY.plan) TODAY.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
+
+    // Push merged result back
+    S._lastExported = new Date().toISOString();
+    save();
+    await gistPush(true);
+
+    // Re-render
+    renderCardList();
+    updateBadges();
+    updateReviewBadge();
+    updateFLBadge();
+    updateFeedBadge();
+    updateZettelBadge();
+
+    var diff = gistTime !== localTime ? '☁ Sync: Daten zusammengeführt' : '☁ Synced';
+    toast(diff);
+
+  } catch(e) {
+    // Silent fail on startup
+    console.warn('gistSync error:', e.message);
+  }
 }
 
 // ════════════════════════════════════════════════
@@ -5403,6 +5641,7 @@ function syncDrawerBadges() {
 function init() {
   load();
   document.getElementById('headerDate').textContent = todayDE();
+  gistSync(); // auto two-way sync on startup
   loadSettingsUI();
   renderCardList();
   updateBadges();
