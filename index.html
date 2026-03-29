@@ -967,6 +967,18 @@ select:focus { outline: none; border-color: var(--border-mid); }
       </div>
     </div>
 
+    <!-- Morning Briefing -->
+    <div class="section" style="border-color: var(--border-mid)">
+      <div class="section-title">☀ Morning Briefing</div>
+      <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:12px">
+        Generiert einen Prompt der den bisherigen Tag und die Woche zusammenfasst — für einen schnellen Tagesstart-Chat. Das Ergebnis kannst du als Karte importieren.
+      </p>
+      <div class="btn-row">
+        <button class="btn btn-sm btn-primary" onclick="openModal('morningBriefingModal')">☀ Briefing generieren</button>
+        <button class="btn btn-ghost btn-sm" onclick="openModal('copilotImportModal')">↩ Ergebnis importieren</button>
+      </div>
+    </div>
+
     <!-- Co-Pilot -->
     <div class="section" id="copilotSection" style="border-color: var(--accent-dim)">
       <div class="section-title">Co-Pilot · Fokus-Modus</div>
@@ -1281,6 +1293,52 @@ select:focus { outline: none; border-color: var(--border-mid); }
   </div>
 
 </div><!-- /app -->
+
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- Morning Briefing Modal                         -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="modal-bg hidden" id="morningBriefingModal">
+  <div class="modal-box" style="max-width:620px">
+    <div class="modal-title">☀ Morning Briefing</div>
+
+    <div style="margin-bottom:12px;display:flex;gap:10px;flex-wrap:wrap">
+      <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-family:var(--mono);font-size:0.68rem;color:var(--ink-mid);margin:0">
+        <input type="checkbox" id="briefingInclWeek" checked style="accent-color:var(--accent)">
+        Wochenkontext einbetten
+      </label>
+      <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-family:var(--mono);font-size:0.68rem;color:var(--ink-mid);margin:0">
+        <input type="checkbox" id="briefingInclFL" checked style="accent-color:var(--accent)">
+        Future Log (fällige Einträge)
+      </label>
+      <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-family:var(--mono);font-size:0.68rem;color:var(--ink-mid);margin:0">
+        <input type="checkbox" id="briefingInclMigration" checked style="accent-color:var(--accent)">
+        Migrierte Aufgaben
+      </label>
+    </div>
+
+    <div style="margin-bottom:12px">
+      <label>Fokus-Thema heute (optional)</label>
+      <input type="text" id="briefingFocus" placeholder="z.B. Bewerbungen, Projekt X, Woche planen...">
+    </div>
+
+    <div class="prompt-block" style="margin-top:12px">
+      <div class="prompt-block-header">
+        <span class="prompt-block-label">Morning Briefing Prompt</span>
+        <button class="btn btn-sm" onclick="copyBriefingPrompt()">Kopieren</button>
+      </div>
+      <pre id="briefingPromptText" style="max-height:320px;display:none"></pre>
+      <div id="briefingPlaceholder" style="padding:14px;font-family:var(--mono);font-size:0.72rem;color:var(--ink-dim)">
+        Klicke "Generieren" um den Briefing-Prompt zu erstellen.
+      </div>
+    </div>
+
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-primary" onclick="generateBriefingPrompt()">Generieren</button>
+      <button class="btn" onclick="closeModal('morningBriefingModal')">Schließen</button>
+    </div>
+  </div>
+</div>
 
 <!-- ══════════════════════════════════════════════ -->
 <!-- Co-Pilot Start Modal                           -->
@@ -3420,6 +3478,132 @@ function generateSelPrompt() {
 function copySelPrompt() {
   var text = document.getElementById('selPromptText').textContent;
   copyText(text, '✓ Prompt kopiert');
+}
+
+
+// ════════════════════════════════════════════════
+// Morning Briefing
+// ════════════════════════════════════════════════
+function generateBriefingPrompt() {
+  var inclWeek      = document.getElementById('briefingInclWeek') && document.getElementById('briefingInclWeek').checked;
+  var inclFL        = document.getElementById('briefingInclFL') && document.getElementById('briefingInclFL').checked;
+  var inclMigration = document.getElementById('briefingInclMigration') && document.getElementById('briefingInclMigration').checked;
+  var focus         = document.getElementById('briefingFocus') ? document.getElementById('briefingFocus').value.trim() : '';
+  var cfg           = S.config.context || '';
+  var todayStr      = today();
+  var todayDEStr    = todayDE();
+
+  // ── Today's objects so far ──────────────────────────
+  var todayObjs = TODAY.objects.filter(function(o){ return !o.parentId && !o.dismissed; });
+  var todayBlock = '';
+  if (todayObjs.length) {
+    todayBlock = '## Heutige Objekte bisher (' + todayStr + ')\n';
+    todayBlock += todayObjs.map(function(o) {
+      var line = (OBJ_ICONS[o.typ]||'·') + ' [' + o.typ + ']';
+      if (o.zeit) line += ' ' + o.zeit;
+      line += ' ' + o.text;
+      if (o.status && o.status !== 'open') line += ' [' + o.status + ']';
+      if (o.signifiers && o.signifiers.includes('*')) line += ' ★';
+      return line;
+    }).join('\n');
+  } else {
+    todayBlock = '## Heute\nNoch keine Objekte erfasst.';
+  }
+
+  // ── Week context (last 7 days) ──────────────────────
+  var weekBlock = '';
+  if (inclWeek && S.days && S.days.length) {
+    var weekDays = S.days.slice(0, 7);
+    weekBlock = '\n\n## Wochenkontext (letzte ' + weekDays.length + ' Tage)\n';
+    weekDays.forEach(function(day) {
+      if (!day.objects) return;
+      var objs = day.objects.filter(function(o){ return !o.parentId && !o.dismissed; });
+      var tasks = objs.filter(function(o){ return o.typ === 'aufgabe'; });
+      var ideas  = objs.filter(function(o){ return o.typ === 'idee'; });
+      var open   = tasks.filter(function(o){ return !o.status || o.status === 'open'; });
+      weekBlock += '\n**' + day.date + '** — ' + objs.length + ' Objekte';
+      if (open.length) weekBlock += ' · ' + open.length + ' Aufgaben offen';
+      if (ideas.length) weekBlock += ' · ' + ideas.length + ' Ideen';
+      // Show key items: priority + open tasks
+      var keyObjs = objs.filter(function(o){
+        return (o.signifiers && o.signifiers.includes('*')) ||
+               (o.typ === 'aufgabe' && (!o.status || o.status === 'open'));
+      }).slice(0, 4);
+      if (keyObjs.length) {
+        weekBlock += '\n' + keyObjs.map(function(o){
+          return '  · ' + o.text + (o.status && o.status !== 'open' ? ' [' + o.status + ']' : '');
+        }).join('\n');
+      }
+    });
+  }
+
+  // ── Migration puffer ────────────────────────────────
+  var migrationBlock = '';
+  if (inclMigration && S.migrationPuffer && S.migrationPuffer.length) {
+    migrationBlock = '\n\n## Migrierte Aufgaben (warten auf Entscheidung)\n';
+    migrationBlock += S.migrationPuffer.map(function(p){
+      return '· ' + p.text + ' (von ' + p.fromDate + ')';
+    }).join('\n');
+  }
+
+  // ── Future Log due ──────────────────────────────────
+  var flBlock = '';
+  if (inclFL && S.futurelog && S.futurelog.length) {
+    var due = S.futurelog.filter(function(e){
+      return !e.done && e.date && e.date <= todayStr;
+    });
+    var thisWeek = S.futurelog.filter(function(e){
+      if (e.done || !e.date) return false;
+      var d = new Date(e.date);
+      var now = new Date();
+      var diff = (d - now) / (1000*60*60*24);
+      return diff >= 0 && diff <= 7;
+    });
+    if (due.length || thisWeek.length) {
+      flBlock = '\n\n## Future Log';
+      if (due.length) {
+        flBlock += '\n### Fällig / überfällig\n' + due.map(function(e){ return '< ' + e.text + ' (' + e.date + ')'; }).join('\n');
+      }
+      if (thisWeek.length) {
+        flBlock += '\n### Diese Woche fällig\n' + thisWeek.map(function(e){ return '< ' + e.text + ' (' + e.date + ')'; }).join('\n');
+      }
+    }
+  }
+
+  // ── Build full prompt ───────────────────────────────
+  var lines = [
+    '# Morning Briefing · ' + todayStr + ' · ' + todayDEStr,
+    '',
+    cfg ? '## System-Kontext\n' + cfg + '\n' : null,
+    '## Deine Aufgabe',
+    'Du bist mein Tagesstart-Assistent. Gib mir ein kompaktes Morning Briefing basierend auf dem folgenden Kontext.',
+    '',
+    '## Briefing-Struktur (max. 8–10 Sätze als Fließtext)',
+    '1. **Wochenbild** — Was ist das Hauptthema oder die Leitfrage dieser Woche?',
+    '2. **Stand** — Was ist aus den letzten Tagen noch offen oder relevant?',
+    '3. **Heute** — Welche Rolle spielt dieser Tag?',
+    '4. **Top 3** — Welche 1–3 Aufgaben sind heute am wichtigsten?',
+    '5. **Hinweis** — Gibt es etwas das ich heute nicht vergessen sollte?',
+    focus ? '\n## Fokus heute\n' + focus : null,
+    '',
+    todayBlock,
+    weekBlock || null,
+    migrationBlock || null,
+    flBlock || null
+  ];
+
+  var prompt = lines.filter(function(l){ return l !== null; }).join('\n');
+
+  var textEl = document.getElementById('briefingPromptText');
+  var placeholder = document.getElementById('briefingPlaceholder');
+  if (textEl) { textEl.textContent = prompt; textEl.style.display = 'block'; }
+  if (placeholder) placeholder.style.display = 'none';
+}
+
+function copyBriefingPrompt() {
+  var text = document.getElementById('briefingPromptText').textContent;
+  if (!text) { generateBriefingPrompt(); text = document.getElementById('briefingPromptText').textContent; }
+  copyText(text, '✓ Morning Briefing kopiert');
 }
 
 
