@@ -1240,6 +1240,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
       Abschluss <span id="badge-review" class="tab-badge" style="display:none">!</span>
     </button>
     <button class="tab-btn" onclick="switchTab('futurelog')" id="tab-futurelog">Future Log <span id="badge-fl" class="tab-badge" style="display:none">0</span></button>
+    <button class="tab-btn" onclick="switchTab('kontexte')" id="tab-kontexte">Kontexte</button>
     <button class="tab-btn" onclick="switchTab('zettel')" id="tab-zettel">Zettel <span id="badge-zettel" class="tab-badge" style="display:none">0</span></button>
     <button class="tab-btn" onclick="switchTab('verlauf')" id="tab-verlauf">
       Verlauf
@@ -1736,6 +1737,36 @@ select:focus { outline: none; border-color: var(--border-mid); }
   </div>
 
 
+
+  <!-- ══════════════════════════════════════════ -->
+  <!-- Tab: Kontexte                              -->
+  <!-- ══════════════════════════════════════════ -->
+  <div id="panel-kontexte" class="panel">
+
+    <!-- Context cards grid -->
+    <div class="section" id="ctxCardsSection">
+      <div class="section-title">
+        Meine Kontexte
+        <span style="margin-left:auto;font-family:var(--mono);font-size:0.6rem;color:var(--ink-dim)" id="ctxMeta"></span>
+      </div>
+      <div id="ctxCardGrid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:4px"></div>
+    </div>
+
+    <!-- Context detail view -->
+    <div class="section" id="ctxDetailSection" style="display:none">
+      <div class="section-title" id="ctxDetailTitle">
+        @kontext
+        <button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="closeCtxDetail()">← Alle</button>
+      </div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px" id="ctxDetailMeta"></div>
+      <div id="ctxDetailList"></div>
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn btn-sm btn-ghost" onclick="ctxToPrompt()">→ Alle in Prompt</button>
+      </div>
+    </div>
+
+  </div>
+
   <!-- ══════════════════════════════════════════ -->
   <!-- Tab: Zettel                                -->
   <!-- ══════════════════════════════════════════ -->
@@ -2226,7 +2257,7 @@ function load() {
 // Tabs
 // ════════════════════════════════════════════════
 function switchTab(name) {
-  ['sammeln','feed','objekte','plan','review','abschluss','futurelog','zettel','verlauf'].forEach(function(t) {
+  ['sammeln','feed','objekte','plan','review','abschluss','futurelog','kontexte','zettel','verlauf'].forEach(function(t) {
     var p = document.getElementById('panel-' + t);
     var b = document.getElementById('tab-' + t);
     if (p) p.classList.remove('active');
@@ -2238,6 +2269,7 @@ function switchTab(name) {
   if (btn)   btn.classList.add('active');
   if (name === 'feed')       renderFeedTab();
   if (name === 'plan')       { renderPlanTab(); reloadMigratedTasks(); }
+  if (name === 'kontexte')   renderKontexteTab();
   updateDrawerActive(name);
   syncDrawerBadges();
   if (name === 'zettel')     renderZettelTab();
@@ -3638,57 +3670,174 @@ function addContextToObj(objId, ctx) {
   renderObjectList();
 }
 
-var activeCtxFilter = null;
+// ════════════════════════════════════════════════
+// Kontexte Tab
+// ════════════════════════════════════════════════
+var activeCtxDetail = null;
 
-function renderCtxView() {
-  var all = getAllContexts();
-  var filterRow = document.getElementById('ctxFilterRow');
-  var listEl    = document.getElementById('ctxObjectList');
-  if (!filterRow || !listEl) return;
+function getAllContextsGlobal() {
+  // Collect from today + all past days + config
+  var ctxSet = {};
+  TODAY.objects.forEach(function(o) {
+    if (o.contexts) o.contexts.forEach(function(c){ ctxSet[c] = (ctxSet[c]||0) + 1; });
+  });
+  (S.days||[]).forEach(function(day) {
+    if (!day.objects) return;
+    day.objects.forEach(function(o) {
+      if (o.contexts) o.contexts.forEach(function(c){ ctxSet[c] = (ctxSet[c]||0) + 1; });
+    });
+  });
+  (S.config.contexts||[]).forEach(function(c){ if (!ctxSet[c]) ctxSet[c] = 0; });
+  return ctxSet; // {ctx: count}
+}
 
-  if (!all.length) {
-    filterRow.innerHTML = '<span style="font-family:var(--mono);font-size:0.66rem;color:var(--ink-dim)">Noch keine Kontexte — füge @kontext in Objekten ein.</span>';
-    listEl.innerHTML = '';
+function getObjsForCtx(ctx) {
+  // Returns [{obj, date}] from today + past days
+  var hits = [];
+  TODAY.objects.forEach(function(o) {
+    if (o.contexts && o.contexts.includes(ctx) && !o.parentId && !o.dismissed)
+      hits.push({ obj: o, date: today() });
+  });
+  (S.days||[]).forEach(function(day) {
+    if (!day.objects) return;
+    day.objects.forEach(function(o) {
+      if (o.contexts && o.contexts.includes(ctx) && !o.parentId && !o.dismissed)
+        hits.push({ obj: o, date: day.date });
+    });
+  });
+  // Sort newest first
+  hits.sort(function(a, b){ return b.date > a.date ? 1 : -1; });
+  return hits;
+}
+
+function renderKontexteTab() {
+  var ctxMap = getAllContextsGlobal();
+  var ctxList = Object.keys(ctxMap).sort();
+  var metaEl = document.getElementById('ctxMeta');
+  if (metaEl) metaEl.textContent = ctxList.length + ' Kontexte';
+
+  // Show cards, hide detail
+  document.getElementById('ctxCardsSection').style.display = 'block';
+  document.getElementById('ctxDetailSection').style.display = 'none';
+  activeCtxDetail = null;
+
+  var grid = document.getElementById('ctxCardGrid');
+  if (!grid) return;
+
+  if (!ctxList.length) {
+    grid.innerHTML = '<div class="empty-state" style="grid-column:1/-1">Noch keine Kontexte — füge @kontext in Objekte ein.</div>';
     return;
   }
 
-  filterRow.innerHTML = all.map(function(c) {
-    return '<span class=\"ctx-pill' + (activeCtxFilter === c ? ' active' : '') + '\" onclick=\"setCtxFilter(\'' + c + '\')\">' +
-      '@' + c + ' <span style="opacity:0.6">·</span> ' +
-      TODAY.objects.filter(function(o){ return o.contexts && o.contexts.includes(c); }).length +
-    '</span>';
-  }).join('');
-
-  if (!activeCtxFilter) {
-    listEl.innerHTML = '<div class="empty-state">Wähle einen Kontext oben.</div>';
-    return;
-  }
-
-  var objs = TODAY.objects.filter(function(o){ return o.contexts && o.contexts.includes(activeCtxFilter) && !o.parentId; });
-  if (!objs.length) {
-    listEl.innerHTML = '<div class="empty-state">Keine Objekte mit @' + esc(activeCtxFilter) + '.</div>';
-    return;
-  }
-
-  listEl.innerHTML = objs.map(function(obj) {
-    return '<div class="obj-item" style="margin-bottom:6px">' +
-      '<div class="obj-icon">' + (OBJ_ICONS[obj.typ]||'·') + '</div>' +
-      '<div class="obj-content">' +
-        '<div class="obj-text">' + esc(obj.text) + '</div>' +
-        '<div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">' +
-          '<span class="obj-type-label t-' + obj.typ + '">' + obj.typ + '</span>' +
-          (obj.zeit ? '<span class="obj-meta">' + esc(obj.zeit) + '</span>' : '') +
-          statusChip(obj.status) +
-        '</div>' +
+  grid.innerHTML = ctxList.map(function(c) {
+    var count = ctxMap[c];
+    // Count open tasks
+    var openTasks = getObjsForCtx(c).filter(function(h){ return h.obj.typ === 'aufgabe' && (!h.obj.status || h.obj.status === 'open'); }).length;
+    return '<div style="background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:12px 14px;cursor:pointer;transition:border-color .15s" ' +
+      'onclick="openCtxDetail(\'' + c + '\')" onmouseover="this.style.borderColor=\'var(--border-mid)\'" onmouseout="this.style.borderColor=\'var(--border)\'">' +
+      '<div style="font-family:var(--mono);font-size:0.7rem;color:var(--accent);margin-bottom:4px">@' + esc(c) + '</div>' +
+      '<div style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim)">' + count + ' Objekte' +
+        (openTasks ? ' · <span style="color:var(--orange)">' + openTasks + ' offen</span>' : '') +
       '</div>' +
     '</div>';
   }).join('');
 }
 
-function setCtxFilter(c) {
-  activeCtxFilter = (activeCtxFilter === c) ? null : c;
-  renderCtxView();
+function openCtxDetail(ctx) {
+  activeCtxDetail = ctx;
+  document.getElementById('ctxCardsSection').style.display = 'none';
+  var detailSection = document.getElementById('ctxDetailSection');
+  detailSection.style.display = 'block';
+
+  var titleEl = document.getElementById('ctxDetailTitle');
+  if (titleEl) titleEl.childNodes[0].textContent = '@' + ctx + ' ';
+
+  var hits = getObjsForCtx(ctx);
+  var metaEl = document.getElementById('ctxDetailMeta');
+  if (metaEl) {
+    var total  = hits.length;
+    var open   = hits.filter(function(h){ return h.obj.typ === 'aufgabe' && (!h.obj.status || h.obj.status === 'open'); }).length;
+    var ideas  = hits.filter(function(h){ return h.obj.typ === 'idee'; }).length;
+    var parts  = [total + ' Objekte'];
+    if (open) parts.push('<span style="color:var(--orange)">' + open + ' offene Aufgaben</span>');
+    if (ideas) parts.push(ideas + ' Ideen');
+    metaEl.innerHTML = parts.map(function(p){ return '<span style="font-family:var(--mono);font-size:0.64rem;color:var(--ink-dim)">' + p + '</span>'; }).join('');
+  }
+
+  var listEl = document.getElementById('ctxDetailList');
+  if (!listEl) return;
+
+  if (!hits.length) {
+    listEl.innerHTML = '<div class="empty-state">Keine Objekte mit @' + esc(ctx) + '.</div>';
+    return;
+  }
+
+  // Group by date
+  var byDate = {};
+  hits.forEach(function(h) {
+    if (!byDate[h.date]) byDate[h.date] = [];
+    byDate[h.date].push(h.obj);
+  });
+
+  var dates = Object.keys(byDate).sort().reverse();
+  listEl.innerHTML = dates.map(function(date) {
+    var isToday = date === today();
+    var objs = byDate[date];
+    return '<div style="margin-bottom:14px">' +
+      '<div style="font-family:var(--mono);font-size:0.64rem;color:' + (isToday ? 'var(--accent)' : 'var(--ink-dim)') + ';margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border)">' +
+        (isToday ? 'Heute' : date) +
+      '</div>' +
+      objs.map(function(obj) {
+        var children = (isToday ? TODAY.objects : (byDate[date] || [])).filter(function(o){ return o.parentId === obj.id; });
+        return '<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">' +
+          '<div style="font-size:0.85rem;flex-shrink:0;padding-top:1px">' + (OBJ_ICONS[obj.typ]||'·') + '</div>' +
+          '<div style="flex:1">' +
+            '<div style="font-family:var(--serif);font-size:0.9rem;color:var(--ink);line-height:1.5">' + esc(obj.text) + '</div>' +
+            '<div style="display:flex;gap:6px;margin-top:3px;flex-wrap:wrap;align-items:center">' +
+              '<span class="obj-type-label t-' + obj.typ + '" style="font-size:0.55rem">' + obj.typ + '</span>' +
+              (obj.zeit ? '<span style="font-family:var(--mono);font-size:0.6rem;color:var(--ink-dim)">' + esc(obj.zeit) + '</span>' : '') +
+              statusChip(obj.status) +
+            '</div>' +
+            (children.length ? '<div style="margin-top:4px;padding-left:8px;border-left:2px solid var(--border-mid)">' +
+              children.map(function(c){ return '<div style="font-family:var(--serif);font-size:0.82rem;color:var(--ink-mid);padding:2px 0">→ ' + esc(c.text) + '</div>'; }).join('') +
+            '</div>' : '') +
+          '</div>' +
+        '</div>';
+      }).join('') +
+    '</div>';
+  }).join('');
 }
+
+function closeCtxDetail() {
+  renderKontexteTab();
+}
+
+function ctxToPrompt() {
+  if (!activeCtxDetail) return;
+  var hits = getObjsForCtx(activeCtxDetail);
+  var cfg  = S.config.context || '';
+  var lines = [
+    '# Kontext @' + activeCtxDetail + ' · ' + today(),
+    '',
+    cfg ? '## System-Kontext\n' + cfg + '\n' : null,
+    '## Alle Objekte mit @' + activeCtxDetail + ' (' + hits.length + ')',
+    '',
+  ];
+  hits.forEach(function(h) {
+    var prefix = h.date === today() ? 'Heute' : h.date;
+    lines.push('[' + prefix + '] [' + h.obj.typ.toUpperCase() + '] ' + h.obj.text +
+      (h.obj.status && h.obj.status !== 'open' ? ' [' + h.obj.status + ']' : ''));
+  });
+  var prompt = lines.filter(function(l){ return l !== null; }).join('\n');
+  copyText(prompt, '✓ Kontext-Prompt kopiert');
+  toast('Prompt für @' + activeCtxDetail + ' kopiert');
+}
+
+// Legacy compat
+function renderCtxView() { renderKontexteTab(); }
+function setCtxFilter(c) { openCtxDetail(c); }
+var activeCtxFilter = null;
+
 
 // ════════════════════════════════════════════════
 // Status
@@ -5775,7 +5924,7 @@ function drawerNav(name) {
 
 function updateDrawerActive(name) {
   currentTab = name;
-  var tabs = ['sammeln','feed','objekte','plan','review','abschluss','futurelog','zettel','verlauf'];
+  var tabs = ['sammeln','feed','objekte','plan','review','abschluss','futurelog','kontexte','zettel','verlauf'];
   tabs.forEach(function(t) {
     var el = document.getElementById('dnav-' + t);
     if (el) el.classList.toggle('active', t === name);
@@ -5842,6 +5991,7 @@ if ('serviceWorker' in navigator) {
     <button class="nav-drawer-item" id="dnav-futurelog" onclick="drawerNav('futurelog')">
       ◂ Future Log <span class="nav-drawer-badge" id="dbadge-fl" style="display:none">0</span>
     </button>
+    <button class="nav-drawer-item" id="dnav-kontexte" onclick="drawerNav('kontexte')">@ Kontexte</button>
     <button class="nav-drawer-item" id="dnav-zettel" onclick="drawerNav('zettel')">
       ⬡ Zettel <span class="nav-drawer-badge" id="dbadge-zettel" style="display:none">0</span>
     </button>
