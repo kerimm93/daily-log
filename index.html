@@ -921,7 +921,8 @@ textarea { min-height: 120px; }
   color: var(--ink-dim);
 }
 .feed-source.readwise { background: var(--purple-bg); color: var(--purple); }
-.feed-source.raindrop { background: var(--blue-bg);   color: var(--blue); }
+.feed-source.raindrop   { background: var(--blue-bg);   color: var(--blue); }
+.feed-source.highlight  { background: var(--orange-bg); color: var(--orange); }
 .feed-title {
   font-family: var(--serif);
   font-size: 0.95rem;
@@ -3899,7 +3900,7 @@ function renderFeedList() {
 
   container.innerHTML = filtered.map(function(item) {
     var srcCls = 'feed-source ' + item.source;
-    var srcLabel = item.source === 'readwise' ? '📖 Readwise' : '🔖 Raindrop';
+    var srcLabel = item.source === 'readwise' ? '📖 Readwise' : item.source === 'highlight' ? '✏ Highlight' : '🔖 Raindrop';
     var itemCls = 'feed-item' + (item.status === 'ignored' ? ' ignored' : item.status === 'adopted' ? ' adopted' : '');
     var adoptRowCls = 'feed-adopt-row' + (item._showAdopt ? ' visible' : '');
 
@@ -3928,10 +3929,10 @@ function renderFeedList() {
       '<div class="' + adoptRowCls + '" id="far-' + item.id + '">' +
         '<label style="margin:0;white-space:nowrap">Als:</label>' +
         '<select id="ftyp-' + item.id + '" style="font-size:0.7rem;padding:4px 8px">' +
-          '<option value="notiz">Notiz</option>' +
-          '<option value="idee">Idee</option>' +
-          '<option value="aufgabe">Aufgabe</option>' +
-          '<option value="zitat">Zitat</option>' +
+          '<option value="notiz">Notiz — Beobachtung, Fakt, Gedanke</option>' +
+          '<option value="idee">Atomic Note — eine Idee als eigene Notiz</option>' +
+          '<option value="aufgabe">Aufgabe — etwas das ich tun will</option>' +
+          '<option value="zitat">Zitat — originalgetreuer Satz</option>' +
         '</select>' +
         '<button class="btn btn-sm btn-primary" data-fid="' + item.id + '" onclick="confirmFeedAdopt(this.dataset.fid)">Speichern</button>' +
         '<button class="btn btn-sm btn-ghost" data-fid="' + item.id + '" onclick="cancelFeedAdopt(this.dataset.fid)">×</button>' +
@@ -4139,8 +4140,9 @@ async function loadHighlights() {
   if (btn) btn.textContent = '⏳ Lädt…';
 
   try {
-    var params = new URLSearchParams({ pageSize: 100, category: 'highlight' });
-    if (S.feedLastHighlights) params.set('updatedAfter', S.feedLastHighlights);
+    // Default: today's highlights only; use last import time if available
+    var sinceDate = S.feedLastHighlights || (today() + 'T00:00:00.000Z');
+    var params = new URLSearchParams({ pageSize: 100, category: 'highlight', updatedAfter: sinceDate });
 
     var res = await fetch('https://readwise.io/api/v3/list/?' + params.toString(), {
       headers: { 'Authorization': 'Token ' + token }
