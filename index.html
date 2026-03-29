@@ -527,11 +527,63 @@ textarea { min-height: 120px; }
 
 
 /* ── Sub-entries ── */
+
+/* ── Enhanced child entries ── */
+.obj-children {
+  border-left: 2px solid var(--border-mid);
+}
+.obj-child-promote {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--ink-dim);
+  cursor: pointer;
+  padding: 1px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.obj-child-promote:hover { color: var(--accent); }
+
+/* ── Parent picker ── */
+.parent-picker-wrap {
+  margin-top: 8px;
+  background: var(--bg-mid);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--r);
+  padding: 10px 12px;
+  display: none;
+}
+.parent-picker-wrap.visible { display: block; }
+.parent-picker-wrap select {
+  width: 100%;
+  font-family: var(--serif);
+  font-size: 0.85rem;
+}
+
+/* ── Sort + filter controls ── */
+.obj-controls {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.sort-btn {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.sort-btn.active { border-color: var(--accent-dim); color: var(--accent); }
+
 .obj-children {
   margin-left: 26px;
   margin-top: 6px;
-  border-left: 1px solid var(--border);
-  padding-left: 10px;
+  padding-left: 12px;
 }
 .obj-child {
   padding: 5px 0;
@@ -1325,6 +1377,12 @@ select:focus { outline: none; border-color: var(--border-mid); }
         </span>
       </div>
       <div class="obj-summary" id="objSummary"></div>
+      <!-- Controls -->
+      <div class="obj-controls" id="objControls">
+        <button class="sort-btn active" id="btnSortAsc" onclick="setObjSort('asc')" title="Älteste oben">↑ chronologisch</button>
+        <button class="sort-btn" id="btnSortDesc" onclick="setObjSort('desc')" title="Neueste oben">↓ neueste oben</button>
+        <button class="sort-btn" id="btnHideDone" onclick="toggleHideDone()" title="Erledigte ausblenden">☐ erledigte</button>
+      </div>
       <div id="objectList" class="obj-list">
         <div class="empty-state">Noch keine Objekte extrahiert.<br>Gehe zu einer Karte und generiere einen Extraktions-Prompt.</div>
       </div>
@@ -2512,10 +2570,41 @@ function setObjFilter(typ) {
   renderObjectList();
 }
 
+var objSortDir  = 'asc';  // 'asc' | 'desc'
+var hideDone    = false;
+
+function setObjSort(dir) {
+  objSortDir = dir;
+  document.getElementById('btnSortAsc').classList.toggle('active', dir === 'asc');
+  document.getElementById('btnSortDesc').classList.toggle('active', dir === 'desc');
+  renderObjectList();
+}
+
+function toggleHideDone() {
+  hideDone = !hideDone;
+  var btn = document.getElementById('btnHideDone');
+  if (btn) {
+    btn.textContent = hideDone ? '✓ erledigte' : '☐ erledigte';
+    btn.classList.toggle('active', hideDone);
+  }
+  renderObjectList();
+}
+
 function renderObjectList() {
   var container = document.getElementById('objectList');
   var rootObjs = TODAY.objects.filter(function(o){ return !o.parentId; });
   var active   = rootObjs.filter(function(o){ return !o.dismissed; });
+
+  // Hide done if toggled
+  var pool = showDismissed ? rootObjs : active;
+  if (hideDone) {
+    pool = pool.filter(function(o){
+      return !(o.typ === 'aufgabe' && (o.status === 'x' || o.status === 'xx' || o.status === '--'));
+    });
+  }
+
+  // Filter by type
+  var visible = activeObjFilter ? pool.filter(function(o){ return o.typ === activeObjFilter; }) : pool;
 
   // Filter pills
   var counts = {};
@@ -2533,14 +2622,13 @@ function renderObjectList() {
   }).join('');
   summaryEl.innerHTML = allPill + typePills;
 
-  var pool = showDismissed ? rootObjs : active;
-  var visible = activeObjFilter ? pool.filter(function(o){ return o.typ === activeObjFilter; }) : pool;
-
-  // Sort by zeit (HH:MM), then createdAt
+  // Sort
   visible.sort(function(a, b) {
-    var ta = a.zeit || '99:99', tb = b.zeit || '99:99';
-    if (ta !== tb) return ta < tb ? -1 : 1;
-    return (a.createdAt||'') < (b.createdAt||'') ? -1 : 1;
+    var ta = a.zeit || (objSortDir === 'asc' ? '99:99' : '00:00');
+    var tb = b.zeit || (objSortDir === 'asc' ? '99:99' : '00:00');
+    var cmp = ta < tb ? -1 : ta > tb ? 1 : 0;
+    if (cmp === 0) cmp = (a.createdAt||'') < (b.createdAt||'') ? -1 : 1;
+    return objSortDir === 'desc' ? -cmp : cmp;
   });
 
   if (!active.length) {
@@ -2548,7 +2636,7 @@ function renderObjectList() {
     return;
   }
   if (!visible.length) {
-    container.innerHTML = '<div class="empty-state">Keine Objekte vom Typ "' + esc(activeObjFilter) + '".</div>';
+    container.innerHTML = '<div class="empty-state">Keine Objekte für diesen Filter.</div>';
     return;
   }
 
@@ -2570,6 +2658,14 @@ function renderObjItem(obj, depth) {
 
   var addInputId  = 'add-' + obj.id;
   var mainInputId = 'main-input-' + obj.id;
+  var parentPickerHtml = '<div class="parent-picker-wrap" id="ppick-' + obj.id + '">' +
+    '<div style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim);margin-bottom:6px">Diesem Objekt überordnen:</div>' +
+    '<select style="width:100%;margin-bottom:8px"></select>' +
+    '<div style="display:flex;gap:6px">' +
+      '<button class="btn btn-sm btn-primary" data-oid="' + obj.id + '" onclick="applyParentPicker(this.dataset.oid)">✓ Übernehmen</button>' +
+      '<button class="btn btn-sm btn-ghost" data-oid="' + obj.id + '" onclick="cancelParentPicker(this.dataset.oid)">Abbrechen</button>' +
+    '</div>' +
+  '</div>';
 
   var selClass = selMode ? ' selectable' + (selectedObjIds[obj.id] ? ' selected-for-prompt' : '') : '';
   var selCb = selMode ? '<div class="sel-checkbox">' + (selectedObjIds[obj.id] ? '✓' : '') + '</div>' : '';
@@ -2616,8 +2712,11 @@ function renderObjItem(obj, depth) {
         '<input class="obj-add-input" id="' + addInputId + '" type="text" placeholder="Ergänzung eingeben… Enter zum Speichern"' +
           ' onkeydown="addChildKey(event,\'' + obj.id + '\')">' +
       '</div>' +
+      // Parent picker
+      parentPickerHtml +
     '</div>' +
     '<div class="obj-actions">' +
+      '<button class="btn btn-sm btn-ghost" data-oid="' + obj.id + '" onclick="openParentPicker(this.dataset.oid)" title="Einordnen unter…" style="font-size:0.65rem">↳</button>' +
       (!obj.dismissed
         ? '<button class="btn btn-sm btn-ghost" onclick="dismissObj(\'' + obj.id + '\')" title="Verwerfen">×</button>'
         : '<button class="btn btn-sm btn-ghost" onclick="restoreObj(\'' + obj.id + '\')" title="Wiederherstellen" style="color:var(--green)">↩</button>'
@@ -2656,6 +2755,56 @@ function toggleExpand(objId) {
     if (addrow) addrow.style.display = 'none';
   }
 }
+
+// ════════════════════════════════════════════════
+// Parent Picker — assign object to a parent
+// ════════════════════════════════════════════════
+function openParentPicker(objId) {
+  // Close any open picker first
+  document.querySelectorAll('.parent-picker-wrap.visible').forEach(function(el) {
+    el.classList.remove('visible');
+  });
+  var wrap = document.getElementById('ppick-' + objId);
+  if (!wrap) return;
+
+  // Populate select with root objects (excluding self)
+  var sel = wrap.querySelector('select');
+  var candidates = TODAY.objects.filter(function(o) {
+    return !o.parentId && o.id !== objId && !o.dismissed;
+  });
+  sel.innerHTML = '<option value="">— kein übergeordnetes Objekt —</option>' +
+    candidates.map(function(o) {
+      return '<option value="' + o.id + '">' + esc((o.zeit ? o.zeit + ' ' : '') + o.text.slice(0, 60)) + '</option>';
+    }).join('');
+
+  // Pre-select current parent if any
+  var obj = TODAY.objects.find(function(o){ return o.id === objId; });
+  if (obj && obj.parentId) sel.value = obj.parentId;
+
+  wrap.classList.add('visible');
+}
+
+function applyParentPicker(objId) {
+  var wrap = document.getElementById('ppick-' + objId);
+  if (!wrap) return;
+  var sel = wrap.querySelector('select');
+  var newParentId = sel.value || null;
+
+  var obj = TODAY.objects.find(function(o){ return o.id === objId; });
+  if (!obj) return;
+
+  obj.parentId = newParentId;
+  wrap.classList.remove('visible');
+  save();
+  renderObjectList();
+  toast(newParentId ? 'Eingeordnet ✓' : 'Überordnung entfernt');
+}
+
+function cancelParentPicker(objId) {
+  var wrap = document.getElementById('ppick-' + objId);
+  if (wrap) wrap.classList.remove('visible');
+}
+
 
 function addChildKey(event, parentId) {
   if (event.key === 'Enter') {
@@ -5114,6 +5263,15 @@ function runSearch(query) {
   }
 
   var q = query.toLowerCase();
+  // Extract @context filter if query starts with @
+  var ctxFilter = null;
+  if (q.startsWith('@')) {
+    var parts = q.split(/\s+/);
+    ctxFilter = parts[0].slice(1);
+    q = parts.slice(1).join(' ').trim();
+    if (!q) q = ctxFilter; // search for the context itself if no other term
+  }
+
   var hits = [];
 
   // ── Search today's objects ──────────────────────
@@ -5121,6 +5279,7 @@ function runSearch(query) {
     if (obj.dismissed || obj.parentId) return;
     if (searchFilter !== 'all' && searchFilter !== 'zettel' && obj.typ !== searchFilter) return;
     if (searchFilter === 'zettel') return;
+    if (ctxFilter && !(obj.contexts && obj.contexts.some(function(c){ return c.toLowerCase().indexOf(ctxFilter) !== -1; }))) return;
     var score = scoreMatch(obj.text, q) + scoreMatch(obj.kontext, q);
     if (score > 0) hits.push({ type: 'obj', obj: obj, date: today(), score: score });
     // Also search children
@@ -5136,6 +5295,7 @@ function runSearch(query) {
       if (obj.dismissed || obj.parentId) return;
       if (searchFilter !== 'all' && searchFilter !== 'zettel' && obj.typ !== searchFilter) return;
       if (searchFilter === 'zettel') return;
+      if (ctxFilter && !(obj.contexts && obj.contexts.some(function(c){ return c.toLowerCase().indexOf(ctxFilter) !== -1; }))) return;
       var score = scoreMatch(obj.text, q) + scoreMatch(obj.kontext, q);
       if (score > 0) hits.push({ type: 'obj', obj: obj, date: day.date, score: score });
     });
