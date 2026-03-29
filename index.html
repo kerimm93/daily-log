@@ -1401,15 +1401,25 @@ select:focus { outline: none; border-color: var(--border-mid); }
         placeholder="z.B. Gib mir alle Anmerkungen zur App-Überarbeitung geordnet zurück und erstelle einen Handlungsplan.&#10;Oder: Fasse alle Ideen zu Thema X zusammen.&#10;Oder: Erstelle eine Zettelkasten-Notiz aus den ausgewählten Gedanken."></textarea>
     </div>
 
-    <div style="margin-bottom:10px;display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <label style="margin:0">Typ:</label>
-      <select id="selPromptType" style="font-size:0.72rem;padding:5px 8px">
+    <div style="margin-bottom:12px;display:flex;gap:16px;align-items:center;flex-wrap:wrap">
+      <div style="display:flex;gap:8px;align-items:center">
+        <label style="margin:0">Typ:</label>
+        <select id="selPromptType" style="font-size:0.72rem;padding:5px 8px">
         <option value="free">Freie Aufgabe (Intention oben)</option>
         <option value="report">Bericht / Zusammenfassung</option>
         <option value="plan">Handlungsplan</option>
         <option value="zettel">Zettelkasten-Notiz generieren</option>
         <option value="bujo">BuJo-Format</option>
-      </select>
+        </select>
+      </div>
+      <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-family:var(--mono);font-size:0.68rem;color:var(--ink-mid);margin:0">
+        <input type="checkbox" id="selIncludeSource" style="width:14px;height:14px;accent-color:var(--accent)">
+        Quellkarten einbetten
+      </label>
+      <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-family:var(--mono);font-size:0.68rem;color:var(--ink-mid);margin:0">
+        <input type="checkbox" id="selIncludeAllDay" style="width:14px;height:14px;accent-color:var(--accent)">
+        Ganzen Tag einbetten
+      </label>
     </div>
 
     <div class="sel-prompt-out" id="selPromptOut" style="display:none">
@@ -3314,40 +3324,82 @@ function generateSelPrompt() {
   var objs = getSelectedObjs();
   if (!objs.length) { toast('Keine Objekte ausgewählt.'); return; }
 
-  var intention = document.getElementById('selIntention').value.trim();
-  var type = document.getElementById('selPromptType').value;
+  var intention    = document.getElementById('selIntention').value.trim();
+  var type         = document.getElementById('selPromptType').value;
+  var inclSource   = document.getElementById('selIncludeSource') && document.getElementById('selIncludeSource').checked;
+  var inclAllDay   = document.getElementById('selIncludeAllDay') && document.getElementById('selIncludeAllDay').checked;
   var cfg = S.config.context || '';
   var dateStr = today();
 
-  // Build objects block
+  // ── Objects block ─────────────────────────────────────
   var objBlock = objs.map(function(o, i) {
     var children = TODAY.objects.filter(function(c){ return c.parentId === o.id; });
     var line = (i+1) + '. [' + o.typ.toUpperCase() + ']';
     if (o.zeit) line += ' ' + o.zeit;
     if (o.signifiers && o.signifiers.includes('*')) line += ' ★';
     line += ' ' + o.text;
+    if (o.energie) line += ' [Energie: ' + o.energie + ']';
+    if (o.dauer)   line += ' [~' + o.dauer + ']';
     if (o.contexts && o.contexts.length) line += ' (' + o.contexts.map(function(c){ return '@'+c; }).join(' ') + ')';
     if (o.status && o.status !== 'open') line += ' [' + o.status + ']';
     if (children.length) {
       children.forEach(function(c) {
-        line += '\n   → ' + c.zeit + ' ' + c.text;
+        line += '\n   → ' + (c.zeit ? c.zeit + ' ' : '') + c.text;
       });
     }
     return line;
   }).join('\n');
 
+  // ── Source cards block (optional) ─────────────────────
+  var sourceBlock = '';
+  if (inclSource) {
+    // Find unique cards of selected objects
+    var cardIds = {};
+    objs.forEach(function(o){ if (o.cardId) cardIds[o.cardId] = true; });
+    var cards = TODAY.cards.filter(function(c){ return cardIds[c.id]; });
+    if (cards.length) {
+      sourceBlock = '\n\n## Quellmaterial (Original-Karten)\n\n' +
+        cards.map(function(c) {
+          return '--- Karte ' + c.time + ' [' + c.type + '] ---\n' + c.text;
+        }).join('\n\n');
+    }
+  }
+
+  // ── Full day block (optional) ──────────────────────────
+  var allDayBlock = '';
+  if (inclAllDay) {
+    var allCards = TODAY.cards;
+    var allObjs  = TODAY.objects.filter(function(o){ return !o.parentId && !o.dismissed; });
+    allDayBlock = '\n\n## Vollständiger Tages-Input\n\n';
+    if (allObjs.length) {
+      allDayBlock += '### Alle Objekte des Tages\n';
+      allDayBlock += allObjs.map(function(o) {
+        var ch = TODAY.objects.filter(function(c){ return c.parentId === o.id; });
+        var l = '[' + o.typ.toUpperCase() + ']' + (o.zeit ? ' ' + o.zeit : '') + ' ' + o.text;
+        if (ch.length) ch.forEach(function(c){ l += '\n  → ' + (c.zeit||'') + ' ' + c.text; });
+        return l;
+      }).join('\n');
+    }
+    if (allCards.length) {
+      allDayBlock += '\n\n### Rohe Karten\n';
+      allDayBlock += allCards.map(function(c) {
+        return '--- ' + c.time + ' [' + c.type + '] ---\n' + c.text;
+      }).join('\n\n');
+    }
+  }
+
+  // ── Task instruction ───────────────────────────────────
   var typeInstructions = {
-    free: intention || 'Verarbeite die folgenden Objekte nach der oben beschriebenen Aufgabe.',
-    report: 'Erstelle eine strukturierte Zusammenfassung der folgenden Objekte. Gruppiere thematisch, hebe Muster hervor.',
-    plan: 'Erstelle einen konkreten Handlungsplan aus den folgenden Objekten. Priorisiere nach Dringlichkeit und Energie-Level.',
-    zettel: 'Generiere eine oder mehrere atomare Zettelkasten-Notizen aus den folgenden Objekten.\nRegeln: Deklarativer Titel (vollständiger Satz) · Eine Idee pro Notiz · In eigenen Worten · Selbstständig verständlich · Mit [[Wikilinks]].',
-    bujo: 'Erstelle eine kompakte BuJo-Rapid-Logging-Fassung der folgenden Objekte.\nSymbole: ・Aufgabe · ◯Ereignis · −Notiz · !Experiment · ★Anti-Library'
+    free: intention || 'Verarbeite die folgenden Objekte.',
+    report: (intention ? intention + '\n\n' : '') + 'Erstelle einen strukturierten Bericht. Gruppiere thematisch, hebe Muster hervor, mache implizite Zusammenhänge explizit.',
+    plan: (intention ? intention + '\n\n' : '') + 'Erstelle einen konkreten Handlungsplan. Priorisiere nach Dringlichkeit und Energie-Level. Formuliere jeden Schritt als Aktionsverb + Objekt.',
+    zettel: (intention ? intention + '\n\n' : '') + 'Generiere atomare Zettelkasten-Notizen.\nRegeln: Deklarativer Titel (vollständiger Satz als These) · Eine Idee pro Notiz · In eigenen Worten · Selbstständig verständlich · Mit [[Wikilinks]] · 100–300 Wörter.',
+    bujo: (intention ? intention + '\n\n' : '') + 'Kompakte BuJo-Rapid-Logging-Fassung.\nSymbole: ・Aufgabe · ◯Ereignis · −Notiz · !Experiment · ★Anti-Library'
   };
 
-  var task = (type !== 'free' || !intention) ? typeInstructions[type] : intention + '\n\n' + typeInstructions.free.replace(intention + '\n\n', '');
-  if (type === 'free' && intention) task = intention;
+  var task = (type === 'free' && intention) ? intention : typeInstructions[type];
 
-  var prompt = [
+  var lines = [
     '# Objekt-Verarbeitung · ' + dateStr,
     '',
     cfg ? '## System-Kontext\n' + cfg + '\n' : null,
@@ -3356,13 +3408,15 @@ function generateSelPrompt() {
     '',
     '## Ausgewählte Objekte (' + objs.length + ')',
     objBlock,
-    ''
-  ].filter(function(l){ return l !== null; }).join('\n');
+    sourceBlock || null,
+    allDayBlock || null
+  ];
+
+  var prompt = lines.filter(function(l){ return l !== null; }).join('\n');
 
   document.getElementById('selPromptText').textContent = prompt;
   document.getElementById('selPromptOut').style.display = 'block';
 }
-
 function copySelPrompt() {
   var text = document.getElementById('selPromptText').textContent;
   copyText(text, '✓ Prompt kopiert');
