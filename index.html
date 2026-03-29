@@ -936,7 +936,6 @@ select:focus { outline: none; border-color: var(--border-mid); }
         Extrahierte Objekte heute
         <span style="margin-left:auto; display:flex; gap:6px;">
           <button class="btn btn-sm btn-ghost" onclick="toggleDismissed()" id="btnDismissed">Verworfene</button>
-          <button class="btn btn-sm btn-ghost" onclick="exportData()">↓ JSON</button>
         </span>
       </div>
       <div class="obj-summary" id="objSummary"></div>
@@ -1332,7 +1331,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
     <div class="btn-row" style="margin-top:18px">
       <button class="btn btn-primary" onclick="saveSettings()">Speichern</button>
       <button class="btn" onclick="closeModal('settingsModal')">Abbrechen</button>
-      <button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="exportData()">JSON Export</button>
+      <button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="exportData()" title="Exportiert alle Daten: Tage, Objekte, Future Log, Karten">↓ Vollständiger Daten-Export</button>
     </div>
   </div>
 </div>
@@ -1573,47 +1572,62 @@ function openExtract(cardId) {
 function buildExtractionPrompt(card) {
   var typeNames = { log: 'getippter Tages-Log', voice: 'Voice-Memo-Transkript(e)', email: 'E-Mail-Report', free: 'freier Text' };
   var cfg = S.config.context || '';
-  return [
-    '# Objekt-Extraktion · ' + today() + ' · ' + card.time,
+  var lines = [
+    '# Objekt-Extraktion \u00b7 ' + today() + ' \u00b7 ' + card.time,
     '',
     cfg ? '## System-Kontext\n' + cfg + '\n' : null,
     '## Aufgabe',
     'Extrahiere alle Objekte aus dem folgenden ' + (typeNames[card.type] || 'Text') + '.',
     '',
-    '## Objekt-Typen',
-    '- **aufgabe** – To-do, explizit oder implizit',
-    '- **ereignis** – Was passiert ist (Zeitstempel wenn vorhanden)',
-    '- **notiz** – Beobachtung, Gedanke, Fakt',
-    '- **idee** – Neue Idee, Proto-Gedanke, Einfall',
-    '- **zitat** – Zitierenswerter Satz (eigen oder fremd)',
-    '- **sop** – Wiederholbarer Prozess/Schritt der dokumentiert werden sollte',
-    '- **beobachtung** – Systembeobachtung zu Energie, Verhalten, Mustern',
+    '## Objekt-Typen und Qualit\u00e4tskriterien',
     '',
-    '## Ausgabe-Format (NUR gültiges JSON, kein Prosatext drumherum)',
+    '**aufgabe** \u2013 Format: Aktionsverb + konkretes Objekt (stupidly specific)',
+    '  Richtig: "Drei Teller in die Sp\u00fclmaschine stellen"',
+    '  Falsch:  "K\u00fcche aufr\u00e4umen" (kein Verb, zu vage)',
+    '  Richtig: "E-Mail an Markus zu Thema X schreiben (15min)"',
+    '  - One-Step Rule: maximal eine unterbrechungsfreie Handlung',
+    '  - Implizite Aufgaben erfassen: "ich sollte", "muss noch", "w\u00e4re gut", "vergiss nicht"',
+    '  - energie: "niedrig" (mechanisch) | "normal" (bekannt) | "hoch" (kreativ/komplex)',
+    '',
+    '**ereignis** \u2013 Was passiert ist (Zeitstempel wenn vorhanden)',
+    '**notiz**    \u2013 Beobachtung, Gedanke, Fakt',
+    '**idee**     \u2013 Neue Idee, Proto-Gedanke, Einfall',
+    '**zitat**    \u2013 Zitierbarer Satz (eigen oder fremd)',
+    '**sop**      \u2013 Wiederholbarer Prozess der dokumentiert werden sollte',
+    '**beobachtung** \u2013 Systembeobachtung zu Energie, Verhalten, Mustern',
+    '',
+    '## Ausgabe-Format (NUR g\u00fcltiges JSON, kein Prosatext)',
     '```json',
     '[',
-    '  {"typ": "aufgabe", "text": "Aufgabentext", "zeit": "HH:MM oder leer", "kontext": "optionaler Kontext"},',
-    '  {"typ": "ereignis", "text": "Ereignistext", "zeit": "14:53", "kontext": ""}',
+    '  {',
+    '    "typ": "aufgabe",',
+    '    "text": "Aktionsverb + konkretes Objekt",',
+    '    "zeit": "HH:MM oder leer",',
+    '    "energie": "niedrig|normal|hoch",',
+    '    "kontext": "@ort-oder-tool wenn erkennbar",',
+    '    "dauer": "5min|15min|30min|60min+"',
+    '  },',
+    '  {"typ": "ereignis", "text": "...", "zeit": "14:53", "kontext": ""}',
     ']',
     '```',
     '',
-    '## Zeitstempel-Regeln (Priorität beachten)',
-    '1. **Im Text** haben immer Vorrang — z.B. `- 07:22 Text` → zeit: "07:22"',
-    '2. **Voice-Memo-Dateinamen** (`[[YYYY-MM-DD HHMMSS ...]]`) → zeit: "HH:MM" aus Dateiname',
-    '   Beispiel: `[[2026-03-15 143958 Meine Aufnahme]]` → zeit: "14:39"',
-    '3. **Kein Zeitstempel im Text** → zeit: "" (leer — NICHT die Karten-Speicherzeit)',
+    '## Zeitstempel-Regeln',
+    '1. Im Text vorhandene Zeitstempel haben Vorrang (- 07:22 Text \u2192 zeit: "07:22")',
+    '2. Voice-Memo-Dateinamen: [[2026-03-15 143958 ...]] \u2192 zeit: "14:39"',
+    '3. Kein Zeitstempel im Text \u2192 zeit: "" (leer)',
     '',
     '## Weitere Regeln',
     '- Nichts erfinden, nur was im Text steht',
-    '- Implizite Aufgaben ("ich sollte", "muss noch", "wäre gut wenn") als aufgabe erfassen',
+    '- @kontext-Tags \u00fcbernehmen (ohne @-Zeichen ins kontext-Feld)',
+    '- Ortsangaben, Tool-Nennungen, Personennamen als Kontext erkennen',
     '',
     '## Input',
     '```',
     card.text,
     '```'
-  ].filter(function(l){ return l !== null; }).join('\n');
+  ];
+  return lines.filter(function(l){ return l !== null; }).join('\n');
 }
-
 function copyExtractPrompt() {
   var text = document.getElementById('extractPromptText').textContent;
   copyText(text, 'Extraktions-Prompt kopiert');
@@ -2091,81 +2105,136 @@ function getInputSummary() {
 function buildPipePrompt(n) {
   var input = getInputSummary();
   var cfg = S.config.context || '';
-  var dateStr = today() + ' · ' + todayDE();
+  var dateStr = today() + ' \u00b7 ' + todayDE();
 
   if (n === 1) return [
-    '# Aufgaben-Extraktion · ' + dateStr,
+    '# Aufgaben-Extraktion \u00b7 ' + dateStr,
     '', cfg ? '## System-Kontext\n' + cfg + '\n' : null,
-    '## Maxime\n"Alles erfassen · nichts übersehen · nichts verlieren"',
+    '## Maxime\n"Alles erfassen \u00b7 nichts \u00fcbersehen \u00b7 nichts verlieren"',
     '',
     '## Aufgabe',
-    'Extrahiere ALLE Aufgaben, To-dos und Next-Steps – explizite und implizite.',
-    'Zähle dazu: Checkboxen `- [ ]`, implizite To-dos, Aufgaben aus Nebenbemerkungen,',
-    'Klammern, PS, Nachträgen, Voice-Memos.',
+    'Extrahiere ALLE Aufgaben, To-dos und Next-Steps \u2013 explizite und implizite.',
+    'Erfasse auch: Checkboxen `- [ ]`, implizite To-dos, Aufgaben aus Klammern, PS, Voice-Memos.',
     '',
-    'Format pro Aufgabe:',
-    '```\n- [ ] [Aufgabe] | [Kontext] | [Frist oder "offen"] | [Quelle]\n```',
-    'Zähle: X explizite / Y implizite.',
+    '## Qualit\u00e4tsregeln f\u00fcr Aufgaben-Formulierung',
+    '- Format: Aktionsverb + konkretes Objekt (stupidly specific)',
+    '  Richtig: "E-Mail an [Name] zu [Thema] schreiben"',
+    '  Falsch:  "[Thema] bearbeiten" (zu vage)',
+    '- One-Step Rule: eine unterbrechungsfreie Handlung, max. 30 Min.',
+    '  L\u00e4ngeres aufteilen: "Erste 3 Seiten von X lesen (15min)" statt "X lesen"',
+    '- energie: niedrig (mechanisch) | normal (bekannt) | hoch (kreativ/komplex)',
+    '- dauer: Zeitsch\u00e4tzung wenn m\u00f6glich (5min / 15min / 30min / 60min+)',
+    '',
+    '## Ausgabe-Format pro Aufgabe',
+    '```',
+    '- [ ] [Verb + Objekt] | energie:[niedrig/normal/hoch] | dauer:[X] | @[kontext] | quelle:[woher]',
+    '```',
+    'Beispiel: `- [ ] Zahnarzt wegen Termin anrufen | energie:niedrig | dauer:5min | @telefon`',
+    '',
+    'Z\u00e4hle am Ende: X explizite / Y implizite Aufgaben gefunden.',
     '',
     '## Tages-Input', input
   ].filter(function(l){ return l !== null; }).join('\n');
 
   if (n === 2) return [
-    '# 📎 Forensischer Scanner · ' + dateStr,
+    '# \ud83d\udcce Forensischer Scanner \u00b7 ' + dateStr,
     '', cfg ? '## System-Kontext\n' + cfg + '\n' : null,
-    '## Aufgabe\nDurchsuche den Input nach Kandidaten für Weiterverarbeitung.',
+    '## Aufgabe',
+    'Durchsuche den Input nach Kandidaten f\u00fcr Weiterverarbeitung.',
     '',
-    '## Kategorien (mit Konfidenz: sicher/unsicher)',
-    '**Poetry/Prosa Freewriting** · **Proto-Atomic Note** · **SOP-Kandidat**',
-    '**Systembeobachtung** · **Zitat/Textstelle** · **Prozess/Regel/Heuristik** · **Muster**',
+    '## Kategorien',
     '',
-    'Format:\n```\n📎 [Kategorie] | Konfidenz: [sicher/unsicher]\nText: "..."\nHinweis: [...]\n```',
+    '**Proto-Atomic Note** \u2013 Eine einzelne, abgeschlossene Idee die eine eigene Notiz verdient.',
+    '  Kriterien: Selbstst\u00e4ndig verst\u00e4ndlich ohne Kontext \u00b7 Eine Idee (nicht zwei) \u00b7 Kombinierbar',
+    '  Titeltest: L\u00e4sst sich die Idee als deklarativen Satz formulieren? (= gute Atomic Note)',
+    '',
+    '**SOP-Kandidat** \u2013 Wiederholbarer Prozess der als Standard dokumentiert werden sollte',
+    '**Systembeobachtung** \u2013 Muster zu Energie, Fokus, Verhalten, Produktivit\u00e4t',
+    '**Poetry / Prosa Freewriting** \u2013 Passagen mit literarischem Potenzial',
+    '**Zitat / Textstelle** \u2013 Zitierbarer Satz (eigen oder fremd)',
+    '**Prozess / Heuristik** \u2013 Implizite Regel die explizit werden sollte',
+    '**Wiederholendes Muster** \u2013 Etwas das heute wieder auftauchte',
+    '',
+    '## Ausgabe-Format',
+    '```',
+    '\ud83d\udcce [Kategorie] | Konfidenz: sicher/unsicher',
+    'Text: "[relevanter Ausschnitt]"',
+    'Titel-Kandidat: "[deklarativer Satz als m\u00f6glicher Notiz-Titel]"',
+    'Hinweis: [warum dieser Kandidat?]',
+    '```',
+    '',
+    'Z\u00e4hle: X Kandidaten (Y sicher, Z unsicher).',
     '',
     '## Tages-Input', input
   ].filter(function(l){ return l !== null; }).join('\n');
 
   if (n === 3) return [
-    '# Daily Note Erstellung · ' + dateStr,
+    '# Daily Note Erstellung \u00b7 ' + dateStr,
     '', cfg ? '## System-Kontext\n' + cfg + '\n' : null,
-    '## Aufgabe\nErstelle eine vollständige, verlustfreie Daily Note im Obsidian-Markdown-Format.',
+    '## Aufgabe\nErstelle eine vollst\u00e4ndige, verlustfreie Daily Note im Obsidian-Markdown-Format.',
     '',
-    '## Regeln\n- Vollständig, nichts weglassen außer Duplikaten\n- Auch Wochen später verständlich',
-    '- Alle Zeitstempel erhalten\n- Strukturierte Objekte bereits eingearbeitet',
+    '## Regeln',
+    '- Vollst\u00e4ndig: nichts weglassen au\u00dfer Duplikaten',
+    '- Verlustfrei: auch Wochen sp\u00e4ter ohne R\u00fcckfragen verst\u00e4ndlich',
+    '- Alle Zeitstempel erhalten',
+    '- Strukturierte Objekte bereits eingearbeitet',
+    '- Aufgaben mit ihrem Status (\u2713 erledigt | > migriert | < terminiert | \u2014 gecancelt)',
     '',
     '## Frontmatter\n```yaml\n---\ndatum: ' + today() + '\ntags: [daily-note]\nenergie: []\n---\n```',
     '',
-    '## Abschnitte: Überblick · Tageslog · Offene Aufgaben · Erkenntnisse · Verknüpfungen',
+    '## Abschnitte: \u00dcberblick \u00b7 Tageslog \u00b7 Aufgaben (mit Status) \u00b7 Erkenntnisse \u00b7 Verkn\u00fcpfungen',
     '',
     '## Tages-Input', input
   ].filter(function(l){ return l !== null; }).join('\n');
 
   if (n === 4) return [
-    '# BuJo-Fassung · ' + dateStr,
+    '# BuJo-Fassung \u00b7 ' + dateStr,
     '',
-    '## Aufgabe\nKompakte Rapid-Logging-Version für E-Paper-Tablet.',
+    '## Aufgabe\nKompakte Rapid-Logging-Version f\u00fcr E-Paper-Tablet.',
     '',
-    '## Symbole\n・ Aufgabe (offen) · ✕ erledigt · > migriert · ◯ Ereignis · − Notiz · ! Experiment · ★ Anti-Library',
+    '## Symbole',
+    '\u30fb Aufgabe (offen) \u00b7 X erledigt \u00b7 > migriert \u00b7 < terminiert \u00b7 \u2014 gecancelt',
+    '\u25ef Ereignis \u00b7 \u2212 Notiz \u00b7 ! Experiment \u00b7 \u2605 Anti-Library',
     '',
-    '## Reihenfolge\nAufgaben → Ereignisse → Notizen → Experimente → Anti-Library → Journal (4–7 Sätze)',
+    '## Rapid-Logging-Regeln',
+    '- Kurzschrift: Verb + Objekt, keine S\u00e4tze',
+    '- Zeitstempel nur wenn relevant',
+    '- Priorit\u00e4ten mit * markieren',
+    '',
+    '## Reihenfolge\nAufgaben \u2192 Ereignisse \u2192 Notizen \u2192 Experimente \u2192 Anti-Library \u2192 Journal (4\u20137 S\u00e4tze)',
     '',
     '## Tages-Input', input
   ].filter(function(l){ return l !== null; }).join('\n');
 
   if (n === 5) return [
-    '# Zettelkasten-Export · ' + dateStr,
+    '# Zettelkasten-Export \u00b7 ' + dateStr,
     '', cfg ? '## System-Kontext\n' + cfg + '\n' : null,
-    '## Aufgabe\nGeneriere atomare Obsidian-Notizen aus den 📎-Scanner-Kandidaten.',
+    '## Aufgabe',
+    'Generiere atomare Obsidian-Notizen aus den \ud83d\udcce-Scanner-Kandidaten.',
     '',
-    '## Regeln: Eine Idee pro Notiz · Titel als vollständige Aussage · [[Wikilinks]]',
+    '## Qualit\u00e4tskriterien f\u00fcr Atomic Notes',
+    '- **Eine Idee pro Notiz** \u2013 wenn zwei Ideen, zwei Notizen',
+    '- **Deklarativer Titel** \u2013 vollst\u00e4ndiger Satz der eine These aufstellt',
+    '  Richtig: "Das Arbeitsged\u00e4chtnis begrenzt die Komplexit\u00e4t linearer Argumente"',
+    '  Falsch:  "\u00dcber das Arbeitsged\u00e4chtnis"',
+    '- **Selbstst\u00e4ndig verst\u00e4ndlich** \u2013 auch ohne Quell-Kontext in Jahren noch klar',
+    '- **In eigenen Worten** \u2013 kein Abschreiben, Transformation erzwingt Verst\u00e4ndnis',
+    '- **100\u2013300 W\u00f6rter** \u2013 at-a-glance erfassbar, nicht ausschweifend',
+    '- **Anschlussfragen** \u2013 "Wo schlie\u00dft dieser Gedanke an? Wem widerspricht er?"',
     '',
-    '## Format pro Notiz\n```markdown\n---\ntitel: [Aussage]\nerstellt: ' + today() + '\ntags: []\nquelle: daily-note/' + today() + '\n---\n\n[Inhalt]\n\n## Verbindungen\n- [[...]]\n```',
+    '## Notiz-Aufbau',
+    '1. Kernaussage (1\u20132 Abs\u00e4tze in eigenen Worten)',
+    '2. Beispiel oder Illustration',
+    '3. Kontext: Warum ist das relevant?',
+    '4. Referenz zur Quelle',
+    '',
+    '## Format pro Notiz\n```markdown\n---\ntitel: [Deklarativer Satz als These]\nerstellt: ' + today() + '\ntags: [thema, kategorie]\nquelle: daily-note/' + today() + '\n---\n\n[Kernaussage in eigenen Worten]\n\n## Beispiel\n[...]\n\n## Kontext\n[Warum relevant?]\n\n## Verbindungen\n- [[Verwandte Idee 1]]\n- Widerspricht: [[...]]\n- Erg\u00e4nzt: [[...]]\n```',
     '',
     '## Tages-Input', input
   ].filter(function(l){ return l !== null; }).join('\n');
 
   return '';
 }
-
 function generatePipePrompt(n) {
   var text = buildPipePrompt(n);
   document.getElementById('pipe-text-' + n).textContent = text;
@@ -2222,11 +2291,12 @@ function finishDay() {
       // Migriert → Puffer für morgen
       S.migrationPuffer.push({
         id: uid(),
-        text: obj.text,
+        text: obj.text + (obj.reviewNote ? '\n→ ' + obj.reviewNote : ''),
         fromDate: today(),
         objId: obj.id,
         contexts: obj.contexts || [],
-        signifiers: obj.signifiers || []
+        signifiers: obj.signifiers || [],
+        note: obj.reviewNote || ''
       });
       migrated++;
     } else if (obj.status === '<') {
@@ -2234,6 +2304,7 @@ function finishDay() {
       S.futurelog.push({
         id: uid(),
         text: obj.text,
+        note: obj.reviewNote || '',
         date: '',
         month: '',
         fromDate: today(),
@@ -2549,6 +2620,12 @@ function renderMorningReview() {
 }
 
 
+
+function saveReviewNote(objId, note) {
+  var obj = TODAY.objects.find(function(o){ return o.id === objId; });
+  if (obj) { obj.reviewNote = note; save(); }
+}
+
 function buildReviewBtns(obj) {
   var specs = [
     ['x',  'X erledigt',    'sel-x'],
@@ -2586,12 +2663,14 @@ function renderEveningMigration() {
     if (obj.status === '<')  cls = ' done-lt';
     if (obj.status === 'xx') cls = ' done-xx';
 
-    return '<div class="review-task' + cls + '">' +
+    var noteVal = obj.reviewNote || '';
+    return '<div class="review-task' + cls + '" id="rtask-' + obj.id + '">' +
       '<div class="review-task-text">' + esc(obj.text) + '</div>' +
       '<div class="review-task-meta">' +
-        (obj.zeit ? obj.zeit : '') +
-        (obj.contexts && obj.contexts.length ? obj.contexts.map(function(c){ return '@'+c; }).join(' ') : '') +
+        (obj.zeit ? '<span>' + esc(obj.zeit) + '</span>' : '') +
+        (obj.contexts && obj.contexts.length ? obj.contexts.map(function(c){ return '<span class="ctx-tag">@'+esc(c)+'</span>'; }).join('') : '') +
       '</div>' +
+      '<textarea data-oid="' + obj.id + '" class="review-note-input" placeholder="Kontext-Notiz zur Migration (optional)…" onchange="saveReviewNote(this.dataset.oid, this.value)" style="width:100%;margin:6px 0;font-family:var(--serif);font-size:0.84rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--ink);padding:6px 8px;resize:vertical;min-height:48px;line-height:1.55">' + esc(noteVal) + '</textarea>' +
       '<div class="review-actions">' + buildReviewBtns(obj) + '</div>' +
     '</div>';
   }).join('');
@@ -2916,6 +2995,7 @@ function renderFLList() {
           '<div style="flex:1">' +
             '<div class="fl-text">' + esc(e.text) + '</div>' +
             (e.fromDate ? '<div class="fl-from">von ' + esc(e.fromDate) + '</div>' : '') +
+            (e.note ? '<div style="font-family:var(--serif);font-size:0.82rem;color:var(--ink-mid);margin-top:3px;font-style:italic">' + esc(e.note) + '</div>' : '') +
             ((e.contexts && e.contexts.length) ? '<div style="margin-top:3px">' + e.contexts.map(function(c){ return '<span class="ctx-tag">@'+esc(c)+'</span>'; }).join('') + '</div>' : '') +
           '</div>' +
           '<div class="fl-actions">' +
