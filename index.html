@@ -1164,10 +1164,14 @@ function buildExtractionPrompt(card) {
     ']',
     '```',
     '',
-    '## Wichtig',
+    '## Zeitstempel-Regeln (Priorität beachten)',
+    '1. **Im Text** haben immer Vorrang — z.B. `- 07:22 Text` → zeit: "07:22"',
+    '2. **Voice-Memo-Dateinamen** (`[[YYYY-MM-DD HHMMSS ...]]`) → zeit: "HH:MM" aus Dateiname',
+    '   Beispiel: `[[2026-03-15 143958 Meine Aufnahme]]` → zeit: "14:39"',
+    '3. **Kein Zeitstempel im Text** → zeit: "" (leer — NICHT die Karten-Speicherzeit)',
+    '',
+    '## Weitere Regeln',
     '- Nichts erfinden, nur was im Text steht',
-    '- Zeitstempel aus dem Text übernehmen wenn vorhanden',
-    '- Bei Voice-Memos: Zeitstempel aus dem Dateinamen (Format: YYYY-MM-DD HHMMSS) extrahieren',
     '- Implizite Aufgaben ("ich sollte", "muss noch", "wäre gut wenn") als aufgabe erfassen',
     '',
     '## Input',
@@ -1199,6 +1203,10 @@ function importObjects() {
   }
   if (!Array.isArray(objs)) { showExtractNotice('Erwartet ein JSON-Array [...].', 'warn'); return; }
 
+  // Alte Objekte dieser Karte entfernen (sauberes Überschreiben)
+  var oldCount = TODAY.objects.filter(function(o){ return o.cardId === currentExtractCardId; }).length;
+  TODAY.objects = TODAY.objects.filter(function(o){ return o.cardId !== currentExtractCardId; });
+
   var added = 0;
   objs.forEach(function(obj) {
     if (!obj.typ || !obj.text) return;
@@ -1222,7 +1230,9 @@ function importObjects() {
   renderCardList();
   updateBadges();
   closeModal('extractModal');
-  toast(added + ' Objekte importiert');
+  var msg = added + ' Objekte importiert';
+  if (oldCount > 0) msg += ' (' + oldCount + ' alte ersetzt)';
+  toast(msg);
 }
 
 function showExtractNotice(msg, type) {
