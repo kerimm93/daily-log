@@ -962,6 +962,81 @@ textarea { min-height: 120px; }
   margin-left: auto;
 }
 
+
+/* ── Search Modal ── */
+.search-input-wrap {
+  position: relative;
+  margin-bottom: 12px;
+}
+.search-input-wrap input {
+  font-family: var(--mono);
+  font-size: 0.9rem;
+  padding: 10px 14px 10px 36px;
+  background: var(--bg-mid);
+  border: 1px solid var(--border-mid);
+  border-radius: var(--r);
+  color: var(--ink);
+  width: 100%;
+}
+.search-input-wrap input:focus { outline: none; border-color: var(--accent-dim); }
+.search-icon {
+  position: absolute;
+  left: 12px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--ink-dim);
+  font-size: 0.9rem;
+  pointer-events: none;
+}
+.search-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.search-results {
+  max-height: 460px;
+  overflow-y: auto;
+}
+.search-result-item {
+  padding: 10px 12px;
+  border-radius: var(--r);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  margin-bottom: 6px;
+  cursor: pointer;
+  transition: border-color .12s, background .12s;
+}
+.search-result-item:hover { border-color: var(--border-mid); background: var(--surface-2); }
+.search-result-day {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--ink-dim);
+  margin-bottom: 4px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.search-result-text {
+  font-family: var(--serif);
+  font-size: 0.9rem;
+  color: var(--ink);
+  line-height: 1.5;
+}
+.search-result-text mark {
+  background: rgba(196,180,142,0.25);
+  color: var(--accent);
+  border-radius: 2px;
+  padding: 0 2px;
+}
+.search-empty {
+  text-align: center;
+  padding: 32px 0;
+  font-family: var(--serif);
+  font-size: 0.9rem;
+  color: var(--ink-dim);
+  font-style: italic;
+}
+
 /* ── Select type dropdown ── */
 select {
   background: var(--bg-mid);
@@ -986,6 +1061,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
       <div class="app-date" id="headerDate"></div>
     </div>
     <div class="header-right">
+      <button class="btn btn-sm btn-ghost" onclick="openSearchModal()" id="btnSearch">⌕ Suche</button>
       <button class="btn btn-sm btn-ghost" onclick="openModal('settingsModal')">⚙ Einstellungen</button>
     </div>
   </header>
@@ -1694,6 +1770,35 @@ select:focus { outline: none; border-color: var(--border-mid); }
       <button class="btn btn-primary" onclick="saveHighlightAsZettel()">Als Zettel speichern</button>
       <button class="btn btn-ghost btn-sm" onclick="saveHighlightAsObj()">Als Objekt speichern</button>
       <button class="btn" onclick="closeModal('highlightReflModal')">Schließen</button>
+    </div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- Search Modal                                   -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="modal-bg hidden" id="searchModal">
+  <div class="modal-box" style="max-width:680px;padding:20px">
+    <div class="search-input-wrap">
+      <span class="search-icon">⌕</span>
+      <input type="text" id="searchInput" placeholder="Objekte, Karten, Zettel durchsuchen…"
+        oninput="runSearch(this.value)" onkeydown="searchKeyNav(event)" autocomplete="off" autofocus>
+    </div>
+    <div class="search-filters">
+      <span class="ctx-pill active" id="sf-all"   onclick="setSearchFilter('all')">Alle</span>
+      <span class="ctx-pill"        id="sf-aufgabe"  onclick="setSearchFilter('aufgabe')">☐ Aufgaben</span>
+      <span class="ctx-pill"        id="sf-notiz"    onclick="setSearchFilter('notiz')">− Notizen</span>
+      <span class="ctx-pill"        id="sf-idee"     onclick="setSearchFilter('idee')">! Ideen</span>
+      <span class="ctx-pill"        id="sf-ereignis" onclick="setSearchFilter('ereignis')">◯ Ereignisse</span>
+      <span class="ctx-pill"        id="sf-zettel"   onclick="setSearchFilter('zettel')">⬡ Zettel</span>
+    </div>
+    <div style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim);margin-bottom:8px" id="searchMeta"></div>
+    <div class="search-results" id="searchResults">
+      <div class="search-empty">Suchbegriff eingeben…</div>
+    </div>
+    <div style="margin-top:10px;display:flex;justify-content:flex-end">
+      <button class="btn btn-sm btn-ghost" onclick="closeModal('searchModal')">Schließen</button>
     </div>
   </div>
 </div>
@@ -4498,6 +4603,234 @@ function exportZettelSingle() {
     toast('✓ ' + kept.length + ' Zettel als kombinierte .md exportiert');
   }
 }
+
+
+// ════════════════════════════════════════════════
+// Global Search
+// ════════════════════════════════════════════════
+var searchFilter = 'all';
+var searchResults = [];
+var searchCursor  = -1;
+
+function openSearchModal() {
+  openModal('searchModal');
+  setTimeout(function() {
+    var inp = document.getElementById('searchInput');
+    if (inp) { inp.focus(); inp.value = ''; }
+    document.getElementById('searchResults').innerHTML = '<div class="search-empty">Suchbegriff eingeben…</div>';
+    document.getElementById('searchMeta').textContent = '';
+  }, 50);
+}
+
+function setSearchFilter(f) {
+  searchFilter = f;
+  ['all','aufgabe','notiz','idee','ereignis','zettel'].forEach(function(k) {
+    var el = document.getElementById('sf-' + k);
+    if (el) el.classList.toggle('active', k === f);
+  });
+  var inp = document.getElementById('searchInput');
+  if (inp && inp.value.trim()) runSearch(inp.value);
+}
+
+function runSearch(query) {
+  query = query.trim();
+  var resultsEl = document.getElementById('searchResults');
+  var metaEl    = document.getElementById('searchMeta');
+
+  if (!query || query.length < 2) {
+    resultsEl.innerHTML = '<div class="search-empty">Mindestens 2 Zeichen eingeben…</div>';
+    metaEl.textContent = '';
+    return;
+  }
+
+  var q = query.toLowerCase();
+  var hits = [];
+
+  // ── Search today's objects ──────────────────────
+  TODAY.objects.forEach(function(obj) {
+    if (obj.dismissed || obj.parentId) return;
+    if (searchFilter !== 'all' && searchFilter !== 'zettel' && obj.typ !== searchFilter) return;
+    if (searchFilter === 'zettel') return;
+    var score = scoreMatch(obj.text, q) + scoreMatch(obj.kontext, q);
+    if (score > 0) hits.push({ type: 'obj', obj: obj, date: today(), score: score });
+    // Also search children
+    TODAY.objects.filter(function(c){ return c.parentId === obj.id; }).forEach(function(c) {
+      if (scoreMatch(c.text, q) > 0) hits.push({ type: 'obj', obj: c, date: today(), score: 1, parentText: obj.text });
+    });
+  });
+
+  // ── Search past days ────────────────────────────
+  (S.days||[]).forEach(function(day) {
+    if (!day.objects) return;
+    day.objects.forEach(function(obj) {
+      if (obj.dismissed || obj.parentId) return;
+      if (searchFilter !== 'all' && searchFilter !== 'zettel' && obj.typ !== searchFilter) return;
+      if (searchFilter === 'zettel') return;
+      var score = scoreMatch(obj.text, q) + scoreMatch(obj.kontext, q);
+      if (score > 0) hits.push({ type: 'obj', obj: obj, date: day.date, score: score });
+    });
+  });
+
+  // ── Search zettels ──────────────────────────────
+  if (searchFilter === 'all' || searchFilter === 'zettel') {
+    (S.zettels||[]).forEach(function(z) {
+      var score = scoreMatch(z.title, q) + scoreMatch(z.body, q);
+      if (score > 0) hits.push({ type: 'zettel', zettel: z, date: z.date || today(), score: score });
+    });
+  }
+
+  // ── Search today's cards (raw text) ─────────────
+  if (searchFilter === 'all') {
+    TODAY.cards.forEach(function(card) {
+      if (scoreMatch(card.text, q) > 0) {
+        var excerpt = extractExcerpt(card.text, q);
+        hits.push({ type: 'card', card: card, date: today(), score: 1, excerpt: excerpt });
+      }
+    });
+  }
+
+  // Sort: score desc, then date desc
+  hits.sort(function(a, b) {
+    if (b.score !== a.score) return b.score - a.score;
+    return b.date > a.date ? 1 : -1;
+  });
+
+  searchResults = hits;
+  searchCursor  = -1;
+
+  metaEl.textContent = hits.length + ' Treffer';
+
+  if (!hits.length) {
+    resultsEl.innerHTML = '<div class="search-empty">Keine Treffer für „' + esc(query) + '"</div>';
+    return;
+  }
+
+  resultsEl.innerHTML = hits.slice(0, 40).map(function(hit, i) {
+    return renderSearchHit(hit, query, i);
+  }).join('');
+}
+
+function scoreMatch(text, q) {
+  if (!text) return 0;
+  var t = text.toLowerCase();
+  if (t === q) return 10;
+  if (t.startsWith(q)) return 5;
+  if (t.includes(q)) return 3;
+  // Word match
+  var words = q.split(/\s+/);
+  var matched = words.filter(function(w){ return w.length > 1 && t.includes(w); }).length;
+  return matched > 0 ? matched : 0;
+}
+
+function highlightText(text, q) {
+  if (!text || !q) return esc(text||'');
+  var escaped = q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return esc(text).replace(new RegExp('(' + escaped + ')', 'gi'), '<mark>$1</mark>');
+}
+
+function extractExcerpt(text, q) {
+  var idx = text.toLowerCase().indexOf(q.toLowerCase());
+  if (idx === -1) return text.slice(0, 100);
+  var start = Math.max(0, idx - 40);
+  var end   = Math.min(text.length, idx + q.length + 60);
+  return (start > 0 ? '…' : '') + text.slice(start, end) + (end < text.length ? '…' : '');
+}
+
+function renderSearchHit(hit, query, i) {
+  var cls = 'search-result-item' + (i === searchCursor ? ' selected' : '');
+
+  if (hit.type === 'obj') {
+    var obj = hit.obj;
+    var icon = { aufgabe:'☐', ereignis:'◯', notiz:'−', idee:'!', zitat:'"', sop:'⟳', beobachtung:'~' }[obj.typ] || '·';
+    var statusChipHtml = (obj.status && obj.status !== 'open') ? '<span style="color:var(--blue);font-family:var(--mono);font-size:0.6rem">[' + obj.status + ']</span>' : '';
+    return '<div class="' + cls + '" onclick="searchGoToObj(\'' + hit.date + '\',\'' + obj.id + '\')">' +
+      '<div class="search-result-day">' +
+        '<span>' + esc(hit.date) + '</span>' +
+        '<span class="obj-type-label t-' + obj.typ + '" style="font-size:0.55rem;padding:1px 5px">' + obj.typ + '</span>' +
+        (obj.zeit ? '<span>' + esc(obj.zeit) + '</span>' : '') +
+        statusChipHtml +
+        (hit.parentText ? '<span style="font-style:italic;opacity:0.7">↳ ' + esc(hit.parentText.slice(0,30)) + '</span>' : '') +
+      '</div>' +
+      '<div class="search-result-text">' + icon + ' ' + highlightText(obj.text, query) + '</div>' +
+    '</div>';
+  }
+
+  if (hit.type === 'zettel') {
+    var z = hit.zettel;
+    return '<div class="' + cls + '" onclick="searchGoToZettel(\'' + z.id + '\')">' +
+      '<div class="search-result-day"><span>' + esc(hit.date) + '</span><span class="obj-type-label" style="font-size:0.55rem;padding:1px 5px;background:var(--purple-bg);color:var(--purple)">zettel</span></div>' +
+      '<div class="search-result-text">⬡ ' + highlightText(z.title, query) + '</div>' +
+      (z.body ? '<div style="font-family:var(--serif);font-size:0.8rem;color:var(--ink-dim);margin-top:3px">' + highlightText(z.body.slice(0,100), query) + '</div>' : '') +
+    '</div>';
+  }
+
+  if (hit.type === 'card') {
+    return '<div class="' + cls + '" onclick="searchGoToCard(\'' + hit.card.id + '\')">' +
+      '<div class="search-result-day"><span>' + esc(hit.date) + '</span><span class="card-type-badge card-type-' + hit.card.type + '" style="font-size:0.55rem">Karte ' + hit.card.time + '</span></div>' +
+      '<div class="search-result-text">' + highlightText(hit.excerpt || hit.card.text.slice(0,100), query) + '</div>' +
+    '</div>';
+  }
+  return '';
+}
+
+function searchKeyNav(e) {
+  var items = document.querySelectorAll('.search-result-item');
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    searchCursor = Math.min(searchCursor + 1, items.length - 1);
+    items.forEach(function(el, i){ el.classList.toggle('selected', i === searchCursor); });
+    if (items[searchCursor]) items[searchCursor].scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    searchCursor = Math.max(searchCursor - 1, 0);
+    items.forEach(function(el, i){ el.classList.toggle('selected', i === searchCursor); });
+    if (items[searchCursor]) items[searchCursor].scrollIntoView({ block: 'nearest' });
+  } else if (e.key === 'Enter' && searchCursor >= 0 && items[searchCursor]) {
+    items[searchCursor].click();
+  } else if (e.key === 'Escape') {
+    closeModal('searchModal');
+  }
+}
+
+function searchGoToObj(date, objId) {
+  closeModal('searchModal');
+  if (date === today()) {
+    switchTab('objekte');
+    setTimeout(function() {
+      var el = document.getElementById('obj-' + objId);
+      if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.style.boxShadow = '0 0 0 2px var(--accent)'; setTimeout(function(){ el.style.boxShadow = ''; }, 2000); }
+    }, 150);
+  } else {
+    toast('Objekt von ' + date + ' — im Verlauf-Tab zu sehen');
+    switchTab('verlauf');
+  }
+}
+
+function searchGoToZettel(zettelId) {
+  closeModal('searchModal');
+  switchTab('zettel');
+  setTimeout(function() {
+    var el = document.getElementById('zettel-' + zettelId);
+    if (el) { el.scrollIntoView({ behavior: 'smooth', block: 'center' }); el.style.boxShadow = '0 0 0 2px var(--accent)'; setTimeout(function(){ el.style.boxShadow = ''; }, 2000); }
+  }, 150);
+}
+
+function searchGoToCard(cardId) {
+  closeModal('searchModal');
+  switchTab('sammeln');
+  setTimeout(function() {
+    var el = document.getElementById('card-' + cardId);
+    if (el) { el.classList.add('open'); el.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+  }, 150);
+}
+
+// Keyboard shortcut: Cmd/Ctrl+K
+document.addEventListener('keydown', function(e) {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault();
+    openSearchModal();
+  }
+});
 
 
 function init() {
