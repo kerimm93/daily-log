@@ -57,6 +57,66 @@ body {
 #app { max-width: 860px; margin: 0 auto; padding: 28px 18px 80px; }
 
 /* ── Header ── */
+
+/* ── Date Navigation ── */
+.date-nav {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+}
+.date-nav-btn {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--ink-dim);
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  padding: 3px 7px;
+  line-height: 1;
+  transition: color .12s, border-color .12s;
+}
+.date-nav-btn:hover { color: var(--ink); border-color: var(--border-mid); }
+.date-nav-btn:disabled { opacity: 0.3; cursor: default; }
+.date-nav-input {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  color: var(--ink);
+  background: none;
+  border: none;
+  border-bottom: 1px solid var(--border);
+  padding: 2px 4px;
+  cursor: pointer;
+  min-width: 90px;
+  outline: none;
+}
+.date-nav-today {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 2px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--accent-dim);
+  display: none;
+}
+.date-nav-today.visible { display: inline-block; }
+.viewing-past-banner {
+  background: var(--surface);
+  border: 1px solid var(--accent-dim);
+  border-radius: var(--r);
+  padding: 8px 14px;
+  font-family: var(--mono);
+  font-size: 0.7rem;
+  color: var(--accent);
+  margin-bottom: 14px;
+  display: none;
+  align-items: center;
+  gap: 10px;
+}
+.viewing-past-banner.visible { display: flex; }
+
 .app-header {
   display: flex;
   align-items: baseline;
@@ -1217,13 +1277,25 @@ select:focus { outline: none; border-color: var(--border-mid); }
     </button>
     <div>
       <div class="app-title">Daily Log</div>
-      <div class="app-date" id="headerDate"></div>
+      <div class="date-nav">
+        <button class="date-nav-btn" id="btnDatePrev" onclick="navDate(-1)" title="Vorheriger Tag">‹</button>
+        <input type="date" class="date-nav-input" id="dateNavPicker" onchange="navToDate(this.value)" title="Tag wählen">
+        <button class="date-nav-btn" id="btnDateNext" onclick="navDate(1)" title="Nächster Tag">›</button>
+        <button class="date-nav-today" id="btnDateToday" onclick="navToDate('')" title="Zurück zu heute">heute</button>
+      </div>
+      <div id="calendarDots" style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;min-height:16px"></div>
     </div>
     <div class="header-right">
       <button class="btn btn-sm btn-ghost" onclick="openSearchModal()" id="btnSearch">⌕ Suche</button>
       <button class="btn btn-sm btn-ghost" onclick="openModal('settingsModal')">⚙ Einstellungen</button>
     </div>
   </header>
+
+  <!-- Past view banner -->
+  <div class="viewing-past-banner" id="pastBanner">
+    <span id="pastBannerText">Ansicht: vergangener Tag</span>
+    <button class="btn btn-sm btn-ghost" style="margin-left:auto;font-size:0.65rem" onclick="navToDate('')">→ Zurück zu heute</button>
+  </div>
 
   <!-- Tabs -->
   <div class="tabs">
@@ -2267,8 +2339,8 @@ function switchTab(name) {
   var btn   = document.getElementById('tab-' + name);
   if (panel) panel.classList.add('active');
   if (btn)   btn.classList.add('active');
-  if (name === 'feed')       renderFeedTab();
-  if (name === 'plan')       { renderPlanTab(); reloadMigratedTasks(); }
+  if (name === 'feed')       renderFeedTabForDate();
+  if (name === 'plan')       { renderPlanTab(); if (isViewingToday()) reloadMigratedTasks(); }
   if (name === 'kontexte')   renderKontexteTab();
   updateDrawerActive(name);
   syncDrawerBadges();
@@ -2293,9 +2365,9 @@ function updateNewCardMeta() {
   var lines = text.trim() ? text.split('\n').filter(function(l){ return l.trim(); }).length : 0;
   var wc = document.getElementById('newCardWordCount');
   var lc = document.getElementById('newCardLines');
-  wc.textContent = words + ' Wörter';
+  if (wc) wc.textContent = words + ' Wörter';
   wc.className = words > 0 ? 'lit' : '';
-  lc.textContent = lines + ' Zeilen';
+  if (lc) lc.textContent = lines + ' Zeilen';
 }
 
 function addCard() {
@@ -2314,6 +2386,8 @@ function addCard() {
   clearNewCard();
   renderCardList();
   updateBadges();
+  updateDateNav();
+  renderCalendarDots();
   updateDrawerActive('sammeln');
   syncDrawerBadges();
   toast('Karte gespeichert · ' + card.time);
@@ -2331,6 +2405,8 @@ function deleteCard(id) {
   save();
   renderCardList();
   updateBadges();
+  updateDateNav();
+  renderCalendarDots();
   updateDrawerActive('sammeln');
   syncDrawerBadges();
   toast('Karte gelöscht');
@@ -2349,11 +2425,11 @@ function renderCardList() {
   var container = document.getElementById('cardList');
   if (!TODAY.cards.length) {
     container.innerHTML = '<div class="empty-state">Noch keine Karten für heute.</div>';
-    document.getElementById('kartenMeta').textContent = '';
+    var km = document.getElementById('kartenMeta'); if (km) km.textContent = '';
     return;
   }
   var processed = TODAY.cards.filter(function(c){ return c.processed; }).length;
-  document.getElementById('kartenMeta').textContent = processed + '/' + TODAY.cards.length + ' verarbeitet';
+  var km2 = document.getElementById('kartenMeta'); if (km2) km2.textContent = processed + '/' + TODAY.cards.length + ' verarbeitet';
 
   container.innerHTML = TODAY.cards.map(function(card) {
     var preview = card.text.split('\n')[0].slice(0, 60);
@@ -2392,7 +2468,7 @@ function openExtract(cardId) {
   currentExtractCardId = cardId;
 
   var prompt = buildExtractionPrompt(card);
-  document.getElementById('extractPromptText').textContent = prompt;
+  var ept = document.getElementById('extractPromptText'); if (ept) ept.textContent = prompt;
   document.getElementById('extractResult').value = '';
   document.getElementById('extractNotice').innerHTML = '';
   openModal('extractModal');
@@ -2475,7 +2551,7 @@ function openExtract(cardId) {
   currentExtractCardId = cardId;
 
   var prompt = buildExtractionPrompt(card);
-  document.getElementById('extractPromptText').textContent = prompt;
+  var ept = document.getElementById('extractPromptText'); if (ept) ept.textContent = prompt;
   document.getElementById('extractResult').value = '';
   document.getElementById('extractNotice').innerHTML = '';
 
@@ -2566,6 +2642,8 @@ function importObjects() {
   save();
   renderCardList();
   updateBadges();
+  updateDateNav();
+  renderCalendarDots();
   updateDrawerActive('sammeln');
   syncDrawerBadges();
   closeModal('extractModal');
@@ -2622,10 +2700,13 @@ function toggleHideDone() {
   renderObjectList();
 }
 
-function renderObjectList() {
+function renderObjectList() { renderObjectListForDate(); }
+function renderObjectListForDate() {
   var container = document.getElementById('objectList');
-  var rootObjs = TODAY.objects.filter(function(o){ return !o.parentId; });
+  var viewObjs = getViewData().objects || [];
+  var rootObjs = viewObjs.filter(function(o){ return !o.parentId; });
   var active   = rootObjs.filter(function(o){ return !o.dismissed; });
+  var isPast   = !isViewingToday();
 
   // Hide done if toggled
   var pool = showDismissed ? rootObjs : active;
@@ -2989,9 +3070,11 @@ function restoreObj(id) {
 // Badges
 // ════════════════════════════════════════════════
 function updateBadges() {
-  document.getElementById('badge-karten').textContent = TODAY.cards.length;
+  var bk = document.getElementById('badge-karten');
+  var bo = document.getElementById('badge-objekte');
+  if (bk) bk.textContent = TODAY.cards.length;
   var activeObjs = TODAY.objects.filter(function(o){ return !o.dismissed; }).length;
-  document.getElementById('badge-objekte').textContent = activeObjs;
+  if (bo) bo.textContent = activeObjs;
 }
 
 // ════════════════════════════════════════════════
@@ -3195,7 +3278,7 @@ function generateAllPipePrompts() {
 function exportAllPipePrompts() {
   var parts = [];
   for (var i = 1; i <= 5; i++) {
-    var text = document.getElementById('pipe-text-' + i).textContent || buildPipePrompt(i);
+    var ptel = document.getElementById('pipe-text-' + i); var text = (ptel && ptel.textContent) || buildPipePrompt(i);
     parts.push('═══════ SCHRITT ' + i + ' ═══════\n\n' + text);
   }
   var blob = new Blob([parts.join('\n\n\n')], { type: 'text/plain;charset=utf-8' });
@@ -3256,6 +3339,8 @@ function finishDay() {
   save();
   renderCardList();
   updateBadges();
+  updateDateNav();
+  renderCalendarDots();
   updateDrawerActive('sammeln');
   syncDrawerBadges();
   updateFLBadge();
@@ -3478,6 +3563,7 @@ async function gistPull(silent) {
     updateZettelBadge();
     if (!silent) toast('✓ Daten vom Gist geladen (' + gistTime.slice(0,10) + ')');
     else toast('☁ Sync: neuere Daten geladen');
+    renderCalendarDots();
     return true;
   } catch(e) {
     if (!silent) toast('Pull-Fehler: ' + e.message);
@@ -3750,7 +3836,7 @@ function openCtxDetail(ctx) {
   detailSection.style.display = 'block';
 
   var titleEl = document.getElementById('ctxDetailTitle');
-  if (titleEl) titleEl.childNodes[0].textContent = '@' + ctx + ' ';
+  if (titleEl && titleEl.childNodes[0]) titleEl.childNodes[0].textContent = '@' + ctx + ' ';
 
   var hits = getObjsForCtx(ctx);
   var metaEl = document.getElementById('ctxDetailMeta');
@@ -4072,7 +4158,7 @@ function generateCopilotPrompt() {
     'und frage nach dem ersten Schritt.'
   ].filter(function(l){ return l !== null; }).join('\n');
 
-  document.getElementById('copilotPromptText').textContent = parts;
+  var cpt = document.getElementById('copilotPromptText'); if (cpt) cpt.textContent = parts;
   document.getElementById('copilotPromptText').style.display = 'block';
   document.getElementById('copilotPromptPlaceholder').style.display = 'none';
 }
@@ -4102,6 +4188,8 @@ function importCopilotReport() {
   closeModal('copilotImportModal');
   renderCardList();
   updateBadges();
+  updateDateNav();
+  renderCalendarDots();
   updateDrawerActive('sammeln');
   syncDrawerBadges();
   toast('✓ Bericht als Karte gespeichert');
@@ -4470,7 +4558,7 @@ function openSelPromptModal() {
   var count = Object.keys(selectedObjIds).length;
   if (!count) { toast('Keine Objekte ausgewählt.'); return; }
   document.getElementById('selPromptOut').style.display = 'none';
-  document.getElementById('selPromptText').textContent = '';
+  var spt0 = document.getElementById('selPromptText'); if (spt0) spt0.textContent = '';
   openModal('selPromptModal');
 }
 
@@ -4568,7 +4656,7 @@ function generateSelPrompt() {
 
   var prompt = lines.filter(function(l){ return l !== null; }).join('\n');
 
-  document.getElementById('selPromptText').textContent = prompt;
+  var spt1 = document.getElementById('selPromptText'); if (spt1) spt1.textContent = prompt;
   document.getElementById('selPromptOut').style.display = 'block';
 }
 function copySelPrompt() {
@@ -4749,11 +4837,13 @@ function renderFeedList() {
     // Falls back to item date only if no loadedAt
     var checkDate = i.loadedAt ? i.loadedAt.slice(0, 10) : (i.date ? i.date.slice(0, 10) : null);
     if (checkDate && checkDate !== todayStr) return false;
+    // Hide processed items (adopted/ignored) unless explicitly showing all
+    if (feedFilter !== 'all' && i.status && i.status !== 'open') return false;
     if (feedFilter === 'readwise')  return i.source === 'readwise';
     if (feedFilter === 'raindrop')  return i.source === 'raindrop';
     if (feedFilter === 'highlight') return i.source === 'highlight';
     if (feedFilter === 'open')      return i.status === 'open';
-    return true;
+    return i.status === 'open' || !i.status;
   });
 
   if (statsEl) {
@@ -5405,8 +5495,8 @@ function runSearch(query) {
   var metaEl    = document.getElementById('searchMeta');
 
   if (!query || query.length < 2) {
-    resultsEl.innerHTML = '<div class="search-empty">Mindestens 2 Zeichen eingeben…</div>';
-    metaEl.textContent = '';
+    if (resultsEl) resultsEl.innerHTML = '<div class="search-empty">Mindestens 2 Zeichen eingeben…</div>';
+    if (metaEl) metaEl.textContent = '';
     return;
   }
 
@@ -5476,7 +5566,7 @@ function runSearch(query) {
   searchResults = hits;
   searchCursor  = -1;
 
-  metaEl.textContent = hits.length + ' Treffer';
+  if (metaEl) metaEl.textContent = hits.length + ' Treffer';
 
   if (!hits.length) {
     resultsEl.innerHTML = '<div class="search-empty">Keine Treffer für „' + esc(query) + '"</div>';
@@ -5946,13 +6036,145 @@ function syncDrawerBadges() {
 }
 
 
+// ════════════════════════════════════════════════
+// Date Navigation
+// ════════════════════════════════════════════════
+var viewDate = today(); // currently viewed date (YYYY-MM-DD)
+
+function getViewData() {
+  // Returns {cards, objects, feedItems, reviewDone, plan} for viewDate
+  if (viewDate === today()) return TODAY;
+  var day = (S.days||[]).find(function(d){ return d.date === viewDate; });
+  if (!day) return { date: viewDate, cards: [], objects: [], feedItems: [], reviewDone: false, plan: {} };
+  return day;
+}
+
+function isViewingToday() { return viewDate === today(); }
+
+function navDate(delta) {
+  var d = new Date(viewDate);
+  d.setDate(d.getDate() + delta);
+  var nd = d.toISOString().split('T')[0];
+  if (nd > today()) return; // don't go to future
+  navToDate(nd);
+}
+
+function navToDate(date) {
+  if (!date || date === today()) {
+    viewDate = today();
+  } else {
+    viewDate = date;
+  }
+  updateDateNav();
+  refreshAllTabs();
+}
+
+function updateDateNav() {
+  var picker = document.getElementById('dateNavPicker');
+  var todayBtn = document.getElementById('btnDateToday');
+  var nextBtn = document.getElementById('btnDateNext');
+  var banner = document.getElementById('pastBanner');
+  var bannerText = document.getElementById('pastBannerText');
+
+  if (picker) picker.value = viewDate;
+  if (picker) picker.max = today();
+
+  var isPast = viewDate !== today();
+  if (todayBtn) todayBtn.classList.toggle('visible', isPast);
+  if (nextBtn) nextBtn.disabled = viewDate >= today();
+  if (banner) banner.classList.toggle('visible', isPast);
+  if (bannerText && isPast) {
+    var d = new Date(viewDate + 'T00:00:00');
+    var label = d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
+    bannerText.textContent = '📅 Ansicht: ' + label + ' (Lesemodus)';
+  }
+  renderCalendarDots();
+}
+
+function refreshAllTabs() {
+  // Re-render whichever tab is active
+  var activeTab = document.querySelector('.tab-btn.active');
+  var name = activeTab ? activeTab.id.replace('tab-', '') : 'sammeln';
+  renderForTab(name);
+  updateBadgesForView();
+}
+
+function renderForTab(name) {
+  if (name === 'sammeln')  renderCardListForDate();
+  if (name === 'objekte')  renderObjectListForDate();
+  if (name === 'feed')     renderFeedTabForDate();
+  if (name === 'plan')     renderPlanTab();
+  if (name === 'review')   renderReviewForDate();
+  if (name === 'kontexte') renderKontexteTab();
+}
+
+function updateBadgesForView() {
+  var data = getViewData();
+  // Karten badge
+  var kb = document.getElementById('badge-karten');
+  if (kb) kb.textContent = (data.cards||[]).filter(function(c){ return !c.archived; }).length;
+  // Objekte badge
+  var ob = document.getElementById('badge-objekte');
+  if (ob) ob.textContent = (data.objects||[]).filter(function(o){ return !o.parentId && !o.dismissed; }).length;
+}
+
+
+// ════════════════════════════════════════════════
+// Calendar day indicators (unprocessed items)
+// ════════════════════════════════════════════════
+function getDaysWithUnprocessed() {
+  // Returns set of YYYY-MM-DD dates that have open feed items
+  var days = new Set();
+  // Today
+  var todayItems = TODAY.feedItems || [];
+  if (todayItems.some(function(i){ return !i.status || i.status === 'open'; })) {
+    days.add(today());
+  }
+  // Past days
+  (S.days||[]).forEach(function(day) {
+    if (!day.feedItems) return;
+    if (day.feedItems.some(function(i){ return !i.status || i.status === 'open'; })) {
+      days.add(day.date);
+    }
+  });
+  return days;
+}
+
+function renderCalendarDots() {
+  var dotsEl = document.getElementById('calendarDots');
+  if (!dotsEl) return;
+  var unprocessed = getDaysWithUnprocessed();
+  if (!unprocessed.size) { dotsEl.innerHTML = ''; return; }
+
+  // Show last 14 days with dots for days that have unprocessed items
+  var dots = [];
+  for (var i = 13; i >= 0; i--) {
+    var d = new Date(); d.setDate(d.getDate() - i);
+    var ds = d.toISOString().split('T')[0];
+    if (unprocessed.has(ds)) {
+      var isView = ds === viewDate;
+      var label = i === 0 ? 'heute' : (d.getDate() + '.' + (d.getMonth()+1) + '.');
+      dots.push('<span style="display:inline-flex;align-items:center;gap:3px;cursor:pointer;' +
+        'font-family:var(--mono);font-size:0.58rem;color:' + (isView ? 'var(--accent)' : 'var(--blue)') + ';' +
+        'border:1px solid ' + (isView ? 'var(--accent)' : 'var(--blue)') + ';' +
+        'border-radius:10px;padding:1px 6px;background:' + (isView ? 'var(--surface)' : 'transparent') + '"' +
+        ' onclick="navToDate(\'' + ds + '\')" title="' + ds + ' · unverarbeitete Items">' +
+        '● ' + label + '</span>');
+    }
+  }
+  dotsEl.innerHTML = dots.length ? dots.join(' ') : '';
+}
+
+
 function init() {
   load();
-  document.getElementById('headerDate').textContent = todayDE();
+  var hd = document.getElementById('headerDate'); if (hd) hd.textContent = todayDE();
   gistSync(); // auto two-way sync on startup
   loadSettingsUI();
   renderCardList();
   updateBadges();
+  updateDateNav();
+  renderCalendarDots();
   updateDrawerActive('sammeln');
   syncDrawerBadges();
   updateReviewBadge();
