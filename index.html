@@ -1854,7 +1854,6 @@ var S = {
   days: [],
   futurelog: [],
   migrationPuffer: [],
-  feedItems: [],        // {id, source, title, body, url, author, date, loadedAt, status:'open'|'ignored'|'adopted', objId}
   feedLastReadwise: '',
   feedLastRaindrop: '',
   feedLastHighlights: '',
@@ -1868,8 +1867,9 @@ var RAINDROP_KEY  = 'dailylog_raindrop';
 // Today's working data (not yet in S.days)
 var TODAY = {
   date: '',
-  cards: [],      // {id, time, type, text, processed}
-  objects: [],    // {id, cardId, parentId, typ, text, zeit, kontext, contexts:[], status:'open'|'x'|'>'|'<'|'xx', signifiers:[], dismissed, createdAt}
+  cards: [],
+  objects: [],
+  feedItems: [],  // reset each day
   reviewDone: false
 };
 
@@ -1936,7 +1936,7 @@ function load() {
   if (TODAY.reviewDone === undefined) TODAY.reviewDone = false;
   if (!S.futurelog) S.futurelog = [];
   if (!S.migrationPuffer) S.migrationPuffer = [];
-  if (!S.feedItems) S.feedItems = [];
+  if (!TODAY.feedItems) TODAY.feedItems = [];
   if (!S.feedLastReadwise) S.feedLastReadwise = '';
   if (!S.feedLastRaindrop) S.feedLastRaindrop = '';
   if (!S.feedLastHighlights) S.feedLastHighlights = '';
@@ -1944,7 +1944,7 @@ function load() {
 
   // Reset if new day
   if (TODAY.date !== today()) {
-    TODAY = { date: today(), cards: [], objects: [], reviewDone: false };
+    TODAY = { date: today(), cards: [], objects: [], feedItems: [], reviewDone: false };
     save();
   }
 }
@@ -2846,7 +2846,7 @@ function finishDay() {
     createdAt: new Date().toISOString()
   };
   S.days.unshift(entry);
-  TODAY = { date: today(), cards: [], objects: [], reviewDone: false };
+  TODAY = { date: today(), cards: [], objects: [], feedItems: [], reviewDone: false };
   pipeStepsDone = {};
   save();
   renderCardList();
@@ -3970,7 +3970,7 @@ function updateFeedMeta() {
 }
 
 function updateFeedBadge() {
-  var open = (S.feedItems||[]).filter(function(i){ return i.status === 'open'; }).length;
+  var open = (TODAY.feedItems||[]).filter(function(i){ return i.status === 'open'; }).length;
   var badge = document.getElementById('badge-feed');
   if (badge) { badge.style.display = open > 0 ? 'inline-flex' : 'none'; badge.textContent = open; }
 }
@@ -3980,7 +3980,7 @@ function renderFeedList() {
   var statsEl   = document.getElementById('feedStats');
   if (!container) return;
 
-  var items = S.feedItems || [];
+  var items = TODAY.feedItems || [];
   var filtered = items.filter(function(i) {
     if (feedFilter === 'readwise')  return i.source === 'readwise';
     if (feedFilter === 'raindrop')  return i.source === 'raindrop';
@@ -4049,19 +4049,19 @@ function renderFeedList() {
 }
 
 function toggleFeedAdopt(id) {
-  var item = (S.feedItems||[]).find(function(i){ return i.id === id; });
+  var item = (TODAY.feedItems||[]).find(function(i){ return i.id === id; });
   if (!item) return;
   item._showAdopt = !item._showAdopt;
   renderFeedList();
 }
 
 function cancelFeedAdopt(id) {
-  var item = (S.feedItems||[]).find(function(i){ return i.id === id; });
+  var item = (TODAY.feedItems||[]).find(function(i){ return i.id === id; });
   if (item) { item._showAdopt = false; renderFeedList(); }
 }
 
 function confirmFeedAdopt(id) {
-  var item = (S.feedItems||[]).find(function(i){ return i.id === id; });
+  var item = (TODAY.feedItems||[]).find(function(i){ return i.id === id; });
   if (!item) return;
   var typSel = document.getElementById('ftyp-' + id);
   var typ = typSel ? typSel.value : 'notiz';
@@ -4089,23 +4089,23 @@ function confirmFeedAdopt(id) {
 }
 
 function ignoreFeedItem(id) {
-  var item = (S.feedItems||[]).find(function(i){ return i.id === id; });
+  var item = (TODAY.feedItems||[]).find(function(i){ return i.id === id; });
   if (item) { item.status = 'ignored'; save(); renderFeedList(); updateFeedBadge(); }
 }
 
 function restoreFeedItem(id) {
-  var item = (S.feedItems||[]).find(function(i){ return i.id === id; });
+  var item = (TODAY.feedItems||[]).find(function(i){ return i.id === id; });
   if (item) { item.status = 'open'; save(); renderFeedList(); updateFeedBadge(); }
 }
 
 function clearFeedIgnored() {
-  S.feedItems = (S.feedItems||[]).filter(function(i){ return i.status !== 'ignored'; });
+  TODAY.feedItems = (TODAY.feedItems||[]).filter(function(i){ return i.status !== 'ignored'; });
   save(); renderFeedList(); updateFeedBadge();
   toast('Ignorierte entfernt');
 }
 
 function feedToPrompt(id) {
-  var item = (S.feedItems||[]).find(function(i){ return i.id === id; });
+  var item = (TODAY.feedItems||[]).find(function(i){ return i.id === id; });
   if (!item) return;
   var text = '# Feed-Eintrag verarbeiten\n\n';
   text += '## Aufgabe\nHilf mir diesen Inhalt zu verarbeiten. Mögliche Ergebnisse:\n';
@@ -4143,9 +4143,9 @@ async function loadReadwise() {
 
     var added = 0;
     results.forEach(function(doc) {
-      var existing = (S.feedItems||[]).find(function(i){ return i.id === 'rw-' + doc.id; });
+      var existing = (TODAY.feedItems||[]).find(function(i){ return i.id === 'rw-' + doc.id; });
       if (existing) return;
-      S.feedItems.push({
+      TODAY.feedItems.push({
         id: 'rw-' + doc.id,
         source: 'readwise',
         title: doc.title || doc.source_url || '',
@@ -4197,11 +4197,11 @@ async function loadRaindrop() {
 
     var added = 0;
     items.forEach(function(drop) {
-      var existing = (S.feedItems||[]).find(function(i){ return i.id === 'rd-' + drop._id; });
+      var existing = (TODAY.feedItems||[]).find(function(i){ return i.id === 'rd-' + drop._id; });
       if (existing) return;
       // Skip if already imported (by date comparison)
       if (S.feedLastRaindrop && drop.created && drop.created < S.feedLastRaindrop) return;
-      S.feedItems.push({
+      TODAY.feedItems.push({
         id: 'rd-' + drop._id,
         source: 'raindrop',
         title: drop.title || '',
@@ -4260,9 +4260,9 @@ async function loadHighlights() {
 
     var added = 0;
     results.forEach(function(hl) {
-      var existing = (S.feedItems||[]).find(function(i){ return i.id === 'hl-' + hl.id; });
+      var existing = (TODAY.feedItems||[]).find(function(i){ return i.id === 'hl-' + hl.id; });
       if (existing) return;
-      S.feedItems.push({
+      TODAY.feedItems.push({
         id: 'hl-' + hl.id,
         source: 'highlight',
         title: hl.parent_id ? ('Highlight aus: ' + (hl.document_note || '')) : '',
@@ -4292,7 +4292,7 @@ async function loadHighlights() {
 }
 
 function openHighlightRefl(id) {
-  var item = (S.feedItems||[]).find(function(i){ return i.id === id; });
+  var item = (TODAY.feedItems||[]).find(function(i){ return i.id === id; });
   if (!item) return;
   currentHighlightId = id;
 
@@ -4349,7 +4349,7 @@ function saveHighlightAsZettel() {
   var body  = document.getElementById('hlZettelBody')  ? document.getElementById('hlZettelBody').value.trim()  : '';
   if (!title && !body) { toast('Titel oder Inhalt eingeben.'); return; }
 
-  var item = currentHighlightId ? (S.feedItems||[]).find(function(i){ return i.id === currentHighlightId; }) : null;
+  var item = currentHighlightId ? (TODAY.feedItems||[]).find(function(i){ return i.id === currentHighlightId; }) : null;
 
   S.zettels.push({
     id: uid(),
@@ -4373,7 +4373,7 @@ function saveHighlightAsZettel() {
 function saveHighlightAsObj() {
   var title = document.getElementById('hlZettelTitle') ? document.getElementById('hlZettelTitle').value.trim() : '';
   var body  = document.getElementById('hlZettelBody')  ? document.getElementById('hlZettelBody').value.trim()  : '';
-  var item  = currentHighlightId ? (S.feedItems||[]).find(function(i){ return i.id === currentHighlightId; }) : null;
+  var item  = currentHighlightId ? (TODAY.feedItems||[]).find(function(i){ return i.id === currentHighlightId; }) : null;
   var text  = title || body || (item ? item.body : '') || '';
   if (!text) { toast('Kein Text vorhanden.'); return; }
 
