@@ -600,6 +600,229 @@ textarea { min-height: 120px; }
 }
 .obj-item.editing-main .obj-main-input { display: block; }
 
+
+/* ── Status buttons ── */
+.status-row {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  margin-top: 6px;
+}
+.status-btn {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  padding: 3px 8px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--ink-dim);
+  cursor: pointer;
+  min-height: 22px;
+  transition: all .12s;
+}
+.status-btn:hover { border-color: var(--border-mid); color: var(--ink-mid); }
+.status-btn.active-x  { background: var(--green-bg);  border-color: var(--green);  color: var(--green); }
+.status-btn.active-gt { background: var(--blue-bg);   border-color: var(--blue);   color: var(--blue); }
+.status-btn.active-lt { background: var(--orange-bg); border-color: var(--orange); color: var(--orange); }
+.status-btn.active-xx { background: var(--red-bg);    border-color: var(--red);    color: var(--red); }
+
+/* ── Signifier pills ── */
+.sig-row {
+  display: flex;
+  gap: 4px;
+  margin-top: 4px;
+  flex-wrap: wrap;
+}
+.sig-btn {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  padding: 2px 7px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: none;
+  color: var(--ink-dim);
+  cursor: pointer;
+  transition: all .12s;
+}
+.sig-btn.active { background: var(--orange-bg); border-color: var(--orange); color: var(--orange); }
+.sig-btn.active-insp { background: var(--purple-bg); border-color: var(--purple); color: var(--purple); }
+
+/* ── Context tag ── */
+.ctx-tag {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  padding: 1px 6px;
+  border-radius: 3px;
+  background: var(--surface-3);
+  border: 1px solid var(--border-mid);
+  color: var(--accent-dim);
+  cursor: pointer;
+}
+.ctx-tag:hover { color: var(--accent); border-color: var(--accent-dim); }
+
+/* ── Review tab ── */
+.review-task {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface);
+  margin-bottom: 8px;
+  transition: border-color .15s;
+}
+.review-task.done-x  { border-color: var(--green);  background: var(--green-bg); }
+.review-task.done-gt { border-color: var(--blue);   background: var(--blue-bg); }
+.review-task.done-lt { border-color: var(--orange); background: var(--orange-bg); }
+.review-task.done-xx { border-color: var(--red);    background: var(--red-bg); }
+.review-task-text {
+  font-family: var(--serif);
+  font-size: 0.92rem;
+  color: var(--ink);
+  line-height: 1.55;
+  margin-bottom: 8px;
+}
+.review-task-meta {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--ink-dim);
+  margin-bottom: 8px;
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.review-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.review-btn {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  padding: 5px 12px;
+  border-radius: 3px;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  color: var(--ink-mid);
+  cursor: pointer;
+  transition: all .12s;
+  min-height: 28px;
+}
+.review-btn:hover { border-color: var(--border-mid); color: var(--ink); }
+.review-btn.sel-x  { background: var(--green-bg);  border-color: var(--green);  color: var(--green); }
+.review-btn.sel-gt { background: var(--blue-bg);   border-color: var(--blue);   color: var(--blue); }
+.review-btn.sel-lt { background: var(--orange-bg); border-color: var(--orange); color: var(--orange); }
+.review-btn.sel-xx { background: var(--red-bg);    border-color: var(--red);    color: var(--red); }
+
+/* ── Context view ── */
+.ctx-view-filter {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+}
+.ctx-pill {
+  font-family: var(--mono);
+  font-size: 0.66rem;
+  padding: 5px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--ink-dim);
+  cursor: pointer;
+  transition: all .12s;
+}
+.ctx-pill:hover { border-color: var(--border-mid); color: var(--ink-mid); }
+.ctx-pill.active { background: var(--surface-3); border-color: var(--accent-dim); color: var(--accent); }
+
+/* ── Review done banner ── */
+.review-done-banner {
+  background: var(--green-bg);
+  border: 1px solid var(--green);
+  border-radius: var(--r);
+  padding: 12px 16px;
+  font-family: var(--mono);
+  font-size: 0.72rem;
+  color: var(--green);
+  margin-bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+
+/* ── Future Log ── */
+.fl-month {
+  margin-bottom: 20px;
+}
+.fl-month-header {
+  font-family: var(--mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--accent);
+  padding: 8px 0 6px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.fl-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.fl-item:last-child { border-bottom: none; }
+.fl-item.done { opacity: 0.4; }
+.fl-date {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  color: var(--ink-dim);
+  flex-shrink: 0;
+  min-width: 54px;
+  padding-top: 3px;
+}
+.fl-date.overdue { color: var(--red); }
+.fl-date.today   { color: var(--green); }
+.fl-text {
+  font-family: var(--serif);
+  font-size: 0.9rem;
+  color: var(--ink);
+  flex: 1;
+  line-height: 1.5;
+}
+.fl-from {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  color: var(--ink-dim);
+  margin-top: 2px;
+}
+.fl-actions { display: flex; gap: 4px; flex-shrink: 0; }
+
+/* ── Migration puffer ── */
+.puffer-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--blue-bg);
+  border: 1px solid var(--blue);
+  border-radius: var(--r);
+  margin-bottom: 6px;
+}
+.puffer-text {
+  font-family: var(--serif);
+  font-size: 0.9rem;
+  color: var(--ink);
+  flex: 1;
+}
+.puffer-from {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--blue);
+}
+
 /* ── Select type dropdown ── */
 select {
   background: var(--bg-mid);
@@ -636,9 +859,11 @@ select:focus { outline: none; border-color: var(--border-mid); }
     <button class="tab-btn" onclick="switchTab('objekte')" id="tab-objekte">
       Objekte <span class="tab-badge" id="badge-objekte">0</span>
     </button>
+    <button class="tab-btn" onclick="switchTab('review')" id="tab-review">Review</button>
     <button class="tab-btn" onclick="switchTab('abschluss')" id="tab-abschluss">
-      Abschluss
+      Abschluss <span id="badge-review" class="tab-badge" style="display:none">!</span>
     </button>
+    <button class="tab-btn" onclick="switchTab('futurelog')" id="tab-futurelog">Future Log <span id="badge-fl" class="tab-badge" style="display:none">0</span></button>
     <button class="tab-btn" onclick="switchTab('verlauf')" id="tab-verlauf">
       Verlauf
     </button>
@@ -734,6 +959,8 @@ select:focus { outline: none; border-color: var(--border-mid); }
   <!-- Tab: Abschluss                             -->
   <!-- ══════════════════════════════════════════ -->
   <div id="panel-abschluss" class="panel">
+
+    <div class="review-done-banner" id="reviewDoneBanner" style="display:none"></div>
 
     <!-- Pipeline Nav -->
     <div class="pipeline-nav">
@@ -867,6 +1094,98 @@ select:focus { outline: none; border-color: var(--border-mid); }
     <div class="section" style="margin-top:8px">
       <div class="section-title">Alle 5 Schritte auf einmal</div>
       <button class="btn btn-sm" onclick="generateAllPipePrompts()">Alle generieren</button>
+    </div>
+
+  </div>
+
+
+  <!-- ══════════════════════════════════════════ -->
+  <!-- Tab: Review                                -->
+  <!-- ══════════════════════════════════════════ -->
+  <div id="panel-review" class="panel">
+
+    <!-- Morgen-Check -->
+    <div class="section">
+      <div class="section-title">Morgen-Review</div>
+      <p style="font-family:var(--serif);font-size:0.88rem;color:var(--ink-mid);line-height:1.7;margin-bottom:12px">
+        Offene Aufgaben von gestern und aus dem Future Log die heute fällig sind.
+      </p>
+      <div id="morningReviewList"><div class="empty-state" style="padding:16px 0">Keine offenen Aufgaben aus Vortagen.</div></div>
+    </div>
+
+    <!-- Abend-Migration -->
+    <div class="section">
+      <div class="section-title">
+        Abend-Migration
+        <span style="margin-left:auto;font-family:var(--mono);font-size:0.6rem;color:var(--ink-dim)" id="reviewProgress"></span>
+      </div>
+      <p style="font-family:var(--serif);font-size:0.88rem;color:var(--ink-mid);line-height:1.7;margin-bottom:14px">
+        Gehe alle offenen Aufgaben durch. Jede braucht einen Status bevor du zum Abschluss gehst.
+      </p>
+      <div id="reviewTaskList"><div class="empty-state" style="padding:16px 0">Keine offenen Aufgaben heute.</div></div>
+      <div class="btn-row" style="margin-top:14px">
+        <button class="btn btn-primary" onclick="finishReview()">Migration abschließen → Abschluss</button>
+        <button class="btn btn-ghost btn-sm" onclick="switchTab('abschluss')">Überspringen</button>
+      </div>
+    </div>
+
+    <!-- Kontexte -->
+    <div class="section">
+      <div class="section-title">Kontext-Ansicht</div>
+      <div class="ctx-view-filter" id="ctxFilterRow"></div>
+      <div id="ctxObjectList" class="obj-list"><div class="empty-state">Wähle einen Kontext oben.</div></div>
+    </div>
+
+  </div>
+
+
+  <!-- ══════════════════════════════════════════ -->
+  <!-- Tab: Future Log                            -->
+  <!-- ══════════════════════════════════════════ -->
+  <div id="panel-futurelog" class="panel">
+
+    <!-- Migration Puffer -->
+    <div class="section" id="pufferSection" style="display:none">
+      <div class="section-title">
+        Migriert von gestern
+        <span style="font-family:var(--mono);font-size:0.6rem;color:var(--blue);margin-left:auto">→ in heutigen Tag übernehmen?</span>
+      </div>
+      <div id="pufferList"></div>
+      <div class="btn-row" style="margin-top:10px">
+        <button class="btn btn-sm btn-primary" onclick="acceptAllPuffer()">Alle übernehmen</button>
+        <button class="btn btn-sm btn-ghost" onclick="dismissAllPuffer()">Alle verwerfen</button>
+      </div>
+    </div>
+
+    <!-- Future Log Eingabe -->
+    <div class="section">
+      <div class="section-title">Neuen Eintrag terminieren</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+        <div style="flex:1;min-width:160px">
+          <label>Aufgabe / Termin</label>
+          <input type="text" id="flText" placeholder="Was soll später passieren?">
+        </div>
+        <div>
+          <label>Zieldatum (optional)</label>
+          <input type="date" id="flDate" style="font-family:var(--mono);font-size:0.78rem;padding:8px 10px;min-height:36px">
+        </div>
+        <div>
+          <label>Monat</label>
+          <select id="flMonth" style="min-height:36px">
+            <option value="">— kein Datum —</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-sm" onclick="addFutureLogEntry()">+ Eintrag hinzufügen</button>
+    </div>
+
+    <!-- Future Log Liste -->
+    <div class="section">
+      <div class="section-title">
+        Terminierte Einträge
+        <span style="margin-left:auto;font-family:var(--mono);font-size:0.6rem;color:var(--ink-dim)" id="flMeta"></span>
+      </div>
+      <div id="futureLogList"><div class="empty-state">Keine terminierten Einträge.<br>Aufgaben mit &lt; aus der Migration landen hier.</div></div>
     </div>
 
   </div>
@@ -1031,7 +1350,9 @@ var GIST_FILE      = 'dailylog_v2_data.json';
 
 var S = {
   days: [],
-  config: { name: '', context: '' },
+  futurelog: [],    // {id, text, date, month, fromDate, fromObj, done, createdAt}
+  migrationPuffer: [], // {id, text, fromDate, objId} — > tasks waiting for next day
+  config: { name: '', context: '', contexts: [] },
   _lastExported: ''
 };
 
@@ -1039,7 +1360,8 @@ var S = {
 var TODAY = {
   date: '',
   cards: [],      // {id, time, type, text, processed}
-  objects: []     // {id, cardId, parentId, typ, text, zeit, kontext, dismissed, createdAt, children:[]}
+  objects: [],    // {id, cardId, parentId, typ, text, zeit, kontext, contexts:[], status:'open'|'x'|'>'|'<'|'xx', signifiers:[], dismissed, createdAt}
+  reviewDone: false
 };
 
 var currentExtractCardId = null;
@@ -1102,10 +1424,13 @@ function load() {
   if (!TODAY.date) TODAY.date = today();
   if (!TODAY.cards) TODAY.cards = [];
   if (!TODAY.objects) TODAY.objects = [];
+  if (TODAY.reviewDone === undefined) TODAY.reviewDone = false;
+  if (!S.futurelog) S.futurelog = [];
+  if (!S.migrationPuffer) S.migrationPuffer = [];
 
   // Reset if new day
   if (TODAY.date !== today()) {
-    TODAY = { date: today(), cards: [], objects: [] };
+    TODAY = { date: today(), cards: [], objects: [], reviewDone: false };
     save();
   }
 }
@@ -1114,14 +1439,20 @@ function load() {
 // Tabs
 // ════════════════════════════════════════════════
 function switchTab(name) {
-  ['sammeln','objekte','abschluss','verlauf'].forEach(function(t) {
-    document.getElementById('panel-' + t).classList.remove('active');
-    document.getElementById('tab-' + t).classList.remove('active');
+  ['sammeln','objekte','review','abschluss','futurelog','verlauf'].forEach(function(t) {
+    var p = document.getElementById('panel-' + t);
+    var b = document.getElementById('tab-' + t);
+    if (p) p.classList.remove('active');
+    if (b) b.classList.remove('active');
   });
-  document.getElementById('panel-' + name).classList.add('active');
-  document.getElementById('tab-' + name).classList.add('active');
-  if (name === 'objekte') renderObjectsTab();
-  if (name === 'verlauf') renderHistory();
+  var panel = document.getElementById('panel-' + name);
+  var btn   = document.getElementById('tab-' + name);
+  if (panel) panel.classList.add('active');
+  if (btn)   btn.classList.add('active');
+  if (name === 'objekte')    renderObjectsTab();
+  if (name === 'review')     renderReviewTab();
+  if (name === 'futurelog')  renderFutureLog();
+  if (name === 'verlauf')    renderHistory();
 }
 
 // ════════════════════════════════════════════════
@@ -1376,6 +1707,9 @@ function importObjects() {
       text: obj.text,
       zeit: obj.zeit || '',
       kontext: obj.kontext || '',
+      contexts: parseContexts(obj.text + ' ' + (obj.kontext||'')),
+      status: 'open',
+      signifiers: [],
       dismissed: false,
       createdAt: new Date().toISOString()
     });
@@ -1493,9 +1827,28 @@ function renderObjItem(obj, depth) {
       '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px">' +
         '<span class="obj-type-label t-' + obj.typ + '">' + obj.typ + '</span>' +
         (obj.zeit ? '<span class="obj-meta">' + esc(obj.zeit) + '</span>' : '') +
-        (obj.kontext ? '<span class="obj-meta" style="font-style:italic">' + esc(obj.kontext.slice(0,40)) + '</span>' : '') +
+        statusChip(obj.status) +
+        ((obj.contexts && obj.contexts.length) ? obj.contexts.map(function(c){ return '<span class="ctx-tag">@' + esc(c) + '</span>'; }).join('') : '') +
+        ((obj.signifiers && obj.signifiers.includes('*')) ? '<span style="color:var(--orange);font-family:var(--mono);font-size:0.7rem">★</span>' : '') +
+        ((obj.signifiers && obj.signifiers.includes('!')) ? '<span style="color:var(--purple);font-family:var(--mono);font-size:0.7rem">!</span>' : '') +
         '<button class="btn btn-sm btn-ghost" style="font-size:0.58rem;padding:2px 6px;min-height:20px;opacity:0.5" onclick="toggleExpand(\'' + obj.id + '\')" title="Ergänzung hinzufügen">+ Ergänzung</button>' +
       '</div>' +
+      // Status row for aufgaben only
+      (obj.typ === 'aufgabe' ?
+        '<div class="status-row">' +
+          ['x','>', '<', 'xx'].map(function(s) {
+            var labels = { x:'X', '>':'>', '<':'<', xx:'—' };
+            var sel = obj.status === s ? ' ' + STATUS_CLASSES[s] : '';
+            return '<button class="status-btn' + sel + '" onclick="setObjStatus(\'' + obj.id + '\',\'' + s + '\')">' + labels[s] + '</button>';
+          }).join('') +
+          '<button class="status-btn" style="opacity:0.5" onclick="setSignifier(\'' + obj.id + '\',\'*\')" title="Priorität">★</button>' +
+          '<button class="status-btn" style="opacity:0.5" onclick="setSignifier(\'' + obj.id + '\',\'!\')" title="Inspiration">!</button>' +
+        '</div>'
+      : '<div class="sig-row">' +
+          '<button class="sig-btn' + ((obj.signifiers && obj.signifiers.includes('*')) ? ' active' : '') + '" onclick="setSignifier(\'' + obj.id + '\',\'*\')" title="Priorität">★ Priorität</button>' +
+          '<button class="sig-btn' + ((obj.signifiers && obj.signifiers.includes('!')) ? ' active-insp' : '') + '" onclick="setSignifier(\'' + obj.id + '\',\'!\')" title="Inspiration">! Inspiration</button>' +
+        '</div>'
+      ) +
       // Children
       childrenHtml +
       // Add child input (shown when expanded)
@@ -1713,7 +2066,10 @@ function getInputSummary() {
     activeObjs.forEach(function(o) {
       var line = '[' + o.typ.toUpperCase() + ']';
       if (o.zeit) line += ' ' + o.zeit;
+      if (o.status && o.status !== 'open') line += ' [' + o.status + ']';
+      if (o.signifiers && o.signifiers.includes('*')) line += ' [PRIORITÄT]';
       line += ' ' + o.text;
+      if (o.contexts && o.contexts.length) line += ' ' + o.contexts.map(function(c){ return '@'+c; }).join(' ');
       if (o.kontext) line += ' (' + o.kontext + ')';
       lines.push(line);
     });
@@ -1858,6 +2214,38 @@ function exportAllPipePrompts() {
 // Finish Day
 // ════════════════════════════════════════════════
 function finishDay() {
+  // Process > and < tasks before archiving
+  var migrated = 0, scheduled = 0;
+  TODAY.objects.forEach(function(obj) {
+    if (obj.typ !== 'aufgabe' || obj.parentId || obj.dismissed) return;
+    if (obj.status === '>') {
+      // Migriert → Puffer für morgen
+      S.migrationPuffer.push({
+        id: uid(),
+        text: obj.text,
+        fromDate: today(),
+        objId: obj.id,
+        contexts: obj.contexts || [],
+        signifiers: obj.signifiers || []
+      });
+      migrated++;
+    } else if (obj.status === '<') {
+      // Terminiert → Future Log
+      S.futurelog.push({
+        id: uid(),
+        text: obj.text,
+        date: '',
+        month: '',
+        fromDate: today(),
+        objId: obj.id,
+        contexts: obj.contexts || [],
+        done: false,
+        createdAt: new Date().toISOString()
+      });
+      scheduled++;
+    }
+  });
+
   var entry = {
     id: uid(),
     date: today(),
@@ -1866,19 +2254,23 @@ function finishDay() {
     createdAt: new Date().toISOString()
   };
   S.days.unshift(entry);
-  TODAY = { date: today(), cards: [], objects: [] };
+  TODAY = { date: today(), cards: [], objects: [], reviewDone: false };
   pipeStepsDone = {};
   save();
   renderCardList();
   updateBadges();
+  updateFLBadge();
   for (var i = 1; i <= 5; i++) {
     var el = document.getElementById('pipe-out-' + i);
     if (el) el.style.display = 'none';
     var nav = document.getElementById('pnav-' + i);
     if (nav) nav.classList.remove('done');
   }
+  var msg = '✓ Tag gespeichert';
+  if (migrated) msg += ' · ' + migrated + ' migriert';
+  if (scheduled) msg += ' · ' + scheduled + ' terminiert';
+  toast(msg);
   switchTab('verlauf');
-  toast('✓ Tag gespeichert');
 }
 
 // ════════════════════════════════════════════════
@@ -1994,6 +2386,255 @@ function gistAutoSyncDebounced() {
 }
 
 // ════════════════════════════════════════════════
+// Contexts
+// ════════════════════════════════════════════════
+function parseContexts(text) {
+  // Extract @context tags from text, fuzzy-normalize
+  var matches = (text.match(/@[\w\-äöüÄÖÜß]+/g) || []);
+  var known = S.config.contexts || [];
+  return matches.map(function(m) {
+    var tag = m.slice(1).toLowerCase();
+    // Fuzzy match: find existing context that starts with same chars
+    var match = known.find(function(k) {
+      return k.toLowerCase() === tag ||
+             k.toLowerCase().startsWith(tag.slice(0,4)) ||
+             tag.startsWith(k.toLowerCase().slice(0,4));
+    });
+    return match || tag;
+  }).filter(function(t,i,a){ return t && a.indexOf(t)===i; });
+}
+
+function getAllContexts() {
+  var ctxSet = {};
+  TODAY.objects.forEach(function(o) {
+    if (o.contexts) o.contexts.forEach(function(c){ ctxSet[c] = true; });
+  });
+  // Also from config
+  (S.config.contexts||[]).forEach(function(c){ ctxSet[c] = true; });
+  return Object.keys(ctxSet).sort();
+}
+
+function addContextToObj(objId, ctx) {
+  var obj = TODAY.objects.find(function(o){ return o.id === objId; });
+  if (!obj) return;
+  if (!obj.contexts) obj.contexts = [];
+  ctx = ctx.toLowerCase().replace(/^@/, '');
+  if (!obj.contexts.includes(ctx)) {
+    obj.contexts.push(ctx);
+    // Register globally
+    if (!S.config.contexts) S.config.contexts = [];
+    if (!S.config.contexts.includes(ctx)) S.config.contexts.push(ctx);
+  }
+  save();
+  renderObjectList();
+}
+
+var activeCtxFilter = null;
+
+function renderCtxView() {
+  var all = getAllContexts();
+  var filterRow = document.getElementById('ctxFilterRow');
+  var listEl    = document.getElementById('ctxObjectList');
+  if (!filterRow || !listEl) return;
+
+  if (!all.length) {
+    filterRow.innerHTML = '<span style="font-family:var(--mono);font-size:0.66rem;color:var(--ink-dim)">Noch keine Kontexte — füge @kontext in Objekten ein.</span>';
+    listEl.innerHTML = '';
+    return;
+  }
+
+  filterRow.innerHTML = all.map(function(c) {
+    return '<span class=\"ctx-pill' + (activeCtxFilter === c ? ' active' : '') + '\" onclick=\"setCtxFilter(\'' + c + '\')\">' +
+      '@' + c + ' <span style="opacity:0.6">·</span> ' +
+      TODAY.objects.filter(function(o){ return o.contexts && o.contexts.includes(c); }).length +
+    '</span>';
+  }).join('');
+
+  if (!activeCtxFilter) {
+    listEl.innerHTML = '<div class="empty-state">Wähle einen Kontext oben.</div>';
+    return;
+  }
+
+  var objs = TODAY.objects.filter(function(o){ return o.contexts && o.contexts.includes(activeCtxFilter) && !o.parentId; });
+  if (!objs.length) {
+    listEl.innerHTML = '<div class="empty-state">Keine Objekte mit @' + esc(activeCtxFilter) + '.</div>';
+    return;
+  }
+
+  listEl.innerHTML = objs.map(function(obj) {
+    return '<div class="obj-item" style="margin-bottom:6px">' +
+      '<div class="obj-icon">' + (OBJ_ICONS[obj.typ]||'·') + '</div>' +
+      '<div class="obj-content">' +
+        '<div class="obj-text">' + esc(obj.text) + '</div>' +
+        '<div style="display:flex;gap:6px;margin-top:4px;flex-wrap:wrap">' +
+          '<span class="obj-type-label t-' + obj.typ + '">' + obj.typ + '</span>' +
+          (obj.zeit ? '<span class="obj-meta">' + esc(obj.zeit) + '</span>' : '') +
+          statusChip(obj.status) +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function setCtxFilter(c) {
+  activeCtxFilter = (activeCtxFilter === c) ? null : c;
+  renderCtxView();
+}
+
+// ════════════════════════════════════════════════
+// Status
+// ════════════════════════════════════════════════
+var STATUS_LABELS = { open: '• offen', x: 'X erledigt', '>': '> migrieren', '<': '< terminieren', xx: '— canceln' };
+var STATUS_CLASSES = { open: '', x: 'active-x', '>': 'active-gt', '<': 'active-lt', xx: 'active-xx' };
+
+function statusChip(status) {
+  if (!status || status === 'open') return '';
+  var labels = { x:'X', '>':'>', '<':'<', xx:'—' };
+  var colors = { x:'var(--green)', '>':'var(--blue)', '<':'var(--orange)', xx:'var(--red)' };
+  return '<span style="font-family:var(--mono);font-size:0.6rem;color:' + (colors[status]||'var(--ink-dim)') + '">' + (labels[status]||status) + '</span>';
+}
+
+function setObjStatus(objId, status) {
+  var obj = TODAY.objects.find(function(o){ return o.id === objId; });
+  if (!obj) return;
+  obj.status = (obj.status === status) ? 'open' : status;
+  save();
+  renderObjectList();
+  updateReviewBadge();
+}
+
+function setSignifier(objId, sig) {
+  var obj = TODAY.objects.find(function(o){ return o.id === objId; });
+  if (!obj) return;
+  if (!obj.signifiers) obj.signifiers = [];
+  var idx = obj.signifiers.indexOf(sig);
+  if (idx > -1) obj.signifiers.splice(idx, 1);
+  else obj.signifiers.push(sig);
+  save();
+  renderObjectList();
+}
+
+// ════════════════════════════════════════════════
+// Review Tab
+// ════════════════════════════════════════════════
+function renderReviewTab() {
+  renderMorningReview();
+  renderEveningMigration();
+  renderCtxView();
+}
+
+function renderMorningReview() {
+  var el = document.getElementById('morningReviewList');
+  if (!el) return;
+  // Past days with open tasks
+  var openFromPast = [];
+  S.days.forEach(function(day) {
+    if (!day.objects) return;
+    day.objects.forEach(function(o) {
+      if (o.typ === 'aufgabe' && (o.status === 'open' || !o.status) && !o.dismissed) {
+        openFromPast.push({ obj: o, date: day.date });
+      }
+    });
+  });
+  if (!openFromPast.length) {
+    el.innerHTML = '<div class="empty-state" style="padding:16px 0">Keine offenen Aufgaben aus Vortagen. ✓</div>';
+    return;
+  }
+  el.innerHTML = openFromPast.slice(0,20).map(function(item) {
+    return '<div class="review-task">' +
+      '<div style="font-family:var(--mono);font-size:0.6rem;color:var(--ink-dim);margin-bottom:4px">' + esc(item.date) + '</div>' +
+      '<div class="review-task-text">' + esc(item.obj.text) + '</div>' +
+    '</div>';
+  }).join('');
+}
+
+
+function buildReviewBtns(obj) {
+  var specs = [
+    ['x',  'X erledigt',    'sel-x'],
+    ['>',  '> migrieren',   'sel-gt'],
+    ['<',  '< terminieren', 'sel-lt'],
+    ['xx', '— canceln',     'sel-xx']
+  ];
+  return specs.map(function(spec) {
+    var s = spec[0], label = spec[1], selCls = spec[2];
+    var active = obj.status === s ? ' ' + selCls : '';
+    return '<button class="review-btn' + active + '" data-oid="' + obj.id + '" data-s="' + s + '" onclick="setObjStatus(this.dataset.oid,this.dataset.s)">' + label + '</button>';
+  }).join('');
+}
+
+function renderEveningMigration() {
+  var el = document.getElementById('reviewTaskList');
+  var progressEl = document.getElementById('reviewProgress');
+  if (!el) return;
+
+  var tasks = TODAY.objects.filter(function(o){ return o.typ === 'aufgabe' && !o.parentId && !o.dismissed; });
+  var decided = tasks.filter(function(o){ return o.status && o.status !== 'open'; });
+
+  if (progressEl) progressEl.textContent = decided.length + '/' + tasks.length + ' entschieden';
+
+  if (!tasks.length) {
+    el.innerHTML = '<div class="empty-state" style="padding:16px 0">Keine Aufgaben heute. ✓</div>';
+    if (progressEl) progressEl.textContent = '';
+    return;
+  }
+
+  el.innerHTML = tasks.map(function(obj) {
+    var cls = '';
+    if (obj.status === 'x')  cls = ' done-x';
+    if (obj.status === '>')  cls = ' done-gt';
+    if (obj.status === '<')  cls = ' done-lt';
+    if (obj.status === 'xx') cls = ' done-xx';
+
+    return '<div class="review-task' + cls + '">' +
+      '<div class="review-task-text">' + esc(obj.text) + '</div>' +
+      '<div class="review-task-meta">' +
+        (obj.zeit ? obj.zeit : '') +
+        (obj.contexts && obj.contexts.length ? obj.contexts.map(function(c){ return '@'+c; }).join(' ') : '') +
+      '</div>' +
+      '<div class="review-actions">' + buildReviewBtns(obj) + '</div>' +
+    '</div>';
+  }).join('');
+
+  updateReviewBadge();
+}
+
+function updateReviewBadge() {
+  var tasks = TODAY.objects.filter(function(o){ return o.typ === 'aufgabe' && !o.parentId && !o.dismissed; });
+  var open  = tasks.filter(function(o){ return !o.status || o.status === 'open'; });
+  var badge = document.getElementById('badge-review');
+  if (badge) {
+    badge.style.display = open.length > 0 ? 'inline-flex' : 'none';
+    badge.textContent = open.length;
+  }
+  // Update abschluss banner
+  renderAbschlussBanner();
+}
+
+function renderAbschlussBanner() {
+  var banner = document.getElementById('reviewDoneBanner');
+  if (!banner) return;
+  var tasks  = TODAY.objects.filter(function(o){ return o.typ === 'aufgabe' && !o.parentId && !o.dismissed; });
+  var open   = tasks.filter(function(o){ return !o.status || o.status === 'open'; });
+  if (open.length === 0 && tasks.length > 0) {
+    banner.style.display = 'flex';
+    banner.textContent = '✓ Migration abgeschlossen — ' + tasks.length + ' Aufgaben entschieden.';
+  } else if (tasks.length === 0) {
+    banner.style.display = 'none';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function finishReview() {
+  TODAY.reviewDone = true;
+  save();
+  switchTab('abschluss');
+  toast('Migration abgeschlossen');
+}
+
+
+// ════════════════════════════════════════════════
 // Co-Pilot
 // ════════════════════════════════════════════════
 function buildCopilotContext() {
@@ -2005,7 +2646,10 @@ function buildCopilotContext() {
     activeObjs.forEach(function(o) {
       var line = '[' + o.typ.toUpperCase() + ']';
       if (o.zeit) line += ' ' + o.zeit;
+      if (o.status && o.status !== 'open') line += ' [' + o.status + ']';
+      if (o.signifiers && o.signifiers.includes('*')) line += ' [PRIORITÄT]';
       line += ' ' + o.text;
+      if (o.contexts && o.contexts.length) line += ' ' + o.contexts.map(function(c){ return '@'+c; }).join(' ');
       if (o.kontext) line += ' (' + o.kontext + ')';
       lines.push(line);
     });
@@ -2098,12 +2742,305 @@ function importCopilotReport() {
 // ════════════════════════════════════════════════
 // Init
 // ════════════════════════════════════════════════
+// ════════════════════════════════════════════════
+// Future Log
+// ════════════════════════════════════════════════
+
+function updateFLBadge() {
+  var open = (S.futurelog || []).filter(function(e){ return !e.done; }).length;
+  var puf  = (S.migrationPuffer || []).length;
+  var badge = document.getElementById('badge-fl');
+  if (badge) {
+    var total = open + puf;
+    badge.style.display = total > 0 ? 'inline-flex' : 'none';
+    badge.textContent = total;
+  }
+}
+
+function renderFutureLog() {
+  renderPuffer();
+  renderFLList();
+  populateMonthSelect();
+}
+
+function renderPuffer() {
+  var puffer = S.migrationPuffer || [];
+  var section = document.getElementById('pufferSection');
+  var listEl  = document.getElementById('pufferList');
+  if (!section || !listEl) return;
+
+  if (!puffer.length) {
+    section.style.display = 'none';
+    return;
+  }
+  section.style.display = 'block';
+  listEl.innerHTML = puffer.map(function(item) {
+    return '<div class="puffer-item" id="puf-' + item.id + '">' +
+      '<div style="flex:1">' +
+        '<div class="puffer-text">' + esc(item.text) + '</div>' +
+        '<div class="puffer-from">von ' + esc(item.fromDate) + '</div>' +
+      '</div>' +
+      '<div style="display:flex;gap:5px">' +
+        '<button class="btn btn-sm" data-pid="' + item.id + '" onclick="acceptPuffer(this.dataset.pid)">↓ Übernehmen</button>' +
+        '<button class="btn btn-sm btn-ghost" data-pid="' + item.id + '" onclick="dismissPuffer(this.dataset.pid)">×</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function acceptPuffer(id) {
+  var item = (S.migrationPuffer||[]).find(function(p){ return p.id === id; });
+  if (!item) return;
+  // Add as aufgabe object to today
+  TODAY.objects.push({
+    id: uid(),
+    cardId: null,
+    parentId: null,
+    typ: 'aufgabe',
+    text: '> ' + item.text,
+    zeit: '',
+    kontext: 'migriert von ' + item.fromDate,
+    contexts: item.contexts || [],
+    signifiers: item.signifiers || [],
+    status: 'open',
+    dismissed: false,
+    createdAt: new Date().toISOString()
+  });
+  S.migrationPuffer = S.migrationPuffer.filter(function(p){ return p.id !== id; });
+  save();
+  renderPuffer();
+  updateBadges();
+  updateFLBadge();
+  toast('Aufgabe übernommen');
+}
+
+function dismissPuffer(id) {
+  S.migrationPuffer = (S.migrationPuffer||[]).filter(function(p){ return p.id !== id; });
+  save();
+  renderPuffer();
+  updateFLBadge();
+  toast('Verworfen');
+}
+
+function acceptAllPuffer() {
+  var items = (S.migrationPuffer||[]).slice();
+  items.forEach(function(item){ acceptPuffer(item.id); });
+}
+
+function dismissAllPuffer() {
+  S.migrationPuffer = [];
+  save();
+  renderPuffer();
+  updateFLBadge();
+  toast('Alle verworfen');
+}
+
+function populateMonthSelect() {
+  var sel = document.getElementById('flMonth');
+  if (!sel) return;
+  var months = [];
+  var d = new Date();
+  for (var i = 0; i < 12; i++) {
+    var y = d.getFullYear(), m = d.getMonth() + i;
+    var yr = y + Math.floor(m/12), mo = m % 12;
+    var key = yr + '-' + String(mo+1).padStart(2,'0');
+    var label = new Date(yr, mo, 1).toLocaleDateString('de-DE', {month:'long', year:'numeric'});
+    months.push('<option value="' + key + '">' + label + '</option>');
+  }
+  sel.innerHTML = '<option value="">— kein Datum —</option>' + months.join('');
+}
+
+function addFutureLogEntry() {
+  var text = document.getElementById('flText').value.trim();
+  if (!text) { toast('Kein Text eingegeben.'); return; }
+  var date  = document.getElementById('flDate') ? document.getElementById('flDate').value : '';
+  var month = document.getElementById('flMonth') ? document.getElementById('flMonth').value : '';
+  S.futurelog.push({
+    id: uid(),
+    text: text,
+    date: date,
+    month: month || (date ? date.slice(0,7) : ''),
+    fromDate: today(),
+    done: false,
+    createdAt: new Date().toISOString()
+  });
+  document.getElementById('flText').value = '';
+  if (document.getElementById('flDate')) document.getElementById('flDate').value = '';
+  save();
+  renderFLList();
+  updateFLBadge();
+  toast('Future Log Eintrag hinzugefügt');
+}
+
+function renderFLList() {
+  var container = document.getElementById('futureLogList');
+  var metaEl    = document.getElementById('flMeta');
+  if (!container) return;
+
+  var entries = (S.futurelog || []).filter(function(e){ return !e.done; });
+  var done    = (S.futurelog || []).filter(function(e){ return e.done; });
+  if (metaEl) metaEl.textContent = entries.length + ' offen · ' + done.length + ' erledigt';
+
+  if (!S.futurelog || !S.futurelog.length) {
+    container.innerHTML = '<div class="empty-state">Keine terminierten Einträge.<br>Aufgaben mit &lt; aus der Migration landen hier.</div>';
+    return;
+  }
+
+  // Group by month
+  var byMonth = {};
+  entries.forEach(function(e) {
+    var key = e.month || e.date && e.date.slice(0,7) || 'undatiert';
+    if (!byMonth[key]) byMonth[key] = [];
+    byMonth[key].push(e);
+  });
+
+  var todayStr = today();
+  var monthKeys = Object.keys(byMonth).sort();
+
+  var html = monthKeys.map(function(mk) {
+    var label = mk === 'undatiert' ? 'Undatiert' :
+      new Date(mk + '-01').toLocaleDateString('de-DE', {month:'long', year:'numeric'});
+    var items = byMonth[mk].sort(function(a,b){
+      return (a.date||'9999') < (b.date||'9999') ? -1 : 1;
+    });
+    return '<div class="fl-month">' +
+      '<div class="fl-month-header">' + label + ' <span>' + items.length + '</span></div>' +
+      items.map(function(e) {
+        var dateClass = '';
+        if (e.date) {
+          if (e.date < todayStr) dateClass = ' overdue';
+          else if (e.date === todayStr) dateClass = ' today';
+        }
+        return '<div class="fl-item" id="fl-' + e.id + '">' +
+          '<div class="fl-date' + dateClass + '">' + (e.date ? e.date.slice(5) : e.month || '—') + '</div>' +
+          '<div style="flex:1">' +
+            '<div class="fl-text">' + esc(e.text) + '</div>' +
+            (e.fromDate ? '<div class="fl-from">von ' + esc(e.fromDate) + '</div>' : '') +
+            ((e.contexts && e.contexts.length) ? '<div style="margin-top:3px">' + e.contexts.map(function(c){ return '<span class="ctx-tag">@'+esc(c)+'</span>'; }).join('') + '</div>' : '') +
+          '</div>' +
+          '<div class="fl-actions">' +
+            '<button class="btn btn-sm" data-flid="' + e.id + '" onclick="pullFLToday(this.dataset.flid)" title="Heute übernehmen">↓ Heute</button>' +
+            '<button class="btn btn-sm btn-ghost" data-flid="' + e.id + '" onclick="doneFLEntry(this.dataset.flid)" title="Erledigt">X</button>' +
+          '</div>' +
+        '</div>';
+      }).join('') +
+    '</div>';
+  }).join('');
+
+  // Show done entries collapsed
+  if (done.length) {
+    html += '<details style="margin-top:14px"><summary style="font-family:var(--mono);font-size:0.64rem;color:var(--ink-dim);cursor:pointer">Erledigte (' + done.length + ')</summary>' +
+      done.map(function(e) {
+        return '<div class="fl-item done" style="margin-top:6px">' +
+          '<div class="fl-date">' + (e.date ? e.date.slice(5) : '—') + '</div>' +
+          '<div class="fl-text" style="text-decoration:line-through;color:var(--ink-dim)">' + esc(e.text) + '</div>' +
+        '<button class="btn btn-sm btn-ghost" data-flid="' + e.id + '" onclick="undoFLEntry(this.dataset.flid)">↩</button>' +
+        '</div>';
+      }).join('') +
+    '</details>';
+  }
+
+  container.innerHTML = html || '<div class="empty-state">Keine offenen Einträge.</div>';
+}
+
+function pullFLToday(id) {
+  var entry = (S.futurelog||[]).find(function(e){ return e.id === id; });
+  if (!entry) return;
+  TODAY.objects.push({
+    id: uid(),
+    cardId: null,
+    parentId: null,
+    typ: 'aufgabe',
+    text: entry.text,
+    zeit: '',
+    kontext: 'aus Future Log',
+    contexts: entry.contexts || [],
+    signifiers: [],
+    status: 'open',
+    dismissed: false,
+    createdAt: new Date().toISOString()
+  });
+  entry.done = true;
+  save();
+  renderFLList();
+  updateBadges();
+  updateFLBadge();
+  toast('In heutigen Tag übernommen');
+}
+
+function doneFLEntry(id) {
+  var entry = (S.futurelog||[]).find(function(e){ return e.id === id; });
+  if (entry) { entry.done = true; save(); renderFLList(); updateFLBadge(); toast('Erledigt'); }
+}
+
+function undoFLEntry(id) {
+  var entry = (S.futurelog||[]).find(function(e){ return e.id === id; });
+  if (entry) { entry.done = false; save(); renderFLList(); updateFLBadge(); }
+}
+
+// Show puffer in morning review
+function renderMorningReview() {
+  var el = document.getElementById('morningReviewList');
+  if (!el) return;
+
+  var puffer = S.migrationPuffer || [];
+  var openFromPast = [];
+  S.days.forEach(function(day) {
+    if (!day.objects) return;
+    day.objects.forEach(function(o) {
+      if (o.typ === 'aufgabe' && o.status === '>' && !o.dismissed) {
+        openFromPast.push({ obj: o, date: day.date });
+      }
+    });
+  });
+
+  // FL entries due today or overdue
+  var todayStr = today();
+  var flDue = (S.futurelog||[]).filter(function(e){
+    return !e.done && e.date && e.date <= todayStr;
+  });
+
+  if (!puffer.length && !openFromPast.length && !flDue.length) {
+    el.innerHTML = '<div class="empty-state" style="padding:16px 0">Nichts offen aus Vortagen. ✓</div>';
+    return;
+  }
+
+  var html = '';
+  if (puffer.length) {
+    html += '<div class="notice warn" style="margin-bottom:10px">⚠ ' + puffer.length + ' migrierte Aufgaben warten im <strong>Future Log Tab</strong>.</div>';
+  }
+  if (flDue.length) {
+    html += '<div style="margin-bottom:8px;font-family:var(--mono);font-size:0.64rem;color:var(--orange)">Fällig aus Future Log:</div>';
+    flDue.forEach(function(e) {
+      html += '<div class="review-task" style="border-color:var(--orange)">' +
+        '<div class="review-task-text">' + esc(e.text) + '</div>' +
+        '<div class="review-actions">' +
+          '<button class="btn btn-sm review-btn" data-flid="' + e.id + '" onclick="pullFLToday(this.dataset.flid)">↓ Heute übernehmen</button>' +
+        '</div>' +
+      '</div>';
+    });
+  }
+  if (openFromPast.length) {
+    html += '<div style="margin-top:8px;font-family:var(--mono);font-size:0.64rem;color:var(--ink-dim)">Noch offene Aufgaben aus älteren Tagen:</div>';
+    openFromPast.slice(0,10).forEach(function(item) {
+      html += '<div class="review-task">' +
+        '<div style="font-family:var(--mono);font-size:0.6rem;color:var(--ink-dim);margin-bottom:4px">' + esc(item.date) + '</div>' +
+        '<div class="review-task-text">' + esc(item.obj.text) + '</div>' +
+      '</div>';
+    });
+  }
+  el.innerHTML = html;
+}
+
+
 function init() {
   load();
   document.getElementById('headerDate').textContent = todayDE();
   loadSettingsUI();
   renderCardList();
   updateBadges();
+  updateReviewBadge();
+  updateFLBadge();
 }
 
 init();
