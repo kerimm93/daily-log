@@ -4745,11 +4745,10 @@ function renderFeedList() {
   var items = TODAY.feedItems || [];
   var todayStr = today();
   var filtered = items.filter(function(i) {
-    // Date filter: only show items from today (if they have a date)
-    if (i.date) {
-      var itemDate = i.date.slice(0, 10);
-      if (itemDate !== todayStr) return false;
-    }
+    // Date filter: use loadedAt (when user imported) as primary
+    // Falls back to item date only if no loadedAt
+    var checkDate = i.loadedAt ? i.loadedAt.slice(0, 10) : (i.date ? i.date.slice(0, 10) : null);
+    if (checkDate && checkDate !== todayStr) return false;
     if (feedFilter === 'readwise')  return i.source === 'readwise';
     if (feedFilter === 'raindrop')  return i.source === 'raindrop';
     if (feedFilter === 'highlight') return i.source === 'highlight';
