@@ -520,6 +520,86 @@ textarea { min-height: 120px; }
   .pipe-step { font-size: 0.55rem; }
 }
 
+
+/* ── Sub-entries ── */
+.obj-children {
+  margin-left: 26px;
+  margin-top: 6px;
+  border-left: 1px solid var(--border);
+  padding-left: 10px;
+}
+.obj-child {
+  padding: 5px 0;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+}
+.obj-child:last-child { border-bottom: none; }
+.obj-child-time {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--ink-dim);
+  flex-shrink: 0;
+  margin-top: 3px;
+  min-width: 36px;
+}
+.obj-child-text {
+  font-family: var(--serif);
+  font-size: 0.85rem;
+  color: var(--ink-mid);
+  flex: 1;
+  line-height: 1.55;
+}
+.obj-child-text.editing {
+  display: none;
+}
+.obj-child-input {
+  font-family: var(--serif);
+  font-size: 0.85rem;
+  width: 100%;
+  background: var(--bg);
+  border: none;
+  border-bottom: 1px solid var(--border-mid);
+  color: var(--ink);
+  padding: 2px 0;
+  outline: none;
+  display: none;
+}
+.obj-child-input.visible { display: block; }
+.obj-add-child {
+  margin-top: 6px;
+  display: none;
+}
+.obj-item.expanded .obj-add-child { display: flex; gap: 6px; }
+.obj-add-input {
+  font-family: var(--serif);
+  font-size: 0.85rem;
+  flex: 1;
+  background: var(--bg);
+  border: none;
+  border-bottom: 1px solid var(--accent-dim);
+  color: var(--ink);
+  padding: 4px 0;
+  outline: none;
+}
+.obj-add-input::placeholder { color: var(--ink-dim); font-style: italic; }
+.obj-item.editing-main .obj-text { display: none; }
+.obj-main-input {
+  font-family: var(--serif);
+  font-size: 0.88rem;
+  width: 100%;
+  background: var(--bg);
+  border: none;
+  border-bottom: 1px solid var(--accent-dim);
+  color: var(--ink);
+  padding: 2px 0;
+  outline: none;
+  display: none;
+  line-height: 1.6;
+}
+.obj-item.editing-main .obj-main-input { display: block; }
+
 /* ── Select type dropdown ── */
 select {
   background: var(--bg-mid);
@@ -627,7 +707,13 @@ select:focus { outline: none; border-color: var(--border-mid); }
 
     <!-- Objekt-Übersicht -->
     <div class="section">
-      <div class="section-title">Extrahierte Objekte heute</div>
+      <div class="section-title">
+        Extrahierte Objekte heute
+        <span style="margin-left:auto; display:flex; gap:6px;">
+          <button class="btn btn-sm btn-ghost" onclick="toggleDismissed()" id="btnDismissed">Verworfene</button>
+          <button class="btn btn-sm btn-ghost" onclick="exportData()">↓ JSON</button>
+        </span>
+      </div>
       <div class="obj-summary" id="objSummary"></div>
       <div id="objectList" class="obj-list">
         <div class="empty-state">Noch keine Objekte extrahiert.<br>Gehe zu einer Karte und generiere einen Extraktions-Prompt.</div>
@@ -890,7 +976,11 @@ select:focus { outline: none; border-color: var(--border-mid); }
 ]'></textarea>
     </div>
 
-    <div class="btn-row" style="margin-top:14px">
+    <div id="extractApiRow" style="display:none; margin-top:12px">
+      <button class="btn btn-primary" id="btnExtractApi" onclick="extractWithApi()">⚡ Mit KI extrahieren</button>
+      <span style="font-family:var(--mono); font-size:0.62rem; color:var(--ink-dim); margin-left:8px">OpenAI API · läuft direkt</span>
+    </div>
+    <div class="btn-row" style="margin-top:12px">
       <button class="btn btn-primary" onclick="importObjects()">Objekte importieren</button>
       <button class="btn" onclick="closeModal('extractModal')">Abbrechen</button>
     </div>
@@ -910,6 +1000,9 @@ select:focus { outline: none; border-color: var(--border-mid); }
 
     <label style="margin-top:14px">System-Kontext (CONFIG)</label>
     <textarea id="cfgContext" style="min-height:110px; font-family:var(--mono); font-size:0.76rem" placeholder="Maxime, Systemregeln, Zettelkasten-Tags – wird in alle Prompts eingebettet."></textarea>
+
+    <label style="margin-top:14px">OpenAI API Key (optional · nur für Extraktion)</label>
+    <input type="password" id="cfgOpenAI" placeholder="sk-...">
 
     <label style="margin-top:14px">GitHub Gist Token (optional)</label>
     <input type="password" id="cfgGistToken" placeholder="ghp_...">
@@ -946,12 +1039,21 @@ var S = {
 var TODAY = {
   date: '',
   cards: [],      // {id, time, type, text, processed}
-  objects: []     // {id, cardId, typ, text, zeit, kontext, dismissed}
+  objects: []     // {id, cardId, parentId, typ, text, zeit, kontext, dismissed, createdAt, children:[]}
 };
 
 var currentExtractCardId = null;
 var currentPipeStep = 1;
 var pipeStepsDone = {};
+var activeObjFilter = null; // null = alle anzeigen
+var showDismissed = false;
+
+function toggleDismissed() {
+  showDismissed = !showDismissed;
+  var btn = document.getElementById('btnDismissed');
+  if (btn) btn.style.color = showDismissed ? 'var(--accent)' : '';
+  renderObjectList();
+}
 
 // ════════════════════════════════════════════════
 // Utils
@@ -1186,6 +1288,62 @@ function copyExtractPrompt() {
   copyText(text, 'Extraktions-Prompt kopiert');
 }
 
+// ════════════════════════════════════════════════
+// OpenAI Direct Extraction
+// ════════════════════════════════════════════════
+var OPENAI_KEY = 'dailylog_openai_key';
+
+function getOpenAIKey() { return localStorage.getItem(OPENAI_KEY) || ''; }
+
+function openExtract(cardId) {
+  var card = TODAY.cards.find(function(c){ return c.id === cardId; });
+  if (!card) return;
+  currentExtractCardId = cardId;
+
+  var prompt = buildExtractionPrompt(card);
+  document.getElementById('extractPromptText').textContent = prompt;
+  document.getElementById('extractResult').value = '';
+  document.getElementById('extractNotice').innerHTML = '';
+
+  // Show API button if key is set
+  var apiRow = document.getElementById('extractApiRow');
+  if (apiRow) apiRow.style.display = getOpenAIKey() ? 'block' : 'none';
+
+  openModal('extractModal');
+}
+
+async function extractWithApi() {
+  var key = getOpenAIKey();
+  if (!key) { showExtractNotice('Kein OpenAI Key in Einstellungen.', 'warn'); return; }
+  var prompt = document.getElementById('extractPromptText').textContent;
+  if (!prompt) { showExtractNotice('Prompt fehlt.', 'warn'); return; }
+
+  var btn = document.getElementById('btnExtractApi');
+  if (btn) { btn.disabled = true; btn.textContent = '⏳ Läuft…'; }
+
+  try {
+    var res = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: prompt }],
+        temperature: 0.2
+      })
+    });
+    var data = await res.json();
+    if (!res.ok) throw new Error(data.error && data.error.message || 'API Fehler');
+    var text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || '';
+    document.getElementById('extractResult').value = text;
+    showExtractNotice('✓ KI-Antwort erhalten – prüfen und importieren.', 'ok');
+  } catch(e) {
+    showExtractNotice('Fehler: ' + e.message, 'warn');
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = '⚡ Mit KI extrahieren'; }
+  }
+}
+
+
 function importObjects() {
   var raw = document.getElementById('extractResult').value.trim();
   if (!raw) { showExtractNotice('Kein Inhalt eingefügt.', 'warn'); return; }
@@ -1213,11 +1371,13 @@ function importObjects() {
     TODAY.objects.push({
       id: uid(),
       cardId: currentExtractCardId,
+      parentId: null,
       typ: obj.typ.toLowerCase(),
       text: obj.text,
       zeit: obj.zeit || '',
       kontext: obj.kontext || '',
-      dismissed: false
+      dismissed: false,
+      createdAt: new Date().toISOString()
     });
     added++;
   });
@@ -1258,47 +1418,243 @@ function renderObjectsTab() {
   renderExtractCards();
 }
 
+function setObjFilter(typ) {
+  activeObjFilter = (activeObjFilter === typ) ? null : typ;
+  renderObjectList();
+}
+
 function renderObjectList() {
   var container = document.getElementById('objectList');
-  var active = TODAY.objects.filter(function(o){ return !o.dismissed; });
+  var rootObjs = TODAY.objects.filter(function(o){ return !o.parentId; });
+  var active   = rootObjs.filter(function(o){ return !o.dismissed; });
 
-  // Summary counts
+  // Filter pills
   var counts = {};
   active.forEach(function(o){ counts[o.typ] = (counts[o.typ]||0) + 1; });
   var summaryEl = document.getElementById('objSummary');
-  summaryEl.innerHTML = Object.keys(counts).map(function(k) {
-    return '<span class="obj-count t-' + k + '">' + (OBJ_ICONS[k]||'·') + ' ' + k + ' · ' + counts[k] + '</span>';
+  var allPill = '<span class="obj-count" style="cursor:pointer;' +
+    (activeObjFilter === null ? 'border-color:var(--accent);color:var(--accent)' : '') +
+    '" onclick="setObjFilter(null)">alle · ' + active.length + '</span>';
+  var typePills = Object.keys(counts).map(function(k) {
+    var isActive = activeObjFilter === k;
+    return '<span class="obj-count t-' + k + '" style="cursor:pointer;' +
+      (isActive ? 'opacity:1;box-shadow:0 0 0 1px currentColor' : 'opacity:0.7') +
+      '" onclick="setObjFilter(\'' + k + '\')">' +
+      (OBJ_ICONS[k]||'·') + ' ' + k + ' · ' + counts[k] + '</span>';
   }).join('');
+  summaryEl.innerHTML = allPill + typePills;
+
+  var pool = showDismissed ? rootObjs : active;
+  var visible = activeObjFilter ? pool.filter(function(o){ return o.typ === activeObjFilter; }) : pool;
+
+  // Sort by zeit (HH:MM), then createdAt
+  visible.sort(function(a, b) {
+    var ta = a.zeit || '99:99', tb = b.zeit || '99:99';
+    if (ta !== tb) return ta < tb ? -1 : 1;
+    return (a.createdAt||'') < (b.createdAt||'') ? -1 : 1;
+  });
 
   if (!active.length) {
     container.innerHTML = '<div class="empty-state">Noch keine Objekte extrahiert.</div>';
     return;
   }
+  if (!visible.length) {
+    container.innerHTML = '<div class="empty-state">Keine Objekte vom Typ "' + esc(activeObjFilter) + '".</div>';
+    return;
+  }
 
-  container.innerHTML = TODAY.objects.map(function(obj) {
-    var cardTime = '';
-    var card = TODAY.cards.find(function(c){ return c.id === obj.cardId; });
-    if (card) cardTime = card.time;
-    return '<div class="obj-item' + (obj.dismissed ? ' dismissed' : '') + '" id="obj-' + obj.id + '">' +
-      '<div class="obj-icon">' + (OBJ_ICONS[obj.typ] || '·') + '</div>' +
-      '<div class="obj-content">' +
-        '<div class="obj-text">' + esc(obj.text) + '</div>' +
-        '<div style="display:flex; gap:6px; align-items:center; flex-wrap:wrap; margin-top:4px">' +
-          '<span class="obj-type-label t-' + obj.typ + '">' + obj.typ + '</span>' +
-          (obj.zeit ? '<span class="obj-meta">' + esc(obj.zeit) + '</span>' : '') +
-          (obj.kontext ? '<span class="obj-meta" style="font-style:italic">' + esc(obj.kontext.slice(0,40)) + '</span>' : '') +
-          (cardTime ? '<span class="obj-meta">Karte · ' + esc(cardTime) + '</span>' : '') +
-        '</div>' +
-      '</div>' +
-      '<div class="obj-actions">' +
-        (!obj.dismissed ?
-          '<button class="btn btn-sm btn-ghost" onclick="dismissObj(\'' + obj.id + '\')" title="Verwerfen">×</button>' :
-          '<button class="btn btn-sm btn-ghost" onclick="restoreObj(\'' + obj.id + '\')" title="Wiederherstellen">↩</button>'
-        ) +
-      '</div>' +
-    '</div>';
+  container.innerHTML = visible.map(function(obj) {
+    return renderObjItem(obj, 0);
   }).join('');
 }
+
+function renderObjItem(obj, depth) {
+  var children = TODAY.objects.filter(function(o){ return o.parentId === obj.id; });
+  children.sort(function(a,b){ return (a.createdAt||'') < (b.createdAt||'') ? -1 : 1; });
+
+  var childrenHtml = '';
+  if (children.length) {
+    childrenHtml = '<div class="obj-children">' +
+      children.map(function(c){ return renderObjChild(c, obj.id); }).join('') +
+    '</div>';
+  }
+
+  var addInputId  = 'add-' + obj.id;
+  var mainInputId = 'main-input-' + obj.id;
+
+  return '<div class="obj-item' + (obj.dismissed ? ' dismissed' : '') + '" id="obj-' + obj.id + '">' +
+    '<div class="obj-icon" style="padding-top:2px">' + (OBJ_ICONS[obj.typ]||'·') + '</div>' +
+    '<div class="obj-content" style="flex:1">' +
+      // Main text — click to edit
+      '<div class="obj-text" onclick="startEditMain(\'' + obj.id + '\')" style="cursor:text" title="Klicken zum Bearbeiten">' + esc(obj.text) + '</div>' +
+      '<input class="obj-main-input" id="' + mainInputId + '" type="text" value="' + esc(obj.text) + '"' +
+        ' onblur="saveEditMain(\'' + obj.id + '\')" onkeydown="mainInputKey(event,\'' + obj.id + '\')">' +
+      // Meta row
+      '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px">' +
+        '<span class="obj-type-label t-' + obj.typ + '">' + obj.typ + '</span>' +
+        (obj.zeit ? '<span class="obj-meta">' + esc(obj.zeit) + '</span>' : '') +
+        (obj.kontext ? '<span class="obj-meta" style="font-style:italic">' + esc(obj.kontext.slice(0,40)) + '</span>' : '') +
+        '<button class="btn btn-sm btn-ghost" style="font-size:0.58rem;padding:2px 6px;min-height:20px;opacity:0.5" onclick="toggleExpand(\'' + obj.id + '\')" title="Ergänzung hinzufügen">+ Ergänzung</button>' +
+      '</div>' +
+      // Children
+      childrenHtml +
+      // Add child input (shown when expanded)
+      '<div class="obj-add-child" id="addrow-' + obj.id + '">' +
+        '<span style="font-family:var(--mono);font-size:0.64rem;color:var(--ink-dim);padding-top:6px">' + nowTime() + '</span>' +
+        '<input class="obj-add-input" id="' + addInputId + '" type="text" placeholder="Ergänzung eingeben… Enter zum Speichern"' +
+          ' onkeydown="addChildKey(event,\'' + obj.id + '\')">' +
+      '</div>' +
+    '</div>' +
+    '<div class="obj-actions">' +
+      (!obj.dismissed
+        ? '<button class="btn btn-sm btn-ghost" onclick="dismissObj(\'' + obj.id + '\')" title="Verwerfen">×</button>'
+        : '<button class="btn btn-sm btn-ghost" onclick="restoreObj(\'' + obj.id + '\')" title="Wiederherstellen" style="color:var(--green)">↩</button>'
+      ) +
+    '</div>' +
+  '</div>';
+}
+
+function renderObjChild(child, parentId) {
+  return '<div class="obj-child" id="obj-' + child.id + '">' +
+    '<span class="obj-child-time">' + esc(child.zeit || child.createdAt && child.createdAt.slice(11,16) || '') + '</span>' +
+    '<div style="flex:1">' +
+      '<div class="obj-child-text" onclick="startEditChild(\'' + child.id + '\')" style="cursor:text" title="Klicken zum Bearbeiten">' + esc(child.text) + '</div>' +
+      '<input class="obj-child-input" id="cedit-' + child.id + '" type="text" value="' + esc(child.text) + '"' +
+        ' onblur="saveEditChild(\'' + child.id + '\')" onkeydown="childInputKey(event,\'' + child.id + '\')">' +
+      '<div style="margin-top:3px;display:flex;gap:6px">' +
+        (child.typ !== 'notiz' ? '<span class="obj-type-label t-' + child.typ + '" style="font-size:0.55rem">' + child.typ + '</span>' : '') +
+        '<button class="btn btn-sm btn-ghost" style="font-size:0.55rem;padding:1px 5px;min-height:18px;opacity:0.5" onclick="promoteChild(\'' + child.id + '\')" title="Zu eigenem Objekt machen">↑ Objekt</button>' +
+        '<button class="btn btn-sm btn-ghost" style="font-size:0.55rem;padding:1px 5px;min-height:18px;opacity:0.4" onclick="removeChild(\'' + child.id + '\')">×</button>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
+// ── Object editing ──────────────────────────────────────────────────────────
+function toggleExpand(objId) {
+  var el = document.getElementById('obj-' + objId);
+  if (!el) return;
+  el.classList.toggle('expanded');
+  var input = document.getElementById('add-' + objId);
+  var addrow = document.getElementById('addrow-' + objId);
+  if (el.classList.contains('expanded')) {
+    if (addrow) addrow.style.display = 'flex';
+    if (input) { input.focus(); }
+  } else {
+    if (addrow) addrow.style.display = 'none';
+  }
+}
+
+function addChildKey(event, parentId) {
+  if (event.key === 'Enter') {
+    event.preventDefault();
+    var input = document.getElementById('add-' + parentId);
+    var text = input ? input.value.trim() : '';
+    if (!text) return;
+    var now = new Date();
+    var timeStr = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
+    TODAY.objects.push({
+      id: uid(),
+      cardId: null,
+      parentId: parentId,
+      typ: 'notiz',
+      text: text,
+      zeit: timeStr,
+      kontext: '',
+      dismissed: false,
+      createdAt: now.toISOString()
+    });
+    if (input) input.value = '';
+    save();
+    renderObjectList();
+    // Re-expand
+    setTimeout(function() {
+      var el = document.getElementById('obj-' + parentId);
+      if (el && !el.classList.contains('expanded')) { toggleExpand(parentId); }
+      else if (el) {
+        var addrow = document.getElementById('addrow-' + parentId);
+        if (addrow) addrow.style.display = 'flex';
+        var inp = document.getElementById('add-' + parentId);
+        if (inp) inp.focus();
+      }
+    }, 50);
+  }
+  if (event.key === 'Escape') {
+    var el = document.getElementById('obj-' + parentId);
+    if (el) el.classList.remove('expanded');
+    var addrow = document.getElementById('addrow-' + parentId);
+    if (addrow) addrow.style.display = 'none';
+  }
+}
+
+function startEditMain(objId) {
+  var el = document.getElementById('obj-' + objId);
+  if (el) el.classList.add('editing-main');
+  var inp = document.getElementById('main-input-' + objId);
+  if (inp) { inp.style.display = 'block'; inp.focus(); inp.select(); }
+}
+
+function mainInputKey(event, objId) {
+  if (event.key === 'Enter') { event.preventDefault(); saveEditMain(objId); }
+  if (event.key === 'Escape') {
+    var el = document.getElementById('obj-' + objId);
+    if (el) el.classList.remove('editing-main');
+    var inp = document.getElementById('main-input-' + objId);
+    if (inp) inp.style.display = 'none';
+  }
+}
+
+function saveEditMain(objId) {
+  var inp = document.getElementById('main-input-' + objId);
+  if (!inp) return;
+  var newText = inp.value.trim();
+  var obj = TODAY.objects.find(function(o){ return o.id === objId; });
+  if (obj && newText) obj.text = newText;
+  save();
+  renderObjectList();
+}
+
+function startEditChild(childId) {
+  var textEl = document.querySelector('#obj-' + childId + ' .obj-child-text');
+  var inp = document.getElementById('cedit-' + childId);
+  if (textEl) textEl.classList.add('editing');
+  if (inp) { inp.classList.add('visible'); inp.focus(); inp.select(); }
+}
+
+function childInputKey(event, childId) {
+  if (event.key === 'Enter') { event.preventDefault(); saveEditChild(childId); }
+  if (event.key === 'Escape') {
+    var textEl = document.querySelector('#obj-' + childId + ' .obj-child-text');
+    var inp = document.getElementById('cedit-' + childId);
+    if (textEl) textEl.classList.remove('editing');
+    if (inp) inp.classList.remove('visible');
+  }
+}
+
+function saveEditChild(childId) {
+  var inp = document.getElementById('cedit-' + childId);
+  if (!inp) return;
+  var newText = inp.value.trim();
+  var obj = TODAY.objects.find(function(o){ return o.id === childId; });
+  if (obj && newText) { obj.text = newText; save(); renderObjectList(); }
+}
+
+function promoteChild(childId) {
+  var obj = TODAY.objects.find(function(o){ return o.id === childId; });
+  if (!obj) return;
+  obj.parentId = null;
+  obj.createdAt = obj.createdAt || new Date().toISOString();
+  save();
+  renderObjectList();
+  toast('Zu eigenem Objekt gemacht');
+}
+
+function removeChild(childId) {
+  TODAY.objects = TODAY.objects.filter(function(o){ return o.id !== childId; });
+  save();
+  renderObjectList();
+}
+
 
 function renderExtractCards() {
   var container = document.getElementById('extractCardList');
@@ -1556,15 +1912,18 @@ function loadSettingsUI() {
   document.getElementById('cfgContext').value = S.config.context || '';
   document.getElementById('cfgGistToken').value = localStorage.getItem(GIST_TOKEN_KEY) || '';
   document.getElementById('cfgGistId').value = localStorage.getItem(GIST_ID_KEY) || '';
+  if (document.getElementById('cfgOpenAI')) document.getElementById('cfgOpenAI').value = localStorage.getItem(OPENAI_KEY) || '';
 }
 
 function saveSettings() {
   S.config.name    = document.getElementById('cfgName').value.trim();
   S.config.context = document.getElementById('cfgContext').value.trim();
-  var token = document.getElementById('cfgGistToken').value.trim();
-  var gid   = document.getElementById('cfgGistId').value.trim();
-  if (token) localStorage.setItem(GIST_TOKEN_KEY, token);
-  if (gid)   localStorage.setItem(GIST_ID_KEY, gid);
+  var token   = document.getElementById('cfgGistToken').value.trim();
+  var gid     = document.getElementById('cfgGistId').value.trim();
+  var oaiKey  = document.getElementById('cfgOpenAI') ? document.getElementById('cfgOpenAI').value.trim() : '';
+  if (token)  localStorage.setItem(GIST_TOKEN_KEY, token);
+  if (gid)    localStorage.setItem(GIST_ID_KEY, gid);
+  if (oaiKey) localStorage.setItem(OPENAI_KEY, oaiKey);
   save();
   closeModal('settingsModal');
   toast('Einstellungen gespeichert');
