@@ -2338,8 +2338,36 @@ function load() {
   if (!S.feedLastHighlights) S.feedLastHighlights = '';
   if (!S.zettels) S.zettels = [];
 
-  // Reset if new day
+  // Archive and reset if new day
   if (TODAY.date !== today()) {
+    // Save yesterday's TODAY into S.days before resetting
+    var oldDate = TODAY.date;
+    if (oldDate && (TODAY.cards.length || TODAY.objects.length)) {
+      var alreadyArchived = (S.days||[]).some(function(d){ return d.date === oldDate; });
+      if (!alreadyArchived) {
+        if (!S.days) S.days = [];
+        S.days.unshift({
+          date:       oldDate,
+          cards:      TODAY.cards   || [],
+          objects:    TODAY.objects || [],
+          feedItems:  TODAY.feedItems || [],
+          reviewDone: TODAY.reviewDone || false,
+          plan:       TODAY.plan || {}
+        });
+      } else {
+        // Already archived — merge objects in case there are new ones
+        var existing = S.days.find(function(d){ return d.date === oldDate; });
+        if (existing) {
+          var existingIds = (existing.objects||[]).map(function(o){ return o.id; });
+          (TODAY.objects||[]).forEach(function(o) {
+            if (existingIds.indexOf(o.id) === -1) {
+              existing.objects = existing.objects || [];
+              existing.objects.push(o);
+            }
+          });
+        }
+      }
+    }
     TODAY = { date: today(), cards: [], objects: [], feedItems: [], reviewDone: false, plan: { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] } };
     save();
   }
@@ -3819,6 +3847,31 @@ function mergeDays(localDays, remoteDays) {
 }
 
 function mergeToday(local, remote) {
+  // If remote TODAY is from a past day, archive it into S.days first
+  if (remote && remote.date && remote.date !== today()) {
+    var remoteDate = remote.date;
+    var already = (S.days||[]).some(function(d){ return d.date === remoteDate; });
+    if (!already && (remote.objects||[]).length) {
+      if (!S.days) S.days = [];
+      S.days.unshift({
+        date:       remoteDate,
+        cards:      remote.cards   || [],
+        objects:    remote.objects || [],
+        feedItems:  remote.feedItems || [],
+        reviewDone: remote.reviewDone || false,
+        plan:       remote.plan || {}
+      });
+    } else if (already && (remote.objects||[]).length) {
+      // Merge objects into existing archived day
+      var existing = S.days.find(function(d){ return d.date === remoteDate; });
+      if (existing) {
+        var existingIds = (existing.objects||[]).map(function(o){ return o.id; });
+        (remote.objects||[]).forEach(function(o) {
+          if (existingIds.indexOf(o.id) === -1) existing.objects.push(o);
+        });
+      }
+    }
+  }
   if (!remote || remote.date !== today()) return local;
   if (!local  || local.date  !== today()) return remote;
   var t = today();
