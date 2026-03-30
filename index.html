@@ -2212,7 +2212,8 @@ select:focus { outline: none; border-color: var(--border-mid); }
       <div style="display:flex;gap:6px;flex-wrap:wrap">
         <button class="btn btn-sm btn-ghost" onclick="compactOldDays(30)" title="Rohkarten aus Tagen älter als 30 Tage entfernen">🗜 Alte Tage komprimieren</button>
         <button class="btn btn-sm" id="btnGistPush" onclick="gistPush(false)">☁ Jetzt speichern</button>
-        <button class="btn btn-sm btn-ghost" id="btnGistPull" onclick="gistPull()">↓ Von Gist laden</button>
+        <button class="btn btn-sm btn-ghost" id="btnGistPull" onclick="gistPull(false)">↔ Merge vom Gist</button>
+        <button class="btn btn-sm btn-ghost" id="btnGistPullForce" onclick="gistPullOverwrite()" style="color:var(--orange)">⚠ Gist überschreibt lokal</button>
         <button class="btn btn-sm btn-ghost" onclick="exportData()" title="Exportiert alle Daten">↓ Vollständiger Export</button>
       </div>
       <div id="compactInfo" style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim);margin-top:6px"></div>
@@ -3526,7 +3527,8 @@ function openImportModal() {
   openModal('importModal');
 }
 
-function runDayImport() {
+function runDayImport(mode) {
+  mode = mode || 'merge'; // default safe
   var ta  = document.getElementById('importJsonText');
   var fb  = document.getElementById('importFeedback');
   var dateEl = document.getElementById('importDate');
@@ -3567,18 +3569,30 @@ function runDayImport() {
     }
     if (!existing.objects) existing.objects = [];
 
-    // Merge objects by id (don't duplicate)
-    var existingIds = existing.objects.map(function(o){ return o.id; });
     var added = 0;
-    (dayData.objects||[]).forEach(function(obj) {
-      if (!obj.id) obj.id = 'imp-' + dayData.date + '-' + Math.random().toString(36).slice(2,7);
-      if (existingIds.indexOf(obj.id) === -1) {
-        obj.createdAt = obj.createdAt || (dayData.date + 'T12:00:00.000Z');
+    if (mode === 'overwrite') {
+      // Replace all objects for this day
+      existing.objects = (dayData.objects||[]).map(function(obj) {
+        if (!obj.id) obj.id = 'imp-' + targetDate + '-' + Math.random().toString(36).slice(2,7);
+        obj.createdAt = obj.createdAt || (targetDate + 'T12:00:00.000Z');
         obj.imported  = true;
-        existing.objects.push(obj);
-        added++;
-      }
-    });
+        return obj;
+      });
+      if (dayData.cards) existing.cards = dayData.cards;
+      added = existing.objects.length;
+    } else {
+      // Merge: add only new objects by id
+      var existingIds = existing.objects.map(function(o){ return o.id; });
+      (dayData.objects||[]).forEach(function(obj) {
+        if (!obj.id) obj.id = 'imp-' + targetDate + '-' + Math.random().toString(36).slice(2,7);
+        if (existingIds.indexOf(obj.id) === -1) {
+          obj.createdAt = obj.createdAt || (targetDate + 'T12:00:00.000Z');
+          obj.imported  = true;
+          existing.objects.push(obj);
+          added++;
+        }
+      });
+    }
     totalObjs += added;
 
     // Register any new contexts
@@ -3597,7 +3611,8 @@ function runDayImport() {
   gistAutoSyncDebounced();
   renderHistory();
 
-  if (fb) fb.textContent = '✓ ' + totalObjs + ' Objekte in ' + totalDays + ' Tag(e) importiert.';
+  var modeLabel = mode === 'overwrite' ? 'überschrieben' : 'gemergt';
+  if (fb) fb.textContent = '✓ ' + totalObjs + ' Objekte in ' + totalDays + ' Tag(e) ' + modeLabel + '.';
   if (fb) fb.style.color = 'var(--green)';
   toast('✓ Import abgeschlossen: ' + totalObjs + ' Objekte');
 }
@@ -3725,7 +3740,7 @@ async function gistPush(silent) {
   }
 }
 
-async function gistPull(silent) {
+async function gistPull(silent, forceOverwrite) {
   var token = localStorage.getItem(GIST_TOKEN_KEY);
   var gid   = localStorage.getItem(GIST_ID_KEY);
   if (!token || !gid) {
@@ -3755,14 +3770,28 @@ async function gistPull(silent) {
     var localTime  = (S && S._lastExported) || '0';
     var gistNewer  = gistTime > localTime;
 
-    if (!gistNewer && !silent) {
+    if (!forceOverwrite && !gistNewer && !silent) {
       toast('Lokale Daten sind aktuell — kein Pull nötig.');
       return false;
     }
-    if (!gistNewer && silent) return false; // local is up to date
+    if (!forceOverwrite && !gistNewer && silent) return false;
 
-    if (parsed.S) S = parsed.S;
-    if (parsed.TODAY && parsed.TODAY.date === today()) TODAY = parsed.TODAY;
+    if (forceOverwrite) {
+      // Hard overwrite — but still archive stale TODAY first
+      archiveTodayIfStale();
+      if (parsed.S) S = parsed.S;
+      if (parsed.TODAY) TODAY = parsed.TODAY;
+    } else {
+      // Safe merge
+      if (parsed.S) S = mergeS(S, parsed.S);
+      if (parsed.TODAY && parsed.TODAY.date === today()) {
+        var localObjs  = (TODAY.objects||[]).length + (TODAY.cards||[]).length;
+        var remoteObjs = ((parsed.TODAY||{}).objects||[]).length + ((parsed.TODAY||{}).cards||[]).length;
+        TODAY = localObjs >= remoteObjs
+          ? mergeToday(TODAY, parsed.TODAY)
+          : mergeToday(parsed.TODAY, TODAY);
+      }
+    }
 
     // Ensure defaults
     if (!S.days) S.days = [];
@@ -3921,6 +3950,12 @@ function mergeS(local, remote) {
     _lastExported:   local._lastExported || remote._lastExported
   };
 }
+
+async function gistPullOverwrite() {
+  if (!confirm('⚠ Achtung: Der Gist-Stand überschreibt alle lokalen Daten. Fortfahren?')) return;
+  await gistPull(false, true);
+}
+
 
 async function gistSync() {
   var token = localStorage.getItem(GIST_TOKEN_KEY);
@@ -6524,7 +6559,7 @@ if ('serviceWorker' in navigator) {
   <div class="modal-box" style="max-width:580px">
     <div class="modal-title">↑ Tage importieren</div>
     <p style="font-family:var(--serif);font-size:0.88rem;color:var(--ink-mid);line-height:1.65;margin-bottom:14px">
-      Füge das JSON ein, das Claude zurückgegeben hat.
+      Füge das JSON ein. Wähle danach Merge (sicher) oder Überschreiben (ersetzt bestehende Daten).
     </p>
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px;flex-wrap:wrap">
       <label style="font-family:var(--mono);font-size:0.7rem;color:var(--ink-mid)">Datum überschreiben:</label>
@@ -6533,8 +6568,12 @@ if ('serviceWorker' in navigator) {
     </div>
     <textarea id="importJsonText" style="min-height:180px;font-family:var(--mono);font-size:0.72rem" placeholder='{ "days": [ { "date": "2026-03-29", "objects": [...] } ] }'></textarea>
     <div id="importFeedback" style="font-family:var(--mono);font-size:0.7rem;color:var(--ink-dim);margin-top:8px;min-height:1.2em"></div>
-    <div class="btn-row" style="margin-top:14px">
-      <button class="btn btn-primary" onclick="runDayImport()">Importieren</button>
+    <div style="font-family:var(--mono);font-size:0.65rem;color:var(--ink-dim);margin-top:10px;padding:8px 10px;background:var(--surface);border-radius:var(--r);line-height:1.7">
+      <strong>Merge</strong> — fügt neue Objekte hinzu, behält bestehende · <strong>Überschreiben</strong> — ersetzt alles für diesen Tag
+    </div>
+    <div class="btn-row" style="margin-top:10px">
+      <button class="btn btn-primary" onclick="runDayImport('merge')">↔ Merge</button>
+      <button class="btn btn-ghost" onclick="runDayImport('overwrite')" style="color:var(--orange)">⚠ Überschreiben</button>
       <button class="btn btn-ghost" onclick="closeModal('importModal')">Abbrechen</button>
     </div>
   </div>
