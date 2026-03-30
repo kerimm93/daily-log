@@ -2215,6 +2215,10 @@ select:focus { outline: none; border-color: var(--border-mid); }
         <button class="btn btn-sm btn-ghost" id="btnGistPull" onclick="gistPull(false)">↔ Merge vom Gist</button>
         <button class="btn btn-sm btn-ghost" id="btnGistPullForce" onclick="gistPullOverwrite()" style="color:var(--orange)">⚠ Gist überschreibt lokal</button>
         <button class="btn btn-sm btn-ghost" onclick="exportData()" title="Exportiert alle Daten">↓ Vollständiger Export</button>
+        <label class="btn btn-sm btn-ghost" style="cursor:pointer" title="JSON-Datei laden und mit lokalem Stand mergen">
+          ↑ Datei mergen
+          <input type="file" accept=".json" style="display:none" onchange="importFileAndMerge(this)">
+        </label>
       </div>
       <div id="compactInfo" style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim);margin-top:6px"></div>
     </div>
@@ -6494,6 +6498,84 @@ function renderCalendarDots() {
     }
   }
   dotsEl.innerHTML = dots.length ? dots.join(' ') : '';
+}
+
+
+// ════════════════════════════════════════════════
+// JSON-Datei hochladen & mergen
+// ════════════════════════════════════════════════
+function importFileAndMerge(input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var raw = e.target.result.trim()
+        .replace(/^```json?\n?/, '').replace(/\n?```$/, '').trim();
+      var parsed = JSON.parse(raw);
+
+      // Archive stale TODAY before any merge
+      archiveTodayIfStale();
+
+      // Merge S
+      var remoteS = parsed.S || parsed;
+      S = mergeS(S, remoteS);
+
+      // Merge TODAY if dates match
+      var remoteTODAY = parsed.TODAY;
+      if (remoteTODAY && remoteTODAY.date) {
+        if (remoteTODAY.date === today()) {
+          var localObjs  = (TODAY.objects||[]).length + (TODAY.cards||[]).length;
+          var remoteObjs = (remoteTODAY.objects||[]).length + (remoteTODAY.cards||[]).length;
+          TODAY = localObjs >= remoteObjs
+            ? mergeToday(TODAY, remoteTODAY)
+            : mergeToday(remoteTODAY, TODAY);
+        } else if (remoteTODAY.date < today()) {
+          // Remote TODAY is from a past day — merge into S.days
+          var existing = (S.days||[]).find(function(d){ return d.date === remoteTODAY.date; });
+          if (!existing) {
+            if (!S.days) S.days = [];
+            S.days.unshift(remoteTODAY);
+            S.days.sort(function(a,b){ return b.date > a.date ? 1 : -1; });
+          } else {
+            existing.objects = mergeById(existing.objects||[], remoteTODAY.objects||[], 'id');
+            if (remoteTODAY.cards && remoteTODAY.cards.length) {
+              existing.cards = mergeById(existing.cards||[], remoteTODAY.cards, 'id');
+            }
+          }
+        }
+      }
+
+      // Ensure defaults
+      if (!S.config) S.config = { name: '', context: '' };
+      if (!TODAY.cards) TODAY.cards = [];
+      if (!TODAY.objects) TODAY.objects = [];
+      if (!TODAY.feedItems) TODAY.feedItems = [];
+      if (!TODAY.plan) TODAY.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
+
+      save();
+      gistAutoSyncDebounced();
+
+      // Re-render
+      renderCardList();
+      updateBadges();
+      updateReviewBadge();
+      updateFLBadge();
+      updateFeedBadge();
+      updateZettelBadge();
+      renderCalendarDots();
+
+      var dayCount = (S.days||[]).length;
+      var objCount = TODAY.objects.length;
+      toast('✓ Datei gemergt — ' + dayCount + ' Tage, ' + objCount + ' Objekte heute');
+
+    } catch(err) {
+      toast('✗ Fehler beim Lesen der Datei: ' + err.message);
+    }
+    // Reset file input so same file can be loaded again
+    input.value = '';
+  };
+  reader.readAsText(file);
 }
 
 
