@@ -3716,6 +3716,8 @@ async function gistPush(silent) {
       var err = await r.json();
       toast('Fehler: ' + (err.message || r.status));
     }
+    // Update last exported timestamp
+    S._lastExported = new Date().toISOString();
   } catch(e) {
     toast('Sync-Fehler: ' + e.message);
   } finally {
@@ -3846,6 +3848,21 @@ function mergeDays(localDays, remoteDays) {
   return Object.values(map).sort(function(a,b){ return b.date > a.date ? 1 : -1; });
 }
 
+function archiveTodayIfStale() {
+  if (!TODAY || !TODAY.date || TODAY.date === today()) return;
+  var alreadyArchived = (S.days||[]).some(function(d){ return d.date === TODAY.date; });
+  if (!alreadyArchived && ((TODAY.objects||[]).length > 0 || (TODAY.cards||[]).length > 0)) {
+    if (!S.days) S.days = [];
+    S.days.unshift(JSON.parse(JSON.stringify(TODAY)));
+    S.days.sort(function(a,b){ return b.date > a.date ? 1 : -1; });
+  }
+  TODAY = {
+    date: today(), cards: [], objects: [], feedItems: [], reviewDone: false,
+    plan: { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] }
+  };
+  save();
+}
+
 function mergeToday(local, remote) {
   // If remote TODAY is from a past day, archive it into S.days first
   if (remote && remote.date && remote.date !== today()) {
@@ -3910,6 +3927,9 @@ async function gistSync() {
   var gid   = localStorage.getItem(GIST_ID_KEY);
   if (!token || !gid) return;
 
+  // Always archive stale TODAY before any network operation
+  archiveTodayIfStale();
+
   try {
     var r = await fetch('https://api.github.com/gists/' + gid, {
       headers: { 'Authorization': 'token ' + token }
@@ -3930,9 +3950,29 @@ async function gistSync() {
 
     if (gistTime === localTime) return; // identical, nothing to do
 
+    // Archive local TODAY into S before merge if it's from a past day
+    if (TODAY && TODAY.date && TODAY.date !== today()) {
+      var alreadyIn = (S.days||[]).some(function(d){ return d.date === TODAY.date; });
+      if (!alreadyIn && ((TODAY.objects||[]).length || (TODAY.cards||[]).length)) {
+        if (!S.days) S.days = [];
+        S.days.unshift(JSON.parse(JSON.stringify(TODAY)));
+      }
+      TODAY = { date: today(), cards: [], objects: [], feedItems: [], reviewDone: false,
+        plan: { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] } };
+    }
+
     // Merge both sides
-    var mergedS     = mergeS(S, remote.S || {});
-    var mergedToday = mergeToday(TODAY, remote.TODAY || {});
+    var mergedS = mergeS(S, remote.S || {});
+
+    // For TODAY: never let an empty remote overwrite a populated local
+    var localTodayObjs  = (TODAY.objects||[]).length + (TODAY.cards||[]).length;
+    var remoteTodayObjs = ((remote.TODAY||{}).objects||[]).length + ((remote.TODAY||{}).cards||[]).length;
+    var mergedToday;
+    if (localTodayObjs >= remoteTodayObjs) {
+      mergedToday = mergeToday(TODAY, remote.TODAY || {});
+    } else {
+      mergedToday = mergeToday(remote.TODAY, TODAY);
+    }
 
     S     = mergedS;
     TODAY = mergedToday;
