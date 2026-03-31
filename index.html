@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="de">
+<html lang="de" data-theme="dark">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
@@ -42,6 +42,114 @@
   --mono:  'JetBrains Mono', 'Courier New', monospace;
   --r: 5px;
 }
+
+/* ── Light Theme ─────────────────────────────────────── */
+[data-theme="light"] {
+  --bg:         #f5f4f0;
+  --bg-mid:     #eeede8;
+  --surface:    #ffffff;
+  --surface-2:  #f0efe9;
+  --surface-3:  #e8e7e0;
+  --border:     #d0cec5;
+  --border-mid: #b8b6ac;
+
+  --ink:        #1a1916;
+  --ink-mid:    #5a5850;
+  --ink-dim:    #9a9890;
+
+  --accent:     #7a6840;
+  --accent-dim: #b0a070;
+  --green:      #3a6e42;
+  --green-bg:   rgba(58,110,66,0.10);
+  --red:        #8e3a34;
+  --red-bg:     rgba(142,58,52,0.10);
+  --blue:       #2a5278;
+  --blue-bg:    rgba(42,82,120,0.10);
+  --orange:     #8a5020;
+  --orange-bg:  rgba(138,80,32,0.10);
+  --purple:     #5a4a7e;
+  --purple-bg:  rgba(90,74,126,0.10);
+}
+
+/* ── E-Ink Theme ─────────────────────────────────────── */
+[data-theme="eink"] {
+  --bg:         #ffffff;
+  --bg-mid:     #f8f8f8;
+  --surface:    #ffffff;
+  --surface-2:  #f4f4f4;
+  --surface-3:  #eeeeee;
+  --border:     #888888;
+  --border-mid: #555555;
+
+  --ink:        #000000;
+  --ink-mid:    #333333;
+  --ink-dim:    #666666;
+
+  --accent:     #000000;
+  --accent-dim: #444444;
+  --green:      #000000;
+  --green-bg:   transparent;
+  --red:        #000000;
+  --red-bg:     transparent;
+  --blue:       #000000;
+  --blue-bg:    transparent;
+  --orange:     #000000;
+  --orange-bg:  transparent;
+  --purple:     #000000;
+  --purple-bg:  transparent;
+}
+
+/* E-Ink: strip all visual noise */
+[data-theme="eink"] *,
+[data-theme="eink"] *::before,
+[data-theme="eink"] *::after {
+  box-shadow: none !important;
+  text-shadow: none !important;
+  transition: none !important;
+  animation: none !important;
+  background-image: none !important;
+}
+[data-theme="eink"] .app-header,
+[data-theme="eink"] .tabs,
+[data-theme="eink"] .section,
+[data-theme="eink"] .card,
+[data-theme="eink"] .modal-box,
+[data-theme="eink"] input,
+[data-theme="eink"] textarea,
+[data-theme="eink"] select {
+  background: var(--surface) !important;
+  border-color: var(--border) !important;
+}
+[data-theme="eink"] .btn {
+  background: var(--surface) !important;
+  border: 1.5px solid var(--ink) !important;
+  color: var(--ink) !important;
+}
+[data-theme="eink"] .btn:active {
+  background: var(--ink) !important;
+  color: var(--surface) !important;
+}
+[data-theme="eink"] .tab-btn.active {
+  color: var(--ink) !important;
+  border-bottom: 3px solid var(--ink) !important;
+  font-weight: 800;
+}
+[data-theme="eink"] .nav-drawer-item.active {
+  border-left-color: var(--ink) !important;
+  color: var(--ink) !important;
+  font-weight: 700;
+}
+[data-theme="eink"] .obj-type-label,
+[data-theme="eink"] .feed-source {
+  background: transparent !important;
+  border: 1px solid var(--border-mid) !important;
+  color: var(--ink-mid) !important;
+}
+[data-theme="eink"] .modal-bg {
+  background: rgba(0,0,0,0.5) !important;
+  backdrop-filter: none !important;
+}
+
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 html { font-size: 16px; }
@@ -1265,6 +1373,45 @@ select {
   cursor: pointer;
 }
 select:focus { outline: none; border-color: var(--border-mid); }
+
+[data-theme="light"] body {
+  background: var(--bg);
+  background-image: none;
+}
+[data-theme="light"] .app-header {
+  border-bottom-color: var(--border);
+}
+[data-theme="light"] .tabs {
+  border-bottom-color: var(--border);
+}
+[data-theme="light"] .section {
+  background: var(--surface);
+  border-color: var(--border);
+}
+[data-theme="light"] .card {
+  background: var(--surface);
+  border-color: var(--border);
+}
+[data-theme="light"] .modal-box {
+  background: var(--surface);
+  border-color: var(--border);
+}
+[data-theme="light"] input,
+[data-theme="light"] textarea,
+[data-theme="light"] select {
+  background: var(--bg-mid);
+  border-color: var(--border);
+  color: var(--ink);
+}
+[data-theme="light"] .btn-ghost {
+  color: var(--ink-mid);
+  border-color: var(--border);
+}
+[data-theme="light"] .prompt-block {
+  background: var(--surface-2);
+  border-color: var(--border);
+}
+
 </style>
 </head>
 <body>
@@ -2222,6 +2369,16 @@ select:focus { outline: none; border-color: var(--border-mid); }
       </div>
       <div id="compactInfo" style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim);margin-top:6px"></div>
     </div>
+    <!-- Theme Switcher -->
+    <div style="margin-bottom:14px">
+      <label style="display:block;margin-bottom:6px">Darstellung</label>
+      <div style="display:flex;gap:6px">
+        <button id="themeBtn-dark"  class="btn btn-sm btn-ghost" onclick="applyTheme('dark')"  style="flex:1">🌙 Dark</button>
+        <button id="themeBtn-light" class="btn btn-sm btn-ghost" onclick="applyTheme('light')" style="flex:1">☀ Light</button>
+        <button id="themeBtn-eink"  class="btn btn-sm btn-ghost" onclick="applyTheme('eink')"  style="flex:1">📄 E-Ink</button>
+      </div>
+    </div>
+
     <div class="btn-row" style="margin-top:14px">
       <button class="btn btn-primary" onclick="saveSettings()">Speichern</button>
       <button class="btn" onclick="closeModal('settingsModal')">Abbrechen</button>
@@ -3629,6 +3786,7 @@ function runDayImport(mode) {
 // Settings
 // ════════════════════════════════════════════════
 function loadSettingsUI() {
+  loadTheme(); // refresh theme button states
   document.getElementById('cfgName').value = S.config.name || '';
   document.getElementById('cfgContext').value = S.config.context || '';
   document.getElementById('cfgGistToken').value = localStorage.getItem(GIST_TOKEN_KEY) || '';
@@ -6686,7 +6844,33 @@ function importFileAndMerge(input) {
 }
 
 
+// ════════════════════════════════════════════════
+// Theme System (dark / light / eink)
+// ════════════════════════════════════════════════
+var THEME_KEY = 'dailylog_theme';
+var THEMES = ['dark', 'light', 'eink'];
+
+function applyTheme(t) {
+  if (!t || THEMES.indexOf(t) === -1) t = 'dark';
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem(THEME_KEY, t);
+  // Update switcher buttons if visible
+  THEMES.forEach(function(name) {
+    var btn = document.getElementById('themeBtn-' + name);
+    if (btn) btn.style.fontWeight = (name === t) ? '800' : '400';
+    if (btn) btn.style.borderBottomWidth = (name === t) ? '2px' : '1px';
+    if (btn) btn.style.opacity = (name === t) ? '1' : '0.55';
+  });
+}
+
+function loadTheme() {
+  var saved = localStorage.getItem(THEME_KEY) || 'dark';
+  applyTheme(saved);
+}
+
+
 function init() {
+  loadTheme();
   load();
   var hd = document.getElementById('headerDate'); if (hd) hd.textContent = todayDE();
   gistSync(); // auto two-way sync on startup
