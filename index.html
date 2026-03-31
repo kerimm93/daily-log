@@ -3139,7 +3139,7 @@ function updateBadges() {
 // ════════════════════════════════════════════════
 function getInputSummary() {
   var lines = [];
-  var activeObjs = TODAY.objects.filter(function(o){ return !o.dismissed; });
+  var activeObjs = (getViewData().objects||[]).filter(function(o){ return !o.dismissed; });
 
   if (activeObjs.length) {
     lines.push('## Strukturierte Objekte (' + activeObjs.length + ')');
@@ -3156,7 +3156,7 @@ function getInputSummary() {
     lines.push('');
   }
 
-  var unprocessed = TODAY.cards.filter(function(c){ return !c.processed; });
+  var unprocessed = (getViewData().cards||[]).filter(function(c){ return !c.processed; });
   if (unprocessed.length) {
     lines.push('## Rohe Karten (noch nicht extrahiert)');
     unprocessed.forEach(function(card) {
@@ -3171,7 +3171,7 @@ function getInputSummary() {
 function buildPipePrompt(n) {
   var input = getInputSummary();
   var cfg = S.config.context || '';
-  var dateStr = today() + ' \u00b7 ' + todayDE();
+  var dateStr = viewDate + ' \u00b7 ' + (viewDate === today() ? todayDE() : new Date(viewDate+'T00:00:00').toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long'}));
 
   if (n === 1) return [
     '# Aufgaben-Extraktion \u00b7 ' + dateStr,
@@ -4418,7 +4418,7 @@ function renderAbschlussBanner() {
 }
 
 function finishReview() {
-  TODAY.reviewDone = true;
+  getViewData().reviewDone = true;
   save();
   switchTab('abschluss');
   toast('Migration abgeschlossen');
@@ -5160,7 +5160,7 @@ function updateFeedMeta() {
 }
 
 function updateFeedBadge() {
-  var open = (TODAY.feedItems||[]).filter(function(i){ return i.status === 'open'; }).length;
+  var open = (getViewData().feedItems||[]).filter(function(i){ return i.status === 'open'; }).length;
   var badge = document.getElementById('badge-feed');
   if (badge) { badge.style.display = open > 0 ? 'inline-flex' : 'none'; badge.textContent = open; }
 }
@@ -5170,7 +5170,7 @@ function renderFeedList() {
   var statsEl   = document.getElementById('feedStats');
   if (!container) return;
 
-  var items = TODAY.feedItems || [];
+  var items = getViewData().feedItems || [];
   var todayStr = today();
   var filtered = items.filter(function(i) {
     // Date filter: use loadedAt as primary, fall back to item date
@@ -5298,7 +5298,7 @@ function restoreFeedItem(id) {
 }
 
 function clearFeedIgnored() {
-  TODAY.feedItems = (TODAY.feedItems||[]).filter(function(i){ return i.status !== 'ignored'; });
+  var vdfi = getViewData(); vdfi.feedItems = (vdfi.feedItems||[]).filter(function(i){ return i.status !== 'ignored'; });
   save(); renderFeedList(); updateFeedBadge();
   toast('Ignorierte entfernt');
 }
@@ -5548,7 +5548,7 @@ function saveHighlightAsZettel() {
   var body  = document.getElementById('hlZettelBody')  ? document.getElementById('hlZettelBody').value.trim()  : '';
   if (!title && !body) { toast('Titel oder Inhalt eingeben.'); return; }
 
-  var item = currentHighlightId ? (TODAY.feedItems||[]).find(function(i){ return i.id === currentHighlightId; }) : null;
+  var item = currentHighlightId ? (getViewData().feedItems||[]).find(function(i){ return i.id === currentHighlightId; }) : null;
 
   S.zettels.push({
     id: uid(),
@@ -6122,16 +6122,16 @@ function compactOldDays(keepDays) {
 // ════════════════════════════════════════════════
 
 function ensurePlanState() {
-  if (!TODAY.plan) {
-    TODAY.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
-  }
+  var vdp = getViewData();
+  if (!vdp.plan) vdp.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
   if (!TODAY.plan.tasks) TODAY.plan.tasks = [];
 }
 
 function renderPlanTab() {
   ensurePlanState();
   // Restore field values
-  var f = TODAY.plan;
+  ensurePlanState();
+  var f = getViewData().plan;
   var el;
   el = document.getElementById('planIntentionen');   if (el) el.value = f.intentionen || '';
   el = document.getElementById('planVermeiden');     if (el) el.value = f.vermeiden || '';
@@ -6143,7 +6143,8 @@ function renderPlanTab() {
 
 function savePlanField() {
   ensurePlanState();
-  var f = TODAY.plan;
+  ensurePlanState();
+  var f = getViewData().plan;
   var el;
   el = document.getElementById('planIntentionen');  if (el) f.intentionen = el.value;
   el = document.getElementById('planVermeiden');    if (el) f.vermeiden = el.value;
@@ -6158,7 +6159,7 @@ function renderPlanTaskList() {
   var container = document.getElementById('planTaskList');
   if (!container) return;
 
-  var tasks = TODAY.plan.tasks || [];
+  var vdpt = getViewData(); var tasks = (vdpt.plan && vdpt.plan.tasks) || [];
 
   if (!tasks.length) {
     container.innerHTML = '<div style="font-family:var(--mono);font-size:0.7rem;color:var(--ink-dim);padding:8px 0">Keine Aufgaben. Migrierte Aufgaben laden oder manuell hinzufügen.</div>';
@@ -6178,13 +6179,14 @@ function renderPlanTaskList() {
 
 function reloadMigratedTasks() {
   ensurePlanState();
-  var existing = TODAY.plan.tasks.map(function(t){ return t.text; });
+  var planObj = getViewData().plan; if (!planObj.tasks) planObj.tasks = [];
+  var existing = planObj.tasks.map(function(t){ return t.text; });
 
   // Load from migrationPuffer
   var added = 0;
   (S.migrationPuffer||[]).forEach(function(p) {
     if (existing.indexOf(p.text) === -1) {
-      TODAY.plan.tasks.push({ text: p.text, selected: true, source: 'von ' + p.fromDate });
+      getViewData().plan.tasks.push({ text: p.text, selected: true, source: 'von ' + p.fromDate });
       added++;
     }
   });
@@ -6193,7 +6195,7 @@ function reloadMigratedTasks() {
   TODAY.objects.forEach(function(o) {
     if (o.typ !== 'aufgabe' || o.parentId || o.dismissed) return;
     if (o.status === '>' && existing.indexOf(o.text) === -1) {
-      TODAY.plan.tasks.push({ text: o.text, selected: true, source: 'migriert' });
+      getViewData().plan.tasks.push({ text: o.text, selected: true, source: 'migriert' });
       added++;
     }
   });
@@ -6205,8 +6207,9 @@ function reloadMigratedTasks() {
 
 function togglePlanTask(idx, checked) {
   ensurePlanState();
-  if (TODAY.plan.tasks[idx]) {
-    TODAY.plan.tasks[idx].selected = checked;
+  var pt = getViewData().plan;
+  if (pt && pt.tasks && pt.tasks[idx]) {
+    pt.tasks[idx].selected = checked;
     save();
     renderPlanTaskList();
   }
@@ -6214,7 +6217,7 @@ function togglePlanTask(idx, checked) {
 
 function removePlanTask(idx) {
   ensurePlanState();
-  TODAY.plan.tasks.splice(idx, 1);
+  var pt2 = getViewData().plan; if (pt2 && pt2.tasks) pt2.tasks.splice(idx, 1);
   save();
   renderPlanTaskList();
 }
@@ -6223,16 +6226,17 @@ function addPlanTask() {
   ensurePlanState();
   var inp = document.getElementById('planNewTask');
   if (!inp || !inp.value.trim()) return;
-  TODAY.plan.tasks.push({ text: inp.value.trim(), selected: true, source: '' });
+  var pt3 = getViewData().plan; if (!pt3.tasks) pt3.tasks = [];
+  pt3.tasks.push({ text: inp.value.trim(), selected: true, source: '' });
   inp.value = '';
   save();
   renderPlanTaskList();
 }
 
 function generatePlanPrompt() {
-  ensurePlanState();
+  var f = getViewData().plan || {};
   savePlanField();
-  var f = TODAY.plan;
+  var cfg_unused = '';
   var cfg = S.config.context || '';
 
   var aufsteh = f.aufstehzeit || '05:00';
@@ -6322,7 +6326,7 @@ function copyPlanPrompt() {
 
 function clearPlanPrompt() {
   ensurePlanState();
-  TODAY.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
+  var vdc = getViewData(); vdc.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
   save();
   renderPlanTab();
   var textEl = document.getElementById('planPromptText');
@@ -6423,6 +6427,7 @@ function navToDate(date) {
   } else {
     viewDate = date;
   }
+  pipeStepsDone = {}; // reset pipeline state for new view date
   updateDateNav();
   refreshAllTabs();
 }
