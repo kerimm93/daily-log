@@ -2348,7 +2348,7 @@ function load() {
   if (TODAY.date !== today()) {
     // Save yesterday's TODAY into S.days before resetting
     var oldDate = TODAY.date;
-    if (oldDate && (TODAY.cards.length || TODAY.objects.length)) {
+    if (oldDate && (TODAY.cards.length || TODAY.objects.length || (TODAY.feedItems || []).length)) {
       var alreadyArchived = (S.days||[]).some(function(d){ return d.date === oldDate; });
       if (!alreadyArchived) {
         if (!S.days) S.days = [];
@@ -3657,7 +3657,12 @@ function saveSettings() {
 }
 
 function exportData() {
-  var payload = { version: 2, exported: new Date().toISOString(), days: S.days, today: TODAY, config: { name: S.config.name, context: S.config.context } };
+  var payload = {
+  version: 2,
+  exported: new Date().toISOString(),
+  S: S,
+  TODAY: TODAY
+};
   var blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
   var url = URL.createObjectURL(blob);
   var a = document.createElement('a'); a.href = url; a.download = 'daily-log-export-' + today() + '.json';
@@ -3875,7 +3880,11 @@ function mergeDays(localDays, remoteDays) {
       } else if (remoteObjs === localObjs) {
         // Same count — merge objects by id
         map[day.date] = Object.assign({}, existing, {
-          objects: mergeById(existing.objects||[], day.objects||[], 'id')
+          objects:    mergeById(existing.objects||[], day.objects||[], 'id'),
+          cards:      mergeById(existing.cards||[], day.cards||[], 'id'),
+          feedItems:  mergeById(existing.feedItems||[], day.feedItems||[], 'id'),
+          reviewDone: existing.reviewDone || day.reviewDone,
+          plan:       (existing.plan && existing.plan.intentionen) ? existing.plan : (day.plan || existing.plan)
         });
       }
       // else keep local (more objects)
@@ -3888,7 +3897,11 @@ function mergeDays(localDays, remoteDays) {
 function archiveTodayIfStale() {
   if (!TODAY || !TODAY.date || TODAY.date === today()) return;
   var alreadyArchived = (S.days||[]).some(function(d){ return d.date === TODAY.date; });
-  if (!alreadyArchived && ((TODAY.objects||[]).length > 0 || (TODAY.cards||[]).length > 0)) {
+  if (!alreadyArchived && (
+  (TODAY.objects||[]).length > 0 ||
+  (TODAY.cards||[]).length > 0 ||
+  (TODAY.feedItems||[]).length > 0
+)) {
     if (!S.days) S.days = [];
     S.days.unshift(JSON.parse(JSON.stringify(TODAY)));
     S.days.sort(function(a,b){ return b.date > a.date ? 1 : -1; });
@@ -3905,7 +3918,11 @@ function mergeToday(local, remote) {
   if (remote && remote.date && remote.date !== today()) {
     var remoteDate = remote.date;
     var already = (S.days||[]).some(function(d){ return d.date === remoteDate; });
-    if (!already && (remote.objects||[]).length) {
+    if (!already && (
+  (remote.objects||[]).length ||
+  (remote.cards||[]).length ||
+  (remote.feedItems||[]).length
+)) {
       if (!S.days) S.days = [];
       S.days.unshift({
         date:       remoteDate,
@@ -3915,7 +3932,11 @@ function mergeToday(local, remote) {
         reviewDone: remote.reviewDone || false,
         plan:       remote.plan || {}
       });
-    } else if (already && (remote.objects||[]).length) {
+    } else if (already && (
+  (remote.objects||[]).length ||
+  (remote.cards||[]).length ||
+  (remote.feedItems||[]).length
+)) {
       // Merge objects into existing archived day
       var existing = S.days.find(function(d){ return d.date === remoteDate; });
       if (existing) {
@@ -3996,7 +4017,11 @@ async function gistSync() {
     // Archive local TODAY into S before merge if it's from a past day
     if (TODAY && TODAY.date && TODAY.date !== today()) {
       var alreadyIn = (S.days||[]).some(function(d){ return d.date === TODAY.date; });
-      if (!alreadyIn && ((TODAY.objects||[]).length || (TODAY.cards||[]).length)) {
+      if (!alreadyIn && (
+  (TODAY.objects||[]).length ||
+  (TODAY.cards||[]).length ||
+  (TODAY.feedItems||[]).length
+)) {
         if (!S.days) S.days = [];
         S.days.unshift(JSON.parse(JSON.stringify(TODAY)));
       }
@@ -5173,12 +5198,19 @@ function renderFeedList() {
   var items = getViewData().feedItems || [];
   var todayStr = today();
   var filtered = items.filter(function(i) {
-    // Date filter: use loadedAt as primary, fall back to item date
-    // Items with no date at all are shown only for viewDate
-    var checkDate = i.loadedAt
+  var checkDate;
+
+  if (i.source === 'highlight') {
+    checkDate = i.date
+      ? i.date.slice(0, 10)
+      : viewDate;
+  } else {
+    checkDate = i.loadedAt
       ? i.loadedAt.slice(0, 10)
       : (i.date ? i.date.slice(0, 10) : viewDate);
-    if (checkDate !== viewDate) return false;
+  }
+
+  if (checkDate !== viewDate) return false;
     // Hide processed items (adopted/ignored) unless explicitly showing all
     if (feedFilter !== 'all' && i.status && i.status !== 'open') return false;
     if (feedFilter === 'readwise')  return i.source === 'readwise';
@@ -5218,7 +5250,11 @@ function renderFeedList() {
         (item.status === 'adopted' ? '<span class="feed-status">✓ übernommen</span>' : '') +
         (item.status === 'ignored' ? '<span style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim);margin-left:auto">ignoriert</span>' : '') +
       '</div>' +
-      (item.title ? '<div class="feed-title">' + esc(item.title.slice(0,120)) + '</div>' : '') +
+      (item.source === 'highlight' && item.title
+  ? '<div class="feed-title">Highlight aus ' + esc(item.title.slice(0,120)) + ':</div>'
+  : item.title
+    ? '<div class="feed-title">' + esc(item.title.slice(0,120)) + '</div>'
+    : '') +
       (item.body  ? '<div class="feed-body">' + esc(item.body.slice(0,280)) + (item.body.length > 280 ? '…' : '') + '</div>' : '') +
       (item.url   ? '<div style="font-family:var(--mono);font-size:0.6rem;color:var(--blue);margin-bottom:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap"><a href="' + esc(item.url) + '" target="_blank" style="color:inherit">' + esc(item.url.slice(0,60)) + '</a></div>' : '') +
       '<div class="feed-actions">' +
@@ -5459,22 +5495,45 @@ async function loadHighlights() {
 
     var added = 0;
     results.forEach(function(hl) {
-      var existing = (TODAY.feedItems||[]).find(function(i){ return i.id === 'hl-' + hl.id; });
-      if (existing) return;
-      TODAY.feedItems.push({
-        id: 'hl-' + hl.id,
-        source: 'highlight',
-        title: hl.parent_id ? ('Highlight aus: ' + (hl.document_note || '')) : '',
-        body: hl.content || hl.text || '',
-        url: hl.url || '',
-        author: hl.author || '',
-        date: hl.updated_at || hl.created_at || '',
-        tags: hl.tags || [],
-        note: hl.note || '',
-        loadedAt: new Date().toISOString(),
-        status: 'open'
-      });
-      added++;
+      var itemDate = (hl.updated_at || hl.created_at || '').slice(0, 10) || today();
+var targetDay;
+
+if (itemDate === today()) {
+  targetDay = TODAY;
+} else {
+  targetDay = (S.days||[]).find(function(d){ return d.date === itemDate; });
+  if (!targetDay) {
+    targetDay = {
+      date: itemDate,
+      cards: [],
+      objects: [],
+      feedItems: [],
+      reviewDone: false,
+      plan: {}
+    };
+    if (!S.days) S.days = [];
+    S.days.push(targetDay);
+    S.days.sort(function(a,b){ return b.date > a.date ? 1 : -1; });
+  }
+}
+
+var existing = (targetDay.feedItems||[]).find(function(i){ return i.id === 'hl-' + hl.id; });
+if (existing) return;
+
+targetDay.feedItems.push({
+  id: 'hl-' + hl.id,
+  source: 'highlight',
+  title: hl.title || hl.document_title || hl.document_note || '',
+  body: hl.content || hl.text || '',
+  url: hl.source_url || hl.url || '',
+  author: hl.author || hl.document_author || '',
+  date: hl.updated_at || hl.created_at || '',
+  tags: hl.tags || [],
+  note: hl.note || '',
+  loadedAt: new Date().toISOString(),
+  status: 'open'
+});
+added++;
     });
 
     S.feedLastHighlights = new Date().toISOString();
@@ -6546,11 +6605,21 @@ function importFileAndMerge(input) {
       archiveTodayIfStale();
 
       // Merge S
-      var remoteS = parsed.S || parsed;
+      var remoteS = parsed.S || {
+        days: parsed.days || [],
+        futurelog: parsed.futurelog || [],
+        migrationPuffer: parsed.migrationPuffer || [],
+        zettels: parsed.zettels || [],
+        feedLastReadwise: parsed.feedLastReadwise || '',
+        feedLastRaindrop: parsed.feedLastRaindrop || '',
+        feedLastHighlights: parsed.feedLastHighlights || '',
+        config: parsed.config || { name: '', context: '' },
+        _lastExported: parsed.exported || ''
+      };
       S = mergeS(S, remoteS);
 
       // Merge TODAY if dates match
-      var remoteTODAY = parsed.TODAY;
+      var remoteTODAY = parsed.TODAY || parsed.today;
       if (remoteTODAY && remoteTODAY.date) {
         if (remoteTODAY.date === today()) {
           var localObjs  = (TODAY.objects||[]).length + (TODAY.cards||[]).length;
@@ -6563,12 +6632,22 @@ function importFileAndMerge(input) {
           var existing = (S.days||[]).find(function(d){ return d.date === remoteTODAY.date; });
           if (!existing) {
             if (!S.days) S.days = [];
-            S.days.unshift(remoteTODAY);
+            S.days.unshift({
+              date: remoteTODAY.date,
+              cards: remoteTODAY.cards || [],
+              objects: remoteTODAY.objects || [],
+              feedItems: remoteTODAY.feedItems || [],
+              reviewDone: remoteTODAY.reviewDone || false,
+              plan: remoteTODAY.plan || {}
+            });
             S.days.sort(function(a,b){ return b.date > a.date ? 1 : -1; });
           } else {
-            existing.objects = mergeById(existing.objects||[], remoteTODAY.objects||[], 'id');
-            if (remoteTODAY.cards && remoteTODAY.cards.length) {
-              existing.cards = mergeById(existing.cards||[], remoteTODAY.cards, 'id');
+            existing.objects   = mergeById(existing.objects||[], remoteTODAY.objects||[], 'id');
+            existing.cards     = mergeById(existing.cards||[], remoteTODAY.cards||[], 'id');
+            existing.feedItems = mergeById(existing.feedItems||[], remoteTODAY.feedItems||[], 'id');
+            existing.reviewDone = existing.reviewDone || remoteTODAY.reviewDone;
+            if ((!existing.plan || !existing.plan.intentionen) && remoteTODAY.plan) {
+              existing.plan = remoteTODAY.plan;
             }
           }
         }
