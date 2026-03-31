@@ -104,12 +104,12 @@ body {
 .date-nav-today.visible { display: inline-block; }
 .viewing-past-banner {
   background: var(--surface);
-  border: 1px solid var(--accent-dim);
+  border: 1px solid var(--border);
   border-radius: var(--r);
   padding: 8px 14px;
   font-family: var(--mono);
   font-size: 0.7rem;
-  color: var(--accent);
+  color: var(--ink-dim);
   margin-bottom: 14px;
   display: none;
   align-items: center;
@@ -1293,7 +1293,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
 
   <!-- Past view banner -->
   <div class="viewing-past-banner" id="pastBanner">
-    <span id="pastBannerText">Ansicht: vergangener Tag</span>
+    <span id="pastBannerText">📅 Vergangener Tag</span>
     <button class="btn btn-sm btn-ghost" style="margin-left:auto;font-size:0.65rem" onclick="navToDate('')">→ Zurück zu heute</button>
   </div>
 
@@ -2232,6 +2232,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
 <div id="toast"></div>
 
 <script>
+// ══════
 // ════════════════════════════════════════════════
 // State
 // ════════════════════════════════════════════════
@@ -2434,8 +2435,8 @@ function addCard() {
     text: text,
     processed: false
   };
-  TODAY.cards.unshift(card);
-  save();
+  getViewData().cards.unshift(card);
+  saveViewData();
   clearNewCard();
   renderCardList();
   updateBadges();
@@ -2474,19 +2475,22 @@ function typeLabel(type) {
   }
 }
 
-function renderCardList() {
+function renderCardList() { renderCardListForDate(); }
+function renderCardListForDate() {
+  var vd = getViewData();
   var container = document.getElementById('cardList');
-  if (!TODAY.cards.length) {
-    container.innerHTML = '<div class="empty-state">Noch keine Karten für heute.</div>';
+  if (!container) return;
+  if (!(vd.cards||[]).length) {
+    container.innerHTML = '<div class="empty-state">Noch keine Karten für diesen Tag.</div>';
     var km = document.getElementById('kartenMeta'); if (km) km.textContent = '';
     return;
   }
-  var processed = TODAY.cards.filter(function(c){ return c.processed; }).length;
-  var km2 = document.getElementById('kartenMeta'); if (km2) km2.textContent = processed + '/' + TODAY.cards.length + ' verarbeitet';
+  var processed = vd.cards.filter(function(c){ return c.processed; }).length;
+  var km2 = document.getElementById('kartenMeta'); if (km2) km2.textContent = processed + '/' + vd.cards.length + ' verarbeitet';
 
-  container.innerHTML = TODAY.cards.map(function(card) {
+  container.innerHTML = vd.cards.map(function(card) {
     var preview = card.text.split('\n')[0].slice(0, 60);
-    var objCount = TODAY.objects.filter(function(o){ return o.cardId === card.id && !o.dismissed; }).length;
+    var objCount = (vd.objects||[]).filter(function(o){ return o.cardId === card.id && !o.dismissed; }).length;
     return '<div class="card' + (card.processed ? ' processed' : '') + '" id="card-' + card.id + '">' +
       '<div class="card-header" onclick="toggleCard(\'' + card.id + '\')">' +
         '<span class="card-time">' + esc(card.time) + '</span>' +
@@ -2599,7 +2603,7 @@ var OPENAI_KEY = 'dailylog_openai_key';
 function getOpenAIKey() { return localStorage.getItem(OPENAI_KEY) || ''; }
 
 function openExtract(cardId) {
-  var card = TODAY.cards.find(function(c){ return c.id === cardId; });
+  var card = getViewData().cards.find(function(c){ return c.id === cardId; });
   if (!card) return;
   currentExtractCardId = cardId;
 
@@ -2665,13 +2669,13 @@ function importObjects() {
   if (!Array.isArray(objs)) { showExtractNotice('Erwartet ein JSON-Array [...].', 'warn'); return; }
 
   // Alte Objekte dieser Karte entfernen (sauberes Überschreiben)
-  var oldCount = TODAY.objects.filter(function(o){ return o.cardId === currentExtractCardId; }).length;
-  TODAY.objects = TODAY.objects.filter(function(o){ return o.cardId !== currentExtractCardId; });
+  var oldCount = getViewData().objects.filter(function(o){ return o.cardId === currentExtractCardId; }).length;
+  getViewData().objects = getViewData().objects.filter(function(o){ return o.cardId !== currentExtractCardId; });
 
   var added = 0;
   objs.forEach(function(obj) {
     if (!obj.typ || !obj.text) return;
-    TODAY.objects.push({
+    getViewData().objects.push({
       id: uid(),
       cardId: currentExtractCardId,
       parentId: null,
@@ -2689,7 +2693,7 @@ function importObjects() {
   });
 
   // Mark card as processed
-  var card = TODAY.cards.find(function(c){ return c.id === currentExtractCardId; });
+  var card = getViewData().cards.find(function(c){ return c.id === currentExtractCardId; });
   if (card) card.processed = true;
 
   save();
@@ -2944,7 +2948,7 @@ function openParentPicker(objId) {
     }).join('');
 
   // Pre-select current parent if any
-  var obj = TODAY.objects.find(function(o){ return o.id === objId; });
+  var obj = getViewData().objects.find(function(o){ return o.id === objId; });
   if (obj && obj.parentId) sel.value = obj.parentId;
 
   wrap.classList.add('visible');
@@ -2956,7 +2960,7 @@ function applyParentPicker(objId) {
   var sel = wrap.querySelector('select');
   var newParentId = sel.value || null;
 
-  var obj = TODAY.objects.find(function(o){ return o.id === objId; });
+  var obj = getViewData().objects.find(function(o){ return o.id === objId; });
   if (!obj) return;
 
   obj.parentId = newParentId;
@@ -3035,7 +3039,7 @@ function saveEditMain(objId) {
   var inp = document.getElementById('main-input-' + objId);
   if (!inp) return;
   var newText = inp.value.trim();
-  var obj = TODAY.objects.find(function(o){ return o.id === objId; });
+  var obj = getViewData().objects.find(function(o){ return o.id === objId; });
   if (obj && newText) obj.text = newText;
   save();
   renderObjectList();
@@ -3077,7 +3081,7 @@ function promoteChild(childId) {
 }
 
 function removeChild(childId) {
-  TODAY.objects = TODAY.objects.filter(function(o){ return o.id !== childId; });
+  var vd = getViewData(); vd.objects = vd.objects.filter(function(o){ return o.id !== childId; });
   save();
   renderObjectList();
 }
@@ -3089,7 +3093,7 @@ function renderExtractCards() {
     container.innerHTML = '<div class="empty-state">Keine Karten vorhanden. Zuerst im Tab "Sammeln" Karten hinzufügen.</div>';
     return;
   }
-  container.innerHTML = TODAY.cards.map(function(card) {
+  container.innerHTML = (getViewData().cards||[]).map(function(card) {
     var preview = card.text.split('\n')[0].slice(0, 55);
     var objCount = TODAY.objects.filter(function(o){ return o.cardId === card.id && !o.dismissed; }).length;
     return '<div class="card' + (card.processed ? ' processed' : '') + '">' +
@@ -4075,7 +4079,7 @@ function getAllContexts() {
 }
 
 function addContextToObj(objId, ctx) {
-  var obj = TODAY.objects.find(function(o){ return o.id === objId; });
+  var obj = getViewData().objects.find(function(o){ return o.id === objId; });
   if (!obj) return;
   if (!obj.contexts) obj.contexts = [];
   ctx = ctx.toLowerCase().replace(/^@/, '');
@@ -4272,7 +4276,7 @@ function statusChip(status) {
 }
 
 function setObjStatus(objId, status) {
-  var obj = TODAY.objects.find(function(o){ return o.id === objId; });
+  var obj = getViewData().objects.find(function(o){ return o.id === objId; });
   if (!obj) return;
   obj.status = (obj.status === status) ? 'open' : status;
   save();
@@ -4281,7 +4285,7 @@ function setObjStatus(objId, status) {
 }
 
 function setSignifier(objId, sig) {
-  var obj = TODAY.objects.find(function(o){ return o.id === objId; });
+  var obj = getViewData().objects.find(function(o){ return o.id === objId; });
   if (!obj) return;
   if (!obj.signifiers) obj.signifiers = [];
   var idx = obj.signifiers.indexOf(sig);
@@ -4294,6 +4298,8 @@ function setSignifier(objId, sig) {
 // ════════════════════════════════════════════════
 // Review Tab
 // ════════════════════════════════════════════════
+function renderReviewForDate() { renderReviewTab(); }
+function renderReview() { renderReviewTab(); }
 function renderReviewTab() {
   renderMorningReview();
   renderEveningMigration();
@@ -4328,7 +4334,7 @@ function renderMorningReview() {
 
 
 function saveReviewNote(objId, note) {
-  var obj = TODAY.objects.find(function(o){ return o.id === objId; });
+  var obj = getViewData().objects.find(function(o){ return o.id === objId; });
   if (obj) { obj.reviewNote = note; save(); }
 }
 
@@ -4351,7 +4357,7 @@ function renderEveningMigration() {
   var progressEl = document.getElementById('reviewProgress');
   if (!el) return;
 
-  var tasks = TODAY.objects.filter(function(o){ return o.typ === 'aufgabe' && !o.parentId && !o.dismissed; });
+  var tasks = getViewData().objects.filter(function(o){ return o.typ === 'aufgabe' && !o.parentId && !o.dismissed; });
   var decided = tasks.filter(function(o){ return o.status && o.status !== 'open'; });
 
   if (progressEl) progressEl.textContent = decided.length + '/' + tasks.length + ' entschieden';
@@ -4385,7 +4391,7 @@ function renderEveningMigration() {
 }
 
 function updateReviewBadge() {
-  var tasks = TODAY.objects.filter(function(o){ return o.typ === 'aufgabe' && !o.parentId && !o.dismissed; });
+  var tasks = getViewData().objects.filter(function(o){ return o.typ === 'aufgabe' && !o.parentId && !o.dismissed; });
   var open  = tasks.filter(function(o){ return !o.status || o.status === 'open'; });
   var badge = document.getElementById('badge-review');
   if (badge) {
@@ -4399,7 +4405,7 @@ function updateReviewBadge() {
 function renderAbschlussBanner() {
   var banner = document.getElementById('reviewDoneBanner');
   if (!banner) return;
-  var tasks  = TODAY.objects.filter(function(o){ return o.typ === 'aufgabe' && !o.parentId && !o.dismissed; });
+  var tasks  = getViewData().objects.filter(function(o){ return o.typ === 'aufgabe' && !o.parentId && !o.dismissed; });
   var open   = tasks.filter(function(o){ return !o.status || o.status === 'open'; });
   if (open.length === 0 && tasks.length > 0) {
     banner.style.display = 'flex';
@@ -4424,7 +4430,7 @@ function finishReview() {
 // ════════════════════════════════════════════════
 function buildCopilotContext() {
   var lines = [];
-  var activeObjs = TODAY.objects.filter(function(o){ return !o.dismissed; });
+  var activeObjs = getViewData().objects.filter(function(o){ return !o.dismissed; });
 
   if (activeObjs.length) {
     lines.push('## Bisherige strukturierte Objekte des Tages');
@@ -4441,7 +4447,7 @@ function buildCopilotContext() {
     lines.push('');
   }
 
-  var rawCards = TODAY.cards.filter(function(c){ return !c.processed; });
+  var rawCards = getViewData().cards.filter(function(c){ return !c.processed; });
   if (rawCards.length) {
     lines.push('## Noch nicht extrahierte Karten');
     rawCards.forEach(function(c) {
@@ -4515,8 +4521,8 @@ function importCopilotReport() {
     text: '# Co-Pilot-Bericht · ' + nowTime() + '\n\n' + text,
     processed: false
   };
-  TODAY.cards.unshift(card);
-  save();
+  getViewData().cards.unshift(card);
+  saveViewData();
   document.getElementById('copilotImportText').value = '';
   closeModal('copilotImportModal');
   renderCardList();
@@ -4581,7 +4587,7 @@ function acceptPuffer(id) {
   var item = (S.migrationPuffer||[]).find(function(p){ return p.id === id; });
   if (!item) return;
   // Add as aufgabe object to today
-  TODAY.objects.push({
+  getViewData().objects.push({
     id: uid(),
     cardId: null,
     parentId: null,
@@ -4736,7 +4742,7 @@ function renderFLList() {
 function pullFLToday(id) {
   var entry = (S.futurelog||[]).find(function(e){ return e.id === id; });
   if (!entry) return;
-  TODAY.objects.push({
+  getViewData().objects.push({
     id: uid(),
     cardId: null,
     parentId: null,
@@ -4863,7 +4869,7 @@ function toggleObjSel(objId) {
 }
 
 function selectAllObjs() {
-  var active = TODAY.objects.filter(function(o){ return !o.dismissed && !o.parentId; });
+  var active = getViewData().objects.filter(function(o){ return !o.dismissed && !o.parentId; });
   active.forEach(function(o){ selectedObjIds[o.id] = true; });
   renderObjectList();
   updateSelToolbar();
@@ -4884,7 +4890,7 @@ function updateSelToolbar() {
 }
 
 function getSelectedObjs() {
-  return TODAY.objects.filter(function(o){ return selectedObjIds[o.id]; });
+  return getViewData().objects.filter(function(o){ return selectedObjIds[o.id]; });
 }
 
 function openSelPromptModal() {
@@ -4908,7 +4914,7 @@ function generateSelPrompt() {
 
   // ── Objects block ─────────────────────────────────────
   var objBlock = objs.map(function(o, i) {
-    var children = TODAY.objects.filter(function(c){ return c.parentId === o.id; });
+    var children = getViewData().objects.filter(function(c){ return c.parentId === o.id; });
     var line = (i+1) + '. [' + o.typ.toUpperCase() + ']';
     if (o.zeit) line += ' ' + o.zeit;
     if (o.signifiers && o.signifiers.includes('*')) line += ' ★';
@@ -4931,7 +4937,7 @@ function generateSelPrompt() {
     // Find unique cards of selected objects
     var cardIds = {};
     objs.forEach(function(o){ if (o.cardId) cardIds[o.cardId] = true; });
-    var cards = TODAY.cards.filter(function(c){ return cardIds[c.id]; });
+    var cards = getViewData().cards.filter(function(c){ return cardIds[c.id]; });
     if (cards.length) {
       sourceBlock = '\n\n## Quellmaterial (Original-Karten)\n\n' +
         cards.map(function(c) {
@@ -4943,13 +4949,13 @@ function generateSelPrompt() {
   // ── Full day block (optional) ──────────────────────────
   var allDayBlock = '';
   if (inclAllDay) {
-    var allCards = TODAY.cards;
-    var allObjs  = TODAY.objects.filter(function(o){ return !o.parentId && !o.dismissed; });
+    var allCards = getViewData().cards;
+    var allObjs  = getViewData().objects.filter(function(o){ return !o.parentId && !o.dismissed; });
     allDayBlock = '\n\n## Vollständiger Tages-Input\n\n';
     if (allObjs.length) {
       allDayBlock += '### Alle Objekte des Tages\n';
       allDayBlock += allObjs.map(function(o) {
-        var ch = TODAY.objects.filter(function(c){ return c.parentId === o.id; });
+        var ch = getViewData().objects.filter(function(c){ return c.parentId === o.id; });
         var l = '[' + o.typ.toUpperCase() + ']' + (o.zeit ? ' ' + o.zeit : '') + ' ' + o.text;
         if (ch.length) ch.forEach(function(c){ l += '\n  → ' + (c.zeit||'') + ' ' + c.text; });
         return l;
@@ -5011,7 +5017,7 @@ function generateBriefingPrompt() {
   var todayDEStr    = todayDE();
 
   // ── Today's objects so far ──────────────────────────
-  var todayObjs = TODAY.objects.filter(function(o){ return !o.parentId && !o.dismissed; });
+  var todayObjs = getViewData().objects.filter(function(o){ return !o.parentId && !o.dismissed; });
   var todayBlock = '';
   if (todayObjs.length) {
     todayBlock = '## Heutige Objekte bisher (' + todayStr + ')\n';
@@ -5138,6 +5144,7 @@ function setFeedFilter(f) {
   renderFeedList();
 }
 
+function renderFeedTabForDate() { renderFeedTab(); }
 function renderFeedTab() {
   updateFeedMeta();
   renderFeedList();
@@ -5241,19 +5248,19 @@ function renderFeedList() {
 }
 
 function toggleFeedAdopt(id) {
-  var item = (TODAY.feedItems||[]).find(function(i){ return i.id === id; });
+  var item = (getViewData().feedItems||[]).find(function(i){ return i.id === id; });
   if (!item) return;
   item._showAdopt = !item._showAdopt;
   renderFeedList();
 }
 
 function cancelFeedAdopt(id) {
-  var item = (TODAY.feedItems||[]).find(function(i){ return i.id === id; });
+  var item = (getViewData().feedItems||[]).find(function(i){ return i.id === id; });
   if (item) { item._showAdopt = false; renderFeedList(); }
 }
 
 function confirmFeedAdopt(id) {
-  var item = (TODAY.feedItems||[]).find(function(i){ return i.id === id; });
+  var item = (getViewData().feedItems||[]).find(function(i){ return i.id === id; });
   if (!item) return;
   var typSel = document.getElementById('ftyp-' + id);
   var typ = typSel ? typSel.value : 'notiz';
@@ -5269,7 +5276,7 @@ function confirmFeedAdopt(id) {
     signifiers: [], status: 'open', dismissed: false,
     createdAt: new Date().toISOString()
   };
-  TODAY.objects.push(newObj);
+  getViewData().objects.push(newObj);
   item.status = 'adopted';
   item.objId = newObj.id;
   item._showAdopt = false;
@@ -5281,12 +5288,12 @@ function confirmFeedAdopt(id) {
 }
 
 function ignoreFeedItem(id) {
-  var item = (TODAY.feedItems||[]).find(function(i){ return i.id === id; });
+  var item = (getViewData().feedItems||[]).find(function(i){ return i.id === id; });
   if (item) { item.status = 'ignored'; save(); renderFeedList(); updateFeedBadge(); }
 }
 
 function restoreFeedItem(id) {
-  var item = (TODAY.feedItems||[]).find(function(i){ return i.id === id; });
+  var item = (getViewData().feedItems||[]).find(function(i){ return i.id === id; });
   if (item) { item.status = 'open'; save(); renderFeedList(); updateFeedBadge(); }
 }
 
@@ -5297,7 +5304,7 @@ function clearFeedIgnored() {
 }
 
 function feedToPrompt(id) {
-  var item = (TODAY.feedItems||[]).find(function(i){ return i.id === id; });
+  var item = (getViewData().feedItems||[]).find(function(i){ return i.id === id; });
   if (!item) return;
   var text = '# Feed-Eintrag verarbeiten\n\n';
   text += '## Aufgabe\nHilf mir diesen Inhalt zu verarbeiten. Mögliche Ergebnisse:\n';
@@ -5484,7 +5491,7 @@ async function loadHighlights() {
 }
 
 function openHighlightRefl(id) {
-  var item = (TODAY.feedItems||[]).find(function(i){ return i.id === id; });
+  var item = (getViewData().feedItems||[]).find(function(i){ return i.id === id; });
   if (!item) return;
   currentHighlightId = id;
 
@@ -5569,7 +5576,7 @@ function saveHighlightAsObj() {
   var text  = title || body || (item ? item.body : '') || '';
   if (!text) { toast('Kein Text vorhanden.'); return; }
 
-  TODAY.objects.push({
+  getViewData().objects.push({
     id: uid(), cardId: null, parentId: null,
     typ: 'notiz', text: text.slice(0,200),
     zeit: nowTime(), kontext: 'readwise highlight',
@@ -5848,7 +5855,7 @@ function runSearch(query) {
   var hits = [];
 
   // ── Search today's objects ──────────────────────
-  TODAY.objects.forEach(function(obj) {
+  getViewData().objects.forEach(function(obj) {
     if (obj.dismissed || obj.parentId) return;
     if (searchFilter !== 'all' && searchFilter !== 'zettel' && obj.typ !== searchFilter) return;
     if (searchFilter === 'zettel') return;
@@ -5856,7 +5863,7 @@ function runSearch(query) {
     var score = scoreMatch(obj.text, q) + scoreMatch(obj.kontext, q);
     if (score > 0) hits.push({ type: 'obj', obj: obj, date: today(), score: score });
     // Also search children
-    TODAY.objects.filter(function(c){ return c.parentId === obj.id; }).forEach(function(c) {
+    getViewData().objects.filter(function(c){ return c.parentId === obj.id; }).forEach(function(c) {
       if (scoreMatch(c.text, q) > 0) hits.push({ type: 'obj', obj: c, date: today(), score: 1, parentText: obj.text });
     });
   });
@@ -5884,7 +5891,7 @@ function runSearch(query) {
 
   // ── Search today's cards (raw text) ─────────────
   if (searchFilter === 'all') {
-    TODAY.cards.forEach(function(card) {
+    getViewData().cards.forEach(function(card) {
       if (scoreMatch(card.text, q) > 0) {
         var excerpt = extractExcerpt(card.text, q);
         hits.push({ type: 'card', card: card, date: today(), score: 1, excerpt: excerpt });
@@ -6377,11 +6384,27 @@ function syncDrawerBadges() {
 var viewDate = today(); // currently viewed date (YYYY-MM-DD)
 
 function getViewData() {
-  // Returns {cards, objects, feedItems, reviewDone, plan} for viewDate
+  // Returns the live data object for viewDate — always writable
   if (viewDate === today()) return TODAY;
+  // Find or create the day in S.days
   var day = (S.days||[]).find(function(d){ return d.date === viewDate; });
-  if (!day) return { date: viewDate, cards: [], objects: [], feedItems: [], reviewDone: false, plan: {} };
+  if (!day) {
+    day = { date: viewDate, cards: [], objects: [], feedItems: [], reviewDone: false, plan: {} };
+    if (!S.days) S.days = [];
+    S.days.push(day);
+    S.days.sort(function(a,b){ return b.date > a.date ? 1 : -1; });
+  }
   return day;
+}
+
+function saveViewData() {
+  // After mutating getViewData(), call this to persist
+  if (viewDate === today()) {
+    save();
+  } else {
+    // Past day — already in S.days by reference, just save
+    save();
+  }
 }
 
 function isViewingToday() { return viewDate === today(); }
@@ -6421,7 +6444,7 @@ function updateDateNav() {
   if (bannerText && isPast) {
     var d = new Date(viewDate + 'T00:00:00');
     var label = d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
-    bannerText.textContent = '📅 Ansicht: ' + label + ' (Lesemodus)';
+    bannerText.textContent = '📅 ' + label;
   }
   renderCalendarDots();
 }
