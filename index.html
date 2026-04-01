@@ -2751,6 +2751,69 @@ function collectDescendantObjectIds(objects, seedIds) {
   return all;
 }
 
+function isExplicitManualObject(obj) {
+  if (!obj) return false;
+  var source = obj.source || {};
+  return source.kind === 'manual' || !!source.createdManually || !!obj.createdManually || !!obj.manuallyCreated;
+}
+
+function getReplaceableExtractionTreeForCard(vd, cardId) {
+  var objects = (vd && vd.objects) || [];
+  var byId = {};
+  objects.forEach(function(o) { byId[o.id] = o; });
+
+  var seedRootIds = [];
+
+  // Prefer card metadata from modern extractions
+  var card = ((vd && vd.cards) || []).find(function(c){ return c.id === cardId; });
+  var trackedIds = (card && card.lastExtractionObjectIds) || [];
+  trackedIds.forEach(function(id) {
+    var obj = byId[id];
+    if (obj && obj.cardId === cardId && !isExplicitManualObject(obj) && seedRootIds.indexOf(id) === -1) seedRootIds.push(id);
+  });
+
+  // Explicit extraction roots
+  objects.forEach(function(o) {
+    if (o.cardId !== cardId || o.parentId) return;
+    if (o.source && o.source.kind === 'extract' && !isExplicitManualObject(o) && seedRootIds.indexOf(o.id) === -1) seedRootIds.push(o.id);
+  });
+
+  // Legacy fallback: any non-manual root for this card is replaceable extraction stock
+  objects.forEach(function(o) {
+    if (o.cardId !== cardId || o.parentId) return;
+    if (!isExplicitManualObject(o) && seedRootIds.indexOf(o.id) === -1) seedRootIds.push(o.id);
+  });
+
+  // Final fallback if only children have cardId: take non-manual card-linked objects
+  if (!seedRootIds.length) {
+    objects.forEach(function(o) {
+      if (o.cardId !== cardId) return;
+      if (!isExplicitManualObject(o) && seedRootIds.indexOf(o.id) === -1) seedRootIds.push(o.id);
+    });
+  }
+
+  var treeIds = collectDescendantObjectIds(objects, seedRootIds);
+  return { rootIds: seedRootIds, treeIds: treeIds };
+}
+
+function detachManualDescendantsBeforeReplace(vd, treeIds, cardId) {
+  var objects = (vd && vd.objects) || [];
+  var treeMap = {};
+  (treeIds || []).forEach(function(id){ treeMap[id] = true; });
+  var detachedCount = 0;
+  objects.forEach(function(o) {
+    if (!isExplicitManualObject(o)) return;
+    if (!o.parentId || !treeMap[o.parentId]) return;
+    o.parentId = null;
+    o.cardId = cardId || o.cardId || null;
+    o.source = o.source || { kind: 'manual' };
+    o.source.detachedFromOldExtraction = true;
+    o.source.detachedAt = new Date().toISOString();
+    detachedCount++;
+  });
+  return detachedCount;
+}
+
 function deleteCard(id) {
   var vd = getViewData();
   var card = (vd.cards || []).find(function(c){ return c.id === id; });
@@ -2804,7 +2867,7 @@ function renderCardListForDate() {
 
   container.innerHTML = vd.cards.map(function(card) {
     var preview = card.text.split('\n')[0].slice(0, 60);
-    var objCount = (vd.objects||[]).filter(function(o){ return o.cardId === card.id && !o.dismissed; }).length;
+    var objCount = (vd.objects||[]).filter(function(o){ return o.cardId === card.id && !o.parentId && !o.dismissed; }).length;
     return '<div class="card' + (card.processed ? ' processed' : '') + '" id="card-' + card.id + '">' +
       '<div class="card-header" onclick="toggleCard(\'' + card.id + '\')">' +
         '<span class="card-time">' + esc(card.time) + '</span>' +
@@ -2979,37 +3042,34 @@ function importObjects() {
     return;
   }
   var extractionSessionId = uid();
-  var previousExtractRoots = (vd.objects || []).filter(function(o) {
-    return o.cardId === currentExtractCardId && !o.parentId && o.source && o.source.kind === 'extract';
-  });
-  var previousExtractIds = previousExtractRoots.map(function(o){ return o.id; });
-  var previousTreeIds = collectDescendantObjectIds(vd.objects || [], previousExtractIds);
-  var oldCount = previousExtractIds.length;
+  var extractedAt = new Date().toISOString();
+  var replaceTree = getReplaceableExtractionTreeForCard(vd, currentExtractCardId);
+  var previousTreeMap = {};
+  replaceTree.treeIds.forEach(function(id){ previousTreeMap[id] = true; });
+  var detachedManualCount = detachManualDescendantsBeforeReplace(vd, replaceTree.treeIds, currentExtractCardId);
 
-  // Manuelle Nachfahren alter Extract-Roots aktiv entkoppeln, damit keine verwaisten parentId entstehen.
-  (vd.objects || []).forEach(function(o) {
-    if (previousTreeIds.indexOf(o.id) === -1) return;
-    if (!(o.source && o.source.kind === 'manual')) return;
-    if (o.parentId && previousTreeIds.indexOf(o.parentId) !== -1) {
-      o.parentId = null;
-      o.cardId = currentExtractCardId;
-      o.source = o.source || { kind: 'manual' };
-      o.source.detachedFromOldExtraction = true;
-    }
-  });
-
-  // Harte Invariante: bei Re-Import nur den extrahierten Bestand dieser Karte ersetzen.
-  // Manuell angelegte Objekte (source.kind !== 'extract') bleiben erhalten.
+  // Legacy-safe replace: remove complete replaceable extraction tree (incl. legacy nodes without source.kind=extract)
   vd.objects = (vd.objects || []).filter(function(o) {
-    if (o.source && o.source.kind === 'extract' && previousTreeIds.indexOf(o.id) !== -1) return false;
-    return true;
+    if (!previousTreeMap[o.id]) return true;
+    return isExplicitManualObject(o);
   });
 
   var added = 0;
+  var insertedIds = [];
+  var seenFingerprints = {};
   objs.forEach(function(obj) {
     if (!obj.typ || !obj.text) return;
+    var fingerprint = [
+      String(obj.typ || '').trim().toLowerCase(),
+      String(obj.text || '').trim().toLowerCase(),
+      String(obj.zeit || '').trim().toLowerCase(),
+      String(obj.kontext || '').trim().toLowerCase()
+    ].join('|');
+    if (seenFingerprints[fingerprint]) return;
+    seenFingerprints[fingerprint] = true;
+    var newId = uid();
     vd.objects.push({
-      id: uid(),
+      id: newId,
       cardId: currentExtractCardId,
       parentId: null,
       typ: obj.typ.toLowerCase(),
@@ -3020,15 +3080,29 @@ function importObjects() {
       status: 'open',
       signifiers: [],
       dismissed: false,
-      createdAt: new Date().toISOString(),
-      source: { kind: 'extract', extractionSessionId: extractionSessionId, extractedAt: new Date().toISOString() }
+      createdAt: extractedAt,
+      source: { kind: 'extract', extractionSessionId: extractionSessionId, extractedAt: extractedAt }
     });
+    insertedIds.push(newId);
     added++;
   });
 
   // Mark card as processed
   var card = vd.cards.find(function(c){ return c.id === currentExtractCardId; });
-  if (card) card.processed = true;
+  if (card) {
+    card.processed = true;
+    card.lastExtractionAt = extractedAt;
+    card.lastExtractionSessionId = extractionSessionId;
+    card.lastExtractionObjectIds = insertedIds.slice();
+  }
+
+  console.debug('[extract/import]', {
+    cardId: currentExtractCardId,
+    foundOldRoots: replaceTree.rootIds.length,
+    removedOldTreeObjects: replaceTree.treeIds.length,
+    detachedManualObjects: detachedManualCount,
+    insertedNewObjects: added
+  });
 
   saveViewData();
   renderCardList();
@@ -3038,8 +3112,7 @@ function importObjects() {
   updateDrawerActive('sammeln');
   syncDrawerBadges();
   closeModal('extractModal');
-  var msg = added + ' Objekte importiert';
-  if (oldCount > 0) msg += ' (' + oldCount + ' alte ersetzt)';
+  var msg = added + ' Objekte importiert · ersetzt: ' + replaceTree.treeIds.length + ' · manuell entkoppelt: ' + detachedManualCount;
   toast(msg);
 }
 
@@ -3462,7 +3535,7 @@ function renderExtractCards() {
   }
   container.innerHTML = (vd.cards||[]).map(function(card) {
     var preview = card.text.split('\n')[0].slice(0, 55);
-    var objCount = (vd.objects || []).filter(function(o){ return o.cardId === card.id && !o.dismissed; }).length;
+    var objCount = (vd.objects || []).filter(function(o){ return o.cardId === card.id && !o.parentId && !o.dismissed; }).length;
     return '<div class="card' + (card.processed ? ' processed' : '') + '">' +
       '<div class="card-header" style="cursor:default">' +
         '<span class="card-time">' + esc(card.time) + '</span>' +
