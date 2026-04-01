@@ -2322,6 +2322,59 @@ select:focus { outline: none; border-color: var(--border-mid); }
   </div>
 </div>
 
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- Raw Restore Modal                              -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="modal-bg hidden" id="rawRestoreModal">
+  <div class="modal-box" style="max-width:760px">
+    <div class="modal-title">♻ Rohkarten wiederherstellen</div>
+    <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
+      Lädt Rohkarten aus dem separaten Backup-Gist. Du kannst einzelne Karten auswählen und gezielt zurückimportieren.
+    </p>
+
+    <div class="btn-row" style="margin-bottom:10px">
+      <button class="btn btn-sm btn-primary" id="btnRawLoad" onclick="loadRawRestoreFromGist()">🗃 Backup laden</button>
+      <button class="btn btn-sm btn-ghost" onclick="selectAllRawRestore()">Alle</button>
+      <button class="btn btn-sm btn-ghost" onclick="selectNoneRawRestore()">Keine</button>
+      <button class="btn btn-sm btn-ghost" onclick="selectMissingRawRestore()">Nur fehlende</button>
+    </div>
+
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+      <div style="flex:1;min-width:180px">
+        <label>Suche</label>
+        <input type="text" id="rawRestoreSearch" placeholder="Text durchsuchen…" oninput="renderRawRestoreList()">
+      </div>
+      <div style="min-width:140px">
+        <label>Datum</label>
+        <select id="rawRestoreDateFilter" onchange="renderRawRestoreList()"><option value="all">alle</option></select>
+      </div>
+      <div style="min-width:140px">
+        <label>Typ</label>
+        <select id="rawRestoreTypeFilter" onchange="renderRawRestoreList()">
+          <option value="all">alle</option>
+          <option value="log">📋 Log</option>
+          <option value="voice">🎙 Voice</option>
+          <option value="email">✉ E-Mail</option>
+          <option value="free">📝 Frei</option>
+        </select>
+      </div>
+      <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-family:var(--mono);font-size:0.68rem;color:var(--ink-mid);margin:0 0 6px">
+        <input type="checkbox" id="rawRestoreOnlyMissing" checked onchange="renderRawRestoreList()" style="accent-color:var(--accent)">
+        nur fehlende
+      </label>
+    </div>
+
+    <div id="rawRestoreMeta" style="font-family:var(--mono);font-size:0.64rem;color:var(--ink-dim);margin-bottom:8px">Noch nichts geladen.</div>
+    <div id="rawRestoreList" style="max-height:420px;overflow-y:auto"><div class="empty-state">Noch keine Backup-Daten geladen.</div></div>
+
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-primary" onclick="importSelectedRawCards()">Importieren</button>
+      <button class="btn" onclick="closeModal('rawRestoreModal')">Schließen</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══════════════════════════════════════════════ -->
 <!-- Settings Modal                                 -->
 <!-- ══════════════════════════════════════════════ -->
@@ -2350,6 +2403,12 @@ select:focus { outline: none; border-color: var(--border-mid); }
     <label style="margin-top:10px">Gist ID</label>
     <input type="text" id="cfgGistId" placeholder="abc123...">
 
+    <label style="margin-top:14px">Raw Backup Gist Token (optional)</label>
+    <input type="password" id="cfgRawGistToken" placeholder="ghp_...">
+
+    <label style="margin-top:10px">Raw Backup Gist ID</label>
+    <input type="text" id="cfgRawGistId" placeholder="abc123...">
+
     <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
       <div style="font-family:var(--mono);font-size:0.64rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:10px">Speicher & Daten</div>
       <div id="storageBar" style="height:6px;background:var(--border);border-radius:3px;margin-bottom:6px;overflow:hidden">
@@ -2361,6 +2420,8 @@ select:focus { outline: none; border-color: var(--border-mid); }
         <button class="btn btn-sm" id="btnGistPush" onclick="gistPush(false)">☁ Jetzt speichern</button>
         <button class="btn btn-sm btn-ghost" id="btnGistPull" onclick="gistPull(false)">↔ Merge vom Gist</button>
         <button class="btn btn-sm btn-ghost" id="btnGistPullForce" onclick="gistPullOverwrite()" style="color:var(--orange)">⚠ Gist überschreibt lokal</button>
+        <button class="btn btn-sm btn-ghost" id="btnRawPush" onclick="rawGistPush(false)">🗃 Rohkarten sichern</button>
+        <button class="btn btn-sm btn-ghost" onclick="openRawRestoreModal()">♻ Rohkarten wiederherstellen</button>
         <button class="btn btn-sm btn-ghost" onclick="exportData()" title="Exportiert alle Daten">↓ Vollständiger Export</button>
         <label class="btn btn-sm btn-ghost" style="cursor:pointer" title="JSON-Datei laden und mit lokalem Stand mergen">
           ↑ Datei mergen
@@ -2397,6 +2458,9 @@ var LKEY           = 'dailylog_v2';
 var GIST_TOKEN_KEY = 'dailylog_gist_token';
 var GIST_ID_KEY    = 'dailylog_gist_id';
 var GIST_FILE      = 'dailylog_v2_data.json';
+var RAW_GIST_TOKEN_KEY = 'dailylog_raw_gist_token';
+var RAW_GIST_ID_KEY    = 'dailylog_raw_gist_id';
+var RAW_GIST_FILE      = 'dailylog_raw_cards.json';
 
 var S = {
   days: [],
@@ -2453,7 +2517,7 @@ function toast(msg) {
   t.textContent = msg; t.classList.add('show');
   setTimeout(function(){ t.classList.remove('show'); }, 2600);
 }
-function openModal(id)  { document.getElementById(id).classList.remove('hidden'); if (id === 'settingsModal') setTimeout(updateStorageDisplay, 50); }
+function openModal(id)  { document.getElementById(id).classList.remove('hidden'); if (id === 'settingsModal') setTimeout(updateStorageDisplay, 50); if (id === 'rawRestoreModal') setTimeout(renderRawRestoreList, 50); }
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
 // ════════════════════════════════════════════════
@@ -2464,6 +2528,7 @@ function save() {
   var payload = { S: S, TODAY: TODAY };
   try { localStorage.setItem(LKEY, JSON.stringify(payload)); } catch(e) { toast('⚠ Speicherfehler'); }
   gistAutoSyncDebounced();
+  rawBackupAutoSyncDebounced();
 }
 
 function load() {
@@ -3791,6 +3856,8 @@ function loadSettingsUI() {
   document.getElementById('cfgContext').value = S.config.context || '';
   document.getElementById('cfgGistToken').value = localStorage.getItem(GIST_TOKEN_KEY) || '';
   document.getElementById('cfgGistId').value = localStorage.getItem(GIST_ID_KEY) || '';
+  if (document.getElementById('cfgRawGistToken')) document.getElementById('cfgRawGistToken').value = localStorage.getItem(RAW_GIST_TOKEN_KEY) || '';
+  if (document.getElementById('cfgRawGistId')) document.getElementById('cfgRawGistId').value = localStorage.getItem(RAW_GIST_ID_KEY) || '';
   if (document.getElementById('cfgOpenAI')) document.getElementById('cfgOpenAI').value = localStorage.getItem(OPENAI_KEY) || '';
   if (document.getElementById('cfgReadwise')) document.getElementById('cfgReadwise').value = localStorage.getItem(READWISE_KEY) || '';
   if (document.getElementById('cfgRaindrop')) document.getElementById('cfgRaindrop').value = localStorage.getItem(RAINDROP_KEY) || '';
@@ -3801,9 +3868,13 @@ function saveSettings() {
   S.config.context = document.getElementById('cfgContext').value.trim();
   var token   = document.getElementById('cfgGistToken').value.trim();
   var gid     = document.getElementById('cfgGistId').value.trim();
+  var rawToken = document.getElementById('cfgRawGistToken') ? document.getElementById('cfgRawGistToken').value.trim() : '';
+  var rawGid   = document.getElementById('cfgRawGistId') ? document.getElementById('cfgRawGistId').value.trim() : '';
   var oaiKey  = document.getElementById('cfgOpenAI') ? document.getElementById('cfgOpenAI').value.trim() : '';
-  if (token)  localStorage.setItem(GIST_TOKEN_KEY, token);
-  if (gid)    localStorage.setItem(GIST_ID_KEY, gid);
+  if (token)  localStorage.setItem(GIST_TOKEN_KEY, token); else localStorage.removeItem(GIST_TOKEN_KEY);
+  if (gid)    localStorage.setItem(GIST_ID_KEY, gid); else localStorage.removeItem(GIST_ID_KEY);
+  if (rawToken) localStorage.setItem(RAW_GIST_TOKEN_KEY, rawToken); else localStorage.removeItem(RAW_GIST_TOKEN_KEY);
+  if (rawGid)   localStorage.setItem(RAW_GIST_ID_KEY, rawGid); else localStorage.removeItem(RAW_GIST_ID_KEY);
   if (oaiKey) localStorage.setItem(OPENAI_KEY, oaiKey);
   var rwKey = document.getElementById('cfgReadwise') ? document.getElementById('cfgReadwise').value.trim() : '';
   var rdKey = document.getElementById('cfgRaindrop') ? document.getElementById('cfgRaindrop').value.trim() : '';
@@ -4230,6 +4301,311 @@ async function gistSync() {
     // Silent fail on startup
     console.warn('gistSync error:', e.message);
   }
+}
+
+
+// ════════════════════════════════════════════════
+// Raw Card Backup Gist
+// ════════════════════════════════════════════════
+var rawGistTimer = null;
+var RAW_RESTORE = { items: [], selected: {} };
+
+function githubHeaders(token, includeContentType) {
+  var h = { 'Authorization': 'token ' + token, 'Accept': 'application/vnd.github+json' };
+  if (includeContentType) h['Content-Type'] = 'application/json';
+  return h;
+}
+
+function normalizeText(s) {
+  return String(s || '').toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function cardSignature(card) {
+  return [card.date || '', card.time || '', card.type || '', normalizeText(card.text || '')].join('|');
+}
+
+function getAllRawCards() {
+  var cards = [];
+  (S.days || []).forEach(function(day) {
+    (day.cards || []).forEach(function(card) {
+      cards.push({ id: card.id, date: day.date, time: card.time || '', type: card.type || 'free', text: card.text || '', backedUpAt: card.backedUpAt || '' });
+    });
+  });
+  (TODAY.cards || []).forEach(function(card) {
+    cards.push({ id: card.id, date: TODAY.date, time: card.time || '', type: card.type || 'free', text: card.text || '', backedUpAt: card.backedUpAt || '' });
+  });
+  return cards;
+}
+
+function rawCardsPayload() {
+  var grouped = {};
+  getAllRawCards().forEach(function(card) {
+    if (!grouped[card.date]) grouped[card.date] = [];
+    grouped[card.date].push(card);
+  });
+  Object.keys(grouped).forEach(function(date) {
+    grouped[date].sort(function(a,b){ return (a.time||'') > (b.time||'') ? 1 : -1; });
+  });
+  return { version: 1, exported: new Date().toISOString(), days: grouped };
+}
+
+function flattenRawPayload(payload) {
+  var out = [];
+  if (!payload || !payload.days) return out;
+  Object.keys(payload.days).forEach(function(date) {
+    (payload.days[date] || []).forEach(function(card) {
+      out.push({ id: card.id || uid(), date: card.date || date, time: card.time || '', type: card.type || 'free', text: card.text || '', backedUpAt: card.backedUpAt || payload.exported || '' });
+    });
+  });
+  return out;
+}
+
+function mergeRawCardArrays(localCards, remoteCards) {
+  var map = {};
+  var seenSig = {};
+  (remoteCards || []).forEach(function(card) {
+    var c = Object.assign({}, card);
+    if (c.id) map[c.id] = c;
+    seenSig[cardSignature(c)] = c.id || true;
+  });
+  (localCards || []).forEach(function(card) {
+    var c = Object.assign({}, card);
+    var sig = cardSignature(c);
+    if (c.id && map[c.id]) return;
+    if (seenSig[sig]) return;
+    if (!c.id) c.id = uid();
+    map[c.id] = c;
+    seenSig[sig] = c.id;
+  });
+  return Object.values(map).sort(function(a,b){
+    var ka = (a.date || '') + ' ' + (a.time || '');
+    var kb = (b.date || '') + ' ' + (b.time || '');
+    return ka > kb ? 1 : -1;
+  });
+}
+
+function rawBackupAutoSyncDebounced() {
+  var token = localStorage.getItem(RAW_GIST_TOKEN_KEY);
+  var gid   = localStorage.getItem(RAW_GIST_ID_KEY);
+  if (!token || !gid) return;
+  if (rawGistTimer) clearTimeout(rawGistTimer);
+  rawGistTimer = setTimeout(function() {
+    rawGistTimer = null;
+    rawGistPush(true);
+  }, 30000);
+}
+
+async function rawGistPush(silent) {
+  var token = localStorage.getItem(RAW_GIST_TOKEN_KEY);
+  var gid   = localStorage.getItem(RAW_GIST_ID_KEY);
+  if (!token || !gid) { if (!silent) toast('Kein Raw-Backup-Gist konfiguriert.'); return false; }
+  var btn = document.getElementById('btnRawPush');
+  if (btn) btn.textContent = '⏳ Rohkarten…';
+  try {
+    var remoteCards = [];
+    try {
+      var getRes = await fetch('https://api.github.com/gists/' + gid, { headers: githubHeaders(token) });
+      if (getRes.ok) {
+        var getData = await getRes.json();
+        var getFile = getData.files && getData.files[RAW_GIST_FILE];
+        if (getFile && getFile.content) remoteCards = flattenRawPayload(JSON.parse(getFile.content));
+      }
+    } catch(e) {
+      console.warn('Raw backup GET failed:', e.message);
+    }
+    var merged = mergeRawCardArrays(getAllRawCards(), remoteCards);
+    var grouped = {};
+    merged.forEach(function(card) {
+      if (!grouped[card.date]) grouped[card.date] = [];
+      grouped[card.date].push(card);
+    });
+    var payload = { version: 1, exported: new Date().toISOString(), days: grouped };
+    var writeRes = await fetch('https://api.github.com/gists/' + gid, {
+      method: 'PATCH',
+      headers: githubHeaders(token, true),
+      body: JSON.stringify({ files: { [RAW_GIST_FILE]: { content: JSON.stringify(payload, null, 2) } } })
+    });
+    if (!writeRes.ok) {
+      var err = await writeRes.json().catch(function(){ return {}; });
+      throw new Error(err.message || writeRes.status);
+    }
+    if (!silent) toast('🗃 Rohkarten gesichert');
+    return true;
+  } catch(e) {
+    if (!silent) toast('Raw-Backup-Fehler: ' + e.message);
+    return false;
+  } finally {
+    if (btn) btn.textContent = '🗃 Rohkarten sichern';
+  }
+}
+
+function openRawRestoreModal() {
+  RAW_RESTORE.items = [];
+  RAW_RESTORE.selected = {};
+  openModal('rawRestoreModal');
+  renderRawRestoreList();
+}
+
+async function loadRawRestoreFromGist() {
+  var token = localStorage.getItem(RAW_GIST_TOKEN_KEY);
+  var gid   = localStorage.getItem(RAW_GIST_ID_KEY);
+  if (!token || !gid) { toast('Kein Raw-Backup-Gist konfiguriert.'); return; }
+  var btn = document.getElementById('btnRawLoad');
+  if (btn) btn.textContent = '⏳ Lädt…';
+  try {
+    var r = await fetch('https://api.github.com/gists/' + gid, { headers: githubHeaders(token) });
+    if (!r.ok) throw new Error(String(r.status));
+    var data = await r.json();
+    var file = data.files && data.files[RAW_GIST_FILE];
+    if (!file || !file.content) throw new Error('Keine Raw-Datei im Gist');
+    var parsed = JSON.parse(file.content);
+    RAW_RESTORE.items = flattenRawPayload(parsed).map(function(card) {
+      var exists = rawCardExistsLocally(card);
+      return Object.assign({}, card, { existsLocally: exists });
+    }).sort(function(a,b){
+      var ka = (a.date || '') + ' ' + (a.time || '');
+      var kb = (b.date || '') + ' ' + (b.time || '');
+      return ka < kb ? 1 : -1;
+    });
+    RAW_RESTORE.selected = {};
+    RAW_RESTORE.items.forEach(function(card) { if (!card.existsLocally) RAW_RESTORE.selected[card.id] = true; });
+    populateRawRestoreDateFilter();
+    renderRawRestoreList();
+    toast('Backup geladen');
+  } catch(e) {
+    toast('Restore-Laden fehlgeschlagen: ' + e.message);
+  } finally {
+    if (btn) btn.textContent = '🗃 Backup laden';
+  }
+}
+
+function populateRawRestoreDateFilter() {
+  var sel = document.getElementById('rawRestoreDateFilter');
+  if (!sel) return;
+  var current = sel.value || 'all';
+  var dates = {};
+  (RAW_RESTORE.items || []).forEach(function(card){ dates[card.date] = true; });
+  sel.innerHTML = '<option value="all">alle</option>' + Object.keys(dates).sort().reverse().map(function(date){ return '<option value="' + esc(date) + '">' + esc(date) + '</option>'; }).join('');
+  sel.value = dates[current] ? current : 'all';
+}
+
+function rawCardExistsLocally(card) {
+  var sig = cardSignature(card);
+  var found = false;
+  function scanCards(arr, date) {
+    (arr || []).forEach(function(c) {
+      if (found) return;
+      var local = { id: c.id, date: date, time: c.time || '', type: c.type || 'free', text: c.text || '' };
+      if ((card.id && c.id === card.id) || cardSignature(local) === sig) found = true;
+    });
+  }
+  scanCards(TODAY.cards || [], TODAY.date);
+  (S.days || []).forEach(function(day){ if (!found) scanCards(day.cards || [], day.date); });
+  return found;
+}
+
+function getFilteredRawRestoreItems() {
+  var search = normalizeText(document.getElementById('rawRestoreSearch') ? document.getElementById('rawRestoreSearch').value : '');
+  var dateFilter = document.getElementById('rawRestoreDateFilter') ? document.getElementById('rawRestoreDateFilter').value : 'all';
+  var typeFilter = document.getElementById('rawRestoreTypeFilter') ? document.getElementById('rawRestoreTypeFilter').value : 'all';
+  var onlyMissing = document.getElementById('rawRestoreOnlyMissing') ? document.getElementById('rawRestoreOnlyMissing').checked : false;
+  return (RAW_RESTORE.items || []).filter(function(card) {
+    if (dateFilter !== 'all' && card.date !== dateFilter) return false;
+    if (typeFilter !== 'all' && card.type !== typeFilter) return false;
+    if (onlyMissing && card.existsLocally) return false;
+    if (search) {
+      var hay = normalizeText((card.text || '') + ' ' + (card.date || '') + ' ' + (card.time || ''));
+      if (hay.indexOf(search) === -1) return false;
+    }
+    return true;
+  });
+}
+
+function renderRawRestoreList() {
+  var container = document.getElementById('rawRestoreList');
+  var meta = document.getElementById('rawRestoreMeta');
+  if (!container || !meta) return;
+  var items = getFilteredRawRestoreItems();
+  var selectedCount = items.filter(function(card){ return !!RAW_RESTORE.selected[card.id]; }).length;
+  meta.textContent = items.length + ' sichtbar · ' + selectedCount + ' ausgewählt';
+  if (!items.length) {
+    container.innerHTML = '<div class="empty-state">Keine passenden Rohkarten.</div>';
+    return;
+  }
+  container.innerHTML = items.map(function(card) {
+    var preview = esc((card.text || '').split('\n')[0].slice(0, 140));
+    var status = card.existsLocally
+      ? '<span class="card-status" style="color:var(--orange)">bereits lokal</span>'
+      : '<span class="card-status done">fehlt lokal</span>';
+    return '<div class="card' + (RAW_RESTORE.selected[card.id] ? ' selected' : '') + '" style="margin-bottom:8px">' +
+      '<div class="card-header" onclick="toggleRawRestoreSelection(\'' + esc(card.id) + '\')">' +
+        '<span class="sel-checkbox">' + (RAW_RESTORE.selected[card.id] ? '✓' : '') + '</span>' +
+        '<span class="card-time">' + esc(card.date) + (card.time ? ' · ' + esc(card.time) : '') + '</span>' +
+        typeLabel(card.type) +
+        '<span class="card-preview" style="font-style:normal">' + preview + '</span>' +
+        status +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+function toggleRawRestoreSelection(id) {
+  RAW_RESTORE.selected[id] = !RAW_RESTORE.selected[id];
+  renderRawRestoreList();
+}
+
+function selectAllRawRestore() {
+  getFilteredRawRestoreItems().forEach(function(card){ RAW_RESTORE.selected[card.id] = true; });
+  renderRawRestoreList();
+}
+
+function selectNoneRawRestore() {
+  getFilteredRawRestoreItems().forEach(function(card){ delete RAW_RESTORE.selected[card.id]; });
+  renderRawRestoreList();
+}
+
+function selectMissingRawRestore() {
+  getFilteredRawRestoreItems().forEach(function(card){
+    if (!card.existsLocally) RAW_RESTORE.selected[card.id] = true;
+    else delete RAW_RESTORE.selected[card.id];
+  });
+  renderRawRestoreList();
+}
+
+function ensureDayExists(date) {
+  if (date === TODAY.date) return TODAY;
+  var day = (S.days || []).find(function(d){ return d.date === date; });
+  if (!day) {
+    day = { date: date, cards: [], objects: [], feedItems: [], reviewDone: false, plan: { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] } };
+    S.days = S.days || [];
+    S.days.unshift(day);
+  }
+  if (!day.cards) day.cards = [];
+  if (!day.objects) day.objects = [];
+  if (!day.feedItems) day.feedItems = [];
+  return day;
+}
+
+function importSelectedRawCards() {
+  var chosen = (RAW_RESTORE.items || []).filter(function(card){ return !!RAW_RESTORE.selected[card.id]; });
+  if (!chosen.length) { toast('Keine Karten ausgewählt.'); return; }
+  var imported = 0, skipped = 0;
+  chosen.forEach(function(card) {
+    if (rawCardExistsLocally(card)) { skipped++; return; }
+    var target = ensureDayExists(card.date);
+    var targetCards = (card.date === TODAY.date) ? TODAY.cards : target.cards;
+    targetCards.unshift({ id: card.id || uid(), time: card.time || '', type: card.type || 'free', text: card.text || '', processed: false, restoredFromRaw: true, createdAt: new Date().toISOString() });
+    imported++;
+  });
+  save();
+  renderCardList();
+  renderObjectsTab();
+  renderHistory();
+  updateBadges();
+  renderCalendarDots();
+  RAW_RESTORE.items = RAW_RESTORE.items.map(function(card){ return Object.assign({}, card, { existsLocally: rawCardExistsLocally(card) }); });
+  renderRawRestoreList();
+  toast('Importiert: ' + imported + ' · übersprungen: ' + skipped);
 }
 
 // ════════════════════════════════════════════════
