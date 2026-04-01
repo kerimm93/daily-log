@@ -2422,6 +2422,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
         <button class="btn btn-sm btn-ghost" id="btnGistPullForce" onclick="gistPullOverwrite()" style="color:var(--orange)">⚠ Gist überschreibt lokal</button>
         <button class="btn btn-sm btn-ghost" id="btnRawPush" onclick="rawGistPush(false)">🗃 Rohkarten sichern</button>
         <button class="btn btn-sm btn-ghost" onclick="openRawRestoreModal()">♻ Rohkarten wiederherstellen</button>
+        <button class="btn btn-sm btn-ghost" onclick="openTrashModal()">🗑 Papierkorb</button>
         <button class="btn btn-sm btn-ghost" onclick="exportData()" title="Exportiert alle Daten">↓ Vollständiger Export</button>
         <label class="btn btn-sm btn-ghost" style="cursor:pointer" title="JSON-Datei laden und mit lokalem Stand mergen">
           ↑ Datei mergen
@@ -2443,6 +2444,26 @@ select:focus { outline: none; border-color: var(--border-mid); }
     <div class="btn-row" style="margin-top:14px">
       <button class="btn btn-primary" onclick="saveSettings()">Speichern</button>
       <button class="btn" onclick="closeModal('settingsModal')">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- Trash Modal                                    -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="modal-bg hidden" id="trashModal">
+  <div class="modal-box" style="max-width:760px">
+    <div class="modal-title">🗑 Papierkorb</div>
+    <div id="trashMeta" style="font-family:var(--mono);font-size:0.64rem;color:var(--ink-dim);margin-bottom:10px">Leer</div>
+    <div style="max-height:430px;overflow-y:auto">
+      <div style="font-family:var(--mono);font-size:0.64rem;color:var(--ink-dim);margin-bottom:6px">Gelöschte Karten</div>
+      <div id="trashCardList" style="margin-bottom:14px"><div class="empty-state">Keine gelöschten Karten.</div></div>
+      <div style="font-family:var(--mono);font-size:0.64rem;color:var(--ink-dim);margin-bottom:6px">Gelöschte Objekte</div>
+      <div id="trashObjectList"><div class="empty-state">Keine gelöschten Objekte.</div></div>
+    </div>
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-sm btn-danger" onclick="emptyTrash()">Papierkorb leeren</button>
+      <button class="btn" onclick="closeModal('trashModal')">Schließen</button>
     </div>
   </div>
 </div>
@@ -2469,6 +2490,7 @@ var S = {
   feedLastReadwise: '',
   feedLastRaindrop: '',
   feedLastHighlights: '',
+  trash: { cards: [], objects: [] },
   zettels: [],   // {id, title, body, tags, source, date, kept}
   config: { name: '', context: '', contexts: [] },
   _lastExported: ''
@@ -2486,6 +2508,7 @@ var TODAY = {
 };
 
 var currentExtractCardId = null;
+var currentExtractViewDate = null;
 var currentPipeStep = 1;
 var pipeStepsDone = {};
 var activeObjFilter = null; // null = alle anzeigen
@@ -2517,7 +2540,7 @@ function toast(msg) {
   t.textContent = msg; t.classList.add('show');
   setTimeout(function(){ t.classList.remove('show'); }, 2600);
 }
-function openModal(id)  { document.getElementById(id).classList.remove('hidden'); if (id === 'settingsModal') setTimeout(updateStorageDisplay, 50); if (id === 'rawRestoreModal') setTimeout(renderRawRestoreList, 50); }
+function openModal(id)  { document.getElementById(id).classList.remove('hidden'); if (id === 'settingsModal') setTimeout(updateStorageDisplay, 50); if (id === 'rawRestoreModal') setTimeout(renderRawRestoreList, 50); if (id === 'trashModal') setTimeout(renderTrashModal, 20); }
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 
 // ════════════════════════════════════════════════
@@ -2564,7 +2587,12 @@ function load() {
   if (!S.feedLastReadwise) S.feedLastReadwise = '';
   if (!S.feedLastRaindrop) S.feedLastRaindrop = '';
   if (!S.feedLastHighlights) S.feedLastHighlights = '';
+  if (!S.trash) S.trash = { cards: [], objects: [] };
+  if (!Array.isArray(S.trash.cards)) S.trash.cards = [];
+  if (!Array.isArray(S.trash.objects)) S.trash.objects = [];
   if (!S.zettels) S.zettels = [];
+
+  migrateLegacyObjectMetadata();
 
   // Archive and reset if new day
   if (TODAY.date !== today()) {
@@ -2599,6 +2627,21 @@ function load() {
     TODAY = { date: today(), cards: [], objects: [], feedItems: [], reviewDone: false, plan: { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] } };
     save();
   }
+}
+
+function migrateLegacyObjectMetadata() {
+  var markDay = function(day) {
+    if (!day || !Array.isArray(day.objects)) return;
+    day.objects.forEach(function(o) {
+      if (!o) return;
+      if (!o.source) {
+        if (o.cardId && !o.parentId) o.source = { kind: 'extract', legacy: true };
+        else o.source = { kind: 'manual' };
+      }
+    });
+  };
+  markDay(TODAY);
+  (S.days || []).forEach(markDay);
 }
 
 // ════════════════════════════════════════════════
@@ -2674,18 +2717,67 @@ function clearNewCard() {
   updateNewCardMeta();
 }
 
+function ensureTrash() {
+  if (!S.trash) S.trash = { cards: [], objects: [] };
+  if (!Array.isArray(S.trash.cards)) S.trash.cards = [];
+  if (!Array.isArray(S.trash.objects)) S.trash.objects = [];
+}
+
+function trashPush(type, payload) {
+  ensureTrash();
+  var entry = {
+    id: uid(),
+    itemType: type,
+    originalDate: payload.originalDate || viewDate || today(),
+    deletedAt: new Date().toISOString(),
+    reason: payload.reason || '',
+    data: payload.data
+  };
+  if (type === 'card') S.trash.cards.unshift(entry);
+  if (type === 'object') S.trash.objects.unshift(entry);
+}
+
+function collectDescendantObjectIds(objects, seedIds) {
+  var all = [];
+  var queue = (seedIds || []).slice();
+  while (queue.length) {
+    var current = queue.shift();
+    if (all.indexOf(current) !== -1) continue;
+    all.push(current);
+    (objects || []).forEach(function(o) {
+      if (o.parentId === current && all.indexOf(o.id) === -1) queue.push(o.id);
+    });
+  }
+  return all;
+}
+
 function deleteCard(id) {
-  TODAY.cards = TODAY.cards.filter(function(c){ return c.id !== id; });
-  // also remove objects from this card
-  TODAY.objects = TODAY.objects.filter(function(o){ return o.cardId !== id; });
-  save();
+  var vd = getViewData();
+  var card = (vd.cards || []).find(function(c){ return c.id === id; });
+  if (!card) return;
+  var rootIds = (vd.objects || []).filter(function(o){ return o.cardId === id && !o.parentId; }).map(function(o){ return o.id; });
+  if (!rootIds.length) rootIds = (vd.objects || []).filter(function(o){ return o.cardId === id; }).map(function(o){ return o.id; });
+  var treeIds = collectDescendantObjectIds(vd.objects || [], rootIds);
+  var relatedObjects = (vd.objects || []).filter(function(o){ return treeIds.indexOf(o.id) !== -1; });
+  var cardClone = JSON.parse(JSON.stringify(card));
+  cardClone._deletedLinkedObjectIds = relatedObjects.map(function(o){ return o.id; });
+  cardClone._deletedObjectTree = JSON.parse(JSON.stringify(relatedObjects));
+  trashPush('card', { data: cardClone, originalDate: viewDate, reason: 'delete-card' });
+  relatedObjects.forEach(function(obj) {
+    trashPush('object', { data: JSON.parse(JSON.stringify(obj)), originalDate: viewDate, reason: 'delete-card-cascade' });
+  });
+  vd.cards = (vd.cards || []).filter(function(c){ return c.id !== id; });
+  vd.objects = (vd.objects || []).filter(function(o){ return treeIds.indexOf(o.id) === -1; });
+  saveViewData();
   renderCardList();
+  renderObjectList();
+  renderExtractCards();
   updateBadges();
   updateDateNav();
   renderCalendarDots();
   updateDrawerActive('sammeln');
   syncDrawerBadges();
-  toast('Karte gelöscht');
+  toast('Karte in Papierkorb verschoben');
 }
 
 function typeLabel(type) {
@@ -2741,17 +2833,6 @@ function toggleCard(id) {
 // ════════════════════════════════════════════════
 // Extraction
 // ════════════════════════════════════════════════
-function openExtract(cardId) {
-  var card = TODAY.cards.find(function(c){ return c.id === cardId; });
-  if (!card) return;
-  currentExtractCardId = cardId;
-
-  var prompt = buildExtractionPrompt(card);
-  var ept = document.getElementById('extractPromptText'); if (ept) ept.textContent = prompt;
-  document.getElementById('extractResult').value = '';
-  document.getElementById('extractNotice').innerHTML = '';
-  openModal('extractModal');
-}
 
 function buildExtractionPrompt(card) {
   var typeNames = { log: 'getippter Tages-Log', voice: 'Voice-Memo-Transkript(e)', email: 'E-Mail-Report', free: 'freier Text' };
@@ -2828,6 +2909,7 @@ function openExtract(cardId) {
   var card = getViewData().cards.find(function(c){ return c.id === cardId; });
   if (!card) return;
   currentExtractCardId = cardId;
+  currentExtractViewDate = viewDate;
 
   var prompt = buildExtractionPrompt(card);
   var ept = document.getElementById('extractPromptText'); if (ept) ept.textContent = prompt;
@@ -2890,14 +2972,43 @@ function importObjects() {
   }
   if (!Array.isArray(objs)) { showExtractNotice('Erwartet ein JSON-Array [...].', 'warn'); return; }
 
-  // Alte Objekte dieser Karte entfernen (sauberes Überschreiben)
-  var oldCount = getViewData().objects.filter(function(o){ return o.cardId === currentExtractCardId; }).length;
-  getViewData().objects = getViewData().objects.filter(function(o){ return o.cardId !== currentExtractCardId; });
+  var targetDate = currentExtractViewDate || viewDate;
+  var vd = getDataForDate(targetDate);
+  if (!(vd.cards || []).some(function(c){ return c.id === currentExtractCardId; })) {
+    showExtractNotice('Diese Karte ist in der aktuellen Ansicht nicht mehr verfügbar.', 'warn');
+    return;
+  }
+  var extractionSessionId = uid();
+  var previousExtractRoots = (vd.objects || []).filter(function(o) {
+    return o.cardId === currentExtractCardId && !o.parentId && o.source && o.source.kind === 'extract';
+  });
+  var previousExtractIds = previousExtractRoots.map(function(o){ return o.id; });
+  var previousTreeIds = collectDescendantObjectIds(vd.objects || [], previousExtractIds);
+  var oldCount = previousExtractIds.length;
+
+  // Manuelle Nachfahren alter Extract-Roots aktiv entkoppeln, damit keine verwaisten parentId entstehen.
+  (vd.objects || []).forEach(function(o) {
+    if (previousTreeIds.indexOf(o.id) === -1) return;
+    if (!(o.source && o.source.kind === 'manual')) return;
+    if (o.parentId && previousTreeIds.indexOf(o.parentId) !== -1) {
+      o.parentId = null;
+      o.cardId = currentExtractCardId;
+      o.source = o.source || { kind: 'manual' };
+      o.source.detachedFromOldExtraction = true;
+    }
+  });
+
+  // Harte Invariante: bei Re-Import nur den extrahierten Bestand dieser Karte ersetzen.
+  // Manuell angelegte Objekte (source.kind !== 'extract') bleiben erhalten.
+  vd.objects = (vd.objects || []).filter(function(o) {
+    if (o.source && o.source.kind === 'extract' && previousTreeIds.indexOf(o.id) !== -1) return false;
+    return true;
+  });
 
   var added = 0;
   objs.forEach(function(obj) {
     if (!obj.typ || !obj.text) return;
-    getViewData().objects.push({
+    vd.objects.push({
       id: uid(),
       cardId: currentExtractCardId,
       parentId: null,
@@ -2909,16 +3020,17 @@ function importObjects() {
       status: 'open',
       signifiers: [],
       dismissed: false,
-      createdAt: new Date().toISOString()
+      createdAt: new Date().toISOString(),
+      source: { kind: 'extract', extractionSessionId: extractionSessionId, extractedAt: new Date().toISOString() }
     });
     added++;
   });
 
   // Mark card as processed
-  var card = getViewData().cards.find(function(c){ return c.id === currentExtractCardId; });
+  var card = vd.cards.find(function(c){ return c.id === currentExtractCardId; });
   if (card) card.processed = true;
 
-  save();
+  saveViewData();
   renderCardList();
   updateBadges();
   updateDateNav();
@@ -3038,7 +3150,7 @@ function renderObjectListForDate() {
 }
 
 function renderObjItem(obj, depth) {
-  var children = TODAY.objects.filter(function(o){ return o.parentId === obj.id; });
+  var children = getViewData().objects.filter(function(o){ return o.parentId === obj.id; });
   children.sort(function(a,b){ return (a.createdAt||'') < (b.createdAt||'') ? -1 : 1; });
 
   var childrenHtml = '';
@@ -3109,6 +3221,7 @@ function renderObjItem(obj, depth) {
     '</div>' +
     '<div class="obj-actions">' +
       '<button class="btn btn-sm btn-ghost" data-oid="' + obj.id + '" onclick="openParentPicker(this.dataset.oid)" title="Einordnen unter…" style="font-size:0.65rem">↳</button>' +
+      '<button class="btn btn-sm btn-ghost" onclick="deleteObjectToTrash(\'' + obj.id + '\')" title="In Papierkorb" style="color:var(--red)">🗑</button>' +
       (!obj.dismissed
         ? '<button class="btn btn-sm btn-ghost" onclick="dismissObj(\'' + obj.id + '\')" title="Verwerfen">×</button>'
         : '<button class="btn btn-sm btn-ghost" onclick="restoreObj(\'' + obj.id + '\')" title="Wiederherstellen" style="color:var(--green)">↩</button>'
@@ -3127,7 +3240,7 @@ function renderObjChild(child, parentId) {
       '<div style="margin-top:3px;display:flex;gap:6px">' +
         (child.typ !== 'notiz' ? '<span class="obj-type-label t-' + child.typ + '" style="font-size:0.55rem">' + child.typ + '</span>' : '') +
         '<button class="btn btn-sm btn-ghost" style="font-size:0.55rem;padding:1px 5px;min-height:18px;opacity:0.5" onclick="promoteChild(\'' + child.id + '\')" title="Zu eigenem Objekt machen">↑ Objekt</button>' +
-        '<button class="btn btn-sm btn-ghost" style="font-size:0.55rem;padding:1px 5px;min-height:18px;opacity:0.4" onclick="removeChild(\'' + child.id + '\')">×</button>' +
+        '<button class="btn btn-sm btn-ghost" style="font-size:0.55rem;padding:1px 5px;min-height:18px;opacity:0.4" onclick="removeChild(\'' + child.id + '\')">🗑</button>' +
       '</div>' +
     '</div>' +
   '</div>';
@@ -3161,7 +3274,7 @@ function openParentPicker(objId) {
 
   // Populate select with root objects (excluding self)
   var sel = wrap.querySelector('select');
-  var candidates = TODAY.objects.filter(function(o) {
+  var candidates = getViewData().objects.filter(function(o) {
     return !o.parentId && o.id !== objId && !o.dismissed;
   });
   sel.innerHTML = '<option value="">— kein übergeordnetes Objekt —</option>' +
@@ -3206,7 +3319,8 @@ function addChildKey(event, parentId) {
     if (!text) return;
     var now = new Date();
     var timeStr = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
-    TODAY.objects.push({
+    var vd = getViewData();
+    vd.objects.push({
       id: uid(),
       cardId: null,
       parentId: parentId,
@@ -3215,10 +3329,11 @@ function addChildKey(event, parentId) {
       zeit: timeStr,
       kontext: '',
       dismissed: false,
-      createdAt: now.toISOString()
+      createdAt: now.toISOString(),
+      source: { kind: 'manual', createdManually: true }
     });
     if (input) input.value = '';
-    save();
+    saveViewData();
     renderObjectList();
     // Re-expand
     setTimeout(function() {
@@ -3288,36 +3403,66 @@ function saveEditChild(childId) {
   var inp = document.getElementById('cedit-' + childId);
   if (!inp) return;
   var newText = inp.value.trim();
-  var obj = TODAY.objects.find(function(o){ return o.id === childId; });
-  if (obj && newText) { obj.text = newText; save(); renderObjectList(); }
+  var obj = getViewData().objects.find(function(o){ return o.id === childId; });
+  if (obj && newText) { obj.text = newText; saveViewData(); renderObjectList(); }
 }
 
 function promoteChild(childId) {
-  var obj = TODAY.objects.find(function(o){ return o.id === childId; });
+  var obj = getViewData().objects.find(function(o){ return o.id === childId; });
   if (!obj) return;
   obj.parentId = null;
   obj.createdAt = obj.createdAt || new Date().toISOString();
-  save();
+  saveViewData();
   renderObjectList();
   toast('Zu eigenem Objekt gemacht');
 }
 
 function removeChild(childId) {
-  var vd = getViewData(); vd.objects = vd.objects.filter(function(o){ return o.id !== childId; });
-  save();
+  deleteObjectToTrash(childId, 'delete-child');
+}
+
+function deleteObjectToTrash(id, reason) {
+  var vd = getViewData();
+  var idsToRemove = [id];
+  var queue = [id];
+  while (queue.length) {
+    var current = queue.shift();
+    (vd.objects || []).forEach(function(o) {
+      if (o.parentId === current && idsToRemove.indexOf(o.id) === -1) {
+        idsToRemove.push(o.id);
+        queue.push(o.id);
+      }
+    });
+  }
+  var removed = (vd.objects || []).filter(function(o){ return idsToRemove.indexOf(o.id) !== -1; });
+  if (!removed.length) return;
+  removed.forEach(function(obj) {
+    trashPush('object', {
+      data: JSON.parse(JSON.stringify(obj)),
+      originalDate: viewDate,
+      reason: reason || 'delete-object'
+    });
+  });
+  vd.objects = (vd.objects || []).filter(function(o){ return idsToRemove.indexOf(o.id) === -1; });
+  saveViewData();
   renderObjectList();
+  renderCardList();
+  renderExtractCards();
+  updateBadges();
+  toast('Objekt in Papierkorb verschoben');
 }
 
 
 function renderExtractCards() {
   var container = document.getElementById('extractCardList');
-  if (!TODAY.cards.length) {
+  var vd = getViewData();
+  if (!(vd.cards || []).length) {
     container.innerHTML = '<div class="empty-state">Keine Karten vorhanden. Zuerst im Tab "Sammeln" Karten hinzufügen.</div>';
     return;
   }
-  container.innerHTML = (getViewData().cards||[]).map(function(card) {
+  container.innerHTML = (vd.cards||[]).map(function(card) {
     var preview = card.text.split('\n')[0].slice(0, 55);
-    var objCount = TODAY.objects.filter(function(o){ return o.cardId === card.id && !o.dismissed; }).length;
+    var objCount = (vd.objects || []).filter(function(o){ return o.cardId === card.id && !o.dismissed; }).length;
     return '<div class="card' + (card.processed ? ' processed' : '') + '">' +
       '<div class="card-header" style="cursor:default">' +
         '<span class="card-time">' + esc(card.time) + '</span>' +
@@ -3336,13 +3481,131 @@ function renderExtractCards() {
 }
 
 function dismissObj(id) {
-  var obj = TODAY.objects.find(function(o){ return o.id === id; });
-  if (obj) { obj.dismissed = true; save(); renderObjectList(); updateBadges(); }
+  var obj = getViewData().objects.find(function(o){ return o.id === id; });
+  if (obj) { obj.dismissed = true; saveViewData(); renderObjectList(); updateBadges(); }
 }
 
 function restoreObj(id) {
-  var obj = TODAY.objects.find(function(o){ return o.id === id; });
-  if (obj) { obj.dismissed = false; save(); renderObjectList(); updateBadges(); }
+  var obj = getViewData().objects.find(function(o){ return o.id === id; });
+  if (obj) { obj.dismissed = false; saveViewData(); renderObjectList(); updateBadges(); }
+}
+
+function openTrashModal() {
+  renderTrashModal();
+  openModal('trashModal');
+}
+
+function renderTrashModal() {
+  ensureTrash();
+  var cards = S.trash.cards || [];
+  var objects = S.trash.objects || [];
+  var meta = document.getElementById('trashMeta');
+  if (meta) meta.textContent = cards.length + ' Karten · ' + objects.length + ' Objekte';
+
+  var cardList = document.getElementById('trashCardList');
+  if (cardList) {
+    if (!cards.length) {
+      cardList.innerHTML = '<div class="empty-state">Keine gelöschten Karten.</div>';
+    } else {
+      cardList.innerHTML = cards.map(function(entry) {
+        var c = entry.data || {};
+        return '<div class="card" style="padding:10px 12px">' +
+          '<div style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim)">' + esc(entry.originalDate || '') + ' · gelöscht: ' + esc((entry.deletedAt||'').slice(0,16).replace('T',' ')) + '</div>' +
+          '<div style="margin:6px 0">' + esc((c.text || '').slice(0,120) || '(leer)') + '</div>' +
+          '<div class="btn-row">' +
+            '<button class="btn btn-sm btn-primary" onclick="restoreTrashItem(\'card\',\'' + entry.id + '\')">Wiederherstellen</button>' +
+            '<button class="btn btn-sm btn-danger" onclick="hardDeleteTrashItem(\'card\',\'' + entry.id + '\')">Endgültig löschen</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+  }
+
+  var objectList = document.getElementById('trashObjectList');
+  if (objectList) {
+    if (!objects.length) {
+      objectList.innerHTML = '<div class="empty-state">Keine gelöschten Objekte.</div>';
+    } else {
+      objectList.innerHTML = objects.map(function(entry) {
+        var o = entry.data || {};
+        return '<div class="card" style="padding:10px 12px">' +
+          '<div style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim)">' + esc(entry.originalDate || '') + ' · ' + esc(o.typ || 'objekt') + '</div>' +
+          '<div style="margin:6px 0">' + esc((o.text || '').slice(0,120) || '(leer)') + '</div>' +
+          '<div class="btn-row">' +
+            '<button class="btn btn-sm btn-primary" onclick="restoreTrashItem(\'object\',\'' + entry.id + '\')">Wiederherstellen</button>' +
+            '<button class="btn btn-sm btn-danger" onclick="hardDeleteTrashItem(\'object\',\'' + entry.id + '\')">Endgültig löschen</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+  }
+}
+
+function restoreTrashItem(type, entryId) {
+  ensureTrash();
+  var arr = type === 'card' ? S.trash.cards : S.trash.objects;
+  var idx = arr.findIndex(function(e){ return e.id === entryId; });
+  if (idx === -1) return;
+  var entry = arr[idx];
+  var target = getDataForDate(entry.originalDate || today());
+  if (type === 'card') {
+    target.cards = target.cards || [];
+    if (!target.cards.some(function(c){ return c.id === entry.data.id; })) {
+      var restoredCard = JSON.parse(JSON.stringify(entry.data));
+      delete restoredCard._deletedLinkedObjectIds;
+      delete restoredCard._deletedObjectTree;
+      target.cards.push(restoredCard);
+    }
+    var objectTree = (entry.data && entry.data._deletedObjectTree) || [];
+    if (objectTree.length) {
+      target.objects = target.objects || [];
+      objectTree.forEach(function(obj) {
+        if (!target.objects.some(function(o){ return o.id === obj.id; })) target.objects.push(obj);
+      });
+      var linkedIds = objectTree.map(function(o){ return o.id; });
+      S.trash.objects = (S.trash.objects || []).filter(function(objEntry) {
+        return linkedIds.indexOf(objEntry.data && objEntry.data.id) === -1;
+      });
+    } else {
+      var linkedIds = (entry.data && entry.data._deletedLinkedObjectIds) || [];
+      if (!linkedIds.length) linkedIds = [];
+      target.objects = target.objects || [];
+      if (linkedIds.length) {
+        S.trash.objects = (S.trash.objects || []).filter(function(objEntry) {
+          var isLinked = linkedIds.indexOf(objEntry.data && objEntry.data.id) !== -1;
+          if (isLinked && !target.objects.some(function(o){ return o.id === objEntry.data.id; })) {
+            target.objects.push(objEntry.data);
+          }
+          return !isLinked;
+        });
+      }
+    }
+  } else {
+    target.objects = target.objects || [];
+    if (!target.objects.some(function(o){ return o.id === entry.data.id; })) target.objects.push(entry.data);
+  }
+  arr.splice(idx, 1);
+  save();
+  renderTrashModal();
+  refreshAllTabs();
+  toast('Wiederhergestellt');
+}
+
+function hardDeleteTrashItem(type, entryId) {
+  ensureTrash();
+  if (type === 'card') S.trash.cards = (S.trash.cards || []).filter(function(e){ return e.id !== entryId; });
+  if (type === 'object') S.trash.objects = (S.trash.objects || []).filter(function(e){ return e.id !== entryId; });
+  save();
+  renderTrashModal();
+}
+
+function emptyTrash() {
+  ensureTrash();
+  S.trash.cards = [];
+  S.trash.objects = [];
+  save();
+  renderTrashModal();
+  toast('Papierkorb geleert');
 }
 
 // ════════════════════════════════════════════════
@@ -3351,8 +3614,9 @@ function restoreObj(id) {
 function updateBadges() {
   var bk = document.getElementById('badge-karten');
   var bo = document.getElementById('badge-objekte');
-  if (bk) bk.textContent = TODAY.cards.length;
-  var activeObjs = TODAY.objects.filter(function(o){ return !o.dismissed; }).length;
+  var vd = getViewData();
+  if (bk) bk.textContent = (vd.cards || []).length;
+  var activeObjs = (vd.objects || []).filter(function(o){ return !o.dismissed; }).length;
   if (bo) bo.textContent = activeObjs;
 }
 
@@ -5158,7 +5422,8 @@ function acceptPuffer(id) {
     signifiers: item.signifiers || [],
     status: 'open',
     dismissed: false,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    source: { kind: 'manual', createdManually: true, from: 'migrationPuffer' }
   });
   S.migrationPuffer = S.migrationPuffer.filter(function(p){ return p.id !== id; });
   save();
@@ -5313,7 +5578,8 @@ function pullFLToday(id) {
     signifiers: [],
     status: 'open',
     dismissed: false,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    source: { kind: 'manual', createdManually: true, from: 'futurelog' }
   });
   entry.done = true;
   save();
@@ -5844,7 +6110,8 @@ function confirmFeedAdopt(id) {
     kontext: item.source + (item.url ? ' · ' + item.url.slice(0,40) : ''),
     contexts: [item.source],
     signifiers: [], status: 'open', dismissed: false,
-    createdAt: new Date().toISOString()
+    createdAt: new Date().toISOString(),
+    source: { kind: 'manual', createdManually: true, from: 'feed' }
   };
   getViewData().objects.push(newObj);
   item.status = 'adopted';
@@ -6165,7 +6432,7 @@ function saveHighlightAsZettel() {
 function saveHighlightAsObj() {
   var title = document.getElementById('hlZettelTitle') ? document.getElementById('hlZettelTitle').value.trim() : '';
   var body  = document.getElementById('hlZettelBody')  ? document.getElementById('hlZettelBody').value.trim()  : '';
-  var item  = currentHighlightId ? (TODAY.feedItems||[]).find(function(i){ return i.id === currentHighlightId; }) : null;
+  var item  = currentHighlightId ? (getViewData().feedItems||[]).find(function(i){ return i.id === currentHighlightId; }) : null;
   var text  = title || body || (item ? item.body : '') || '';
   if (!text) { toast('Kein Text vorhanden.'); return; }
 
@@ -6174,7 +6441,8 @@ function saveHighlightAsObj() {
     typ: 'notiz', text: text.slice(0,200),
     zeit: nowTime(), kontext: 'readwise highlight',
     contexts: ['readwise'], signifiers: [], status: 'open',
-    dismissed: false, createdAt: new Date().toISOString()
+    dismissed: false, createdAt: new Date().toISOString(),
+    source: { kind: 'manual', createdManually: true, from: 'highlight' }
   });
   if (item) item.status = 'adopted';
   save();
@@ -6980,18 +7248,20 @@ function syncDrawerBadges() {
 // ════════════════════════════════════════════════
 var viewDate = today(); // currently viewed date (YYYY-MM-DD)
 
-function getViewData() {
-  // Returns the live data object for viewDate — always writable
-  if (viewDate === today()) return TODAY;
-  // Find or create the day in S.days
-  var day = (S.days||[]).find(function(d){ return d.date === viewDate; });
+function getDataForDate(date) {
+  if (!date || date === today()) return TODAY;
+  var day = (S.days||[]).find(function(d){ return d.date === date; });
   if (!day) {
-    day = { date: viewDate, cards: [], objects: [], feedItems: [], reviewDone: false, plan: {} };
+    day = { date: date, cards: [], objects: [], feedItems: [], reviewDone: false, plan: {} };
     if (!S.days) S.days = [];
     S.days.push(day);
     S.days.sort(function(a,b){ return b.date > a.date ? 1 : -1; });
   }
   return day;
+}
+
+function getViewData() {
+  return getDataForDate(viewDate);
 }
 
 function saveViewData() {
