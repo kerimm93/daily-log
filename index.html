@@ -514,6 +514,12 @@ textarea { min-height: 120px; }
 .t-sop        { background: var(--red-bg);    color: var(--red);    border: 1px solid rgba(158,90,82,0.2); }
 .t-beobachtung{ background: var(--blue-bg);   color: var(--blue);   border: 1px solid rgba(98,130,160,0.2); }
 
+/* ── Source panel (per-object quote/raw-card toggle) ── */
+.obj-source-panel {
+  margin-top: 6px;
+  padding: 6px 0 2px;
+}
+
 /* ── Prompt Block ── */
 .prompt-block {
   background: var(--bg);
@@ -1602,6 +1608,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
         <button class="sort-btn active" id="btnSortAsc" onclick="setObjSort('asc')" title="Älteste oben">↑ chronologisch</button>
         <button class="sort-btn" id="btnSortDesc" onclick="setObjSort('desc')" title="Neueste oben">↓ neueste oben</button>
         <button class="sort-btn" id="btnHideDone" onclick="toggleHideDone()" title="Erledigte ausblenden">☐ erledigte</button>
+        <button class="sort-btn" id="btnToggleSources" onclick="toggleAllSources()" title="Alle Quellen ein-/ausblenden">¶ Quellen</button>
       </div>
       <div id="objectList" class="obj-list">
         <div class="empty-state">Noch keine Objekte extrahiert.<br>Gehe zu einer Karte und generiere einen Extraktions-Prompt.</div>
@@ -2905,41 +2912,73 @@ function buildExtractionPrompt(card) {
   var typeNames = { log: 'getippter Tages-Log', voice: 'Voice-Memo-Transkript(e)', email: 'E-Mail-Report', free: 'freier Text' };
   var cfg = S.config.context || '';
   var lines = [
-    '# Objekt-Extraktion \u00b7 ' + today() + ' \u00b7 ' + card.time,
+    '# Bullet-Journal-Extraktion \u00b7 ' + today() + ' \u00b7 ' + card.time,
     '',
     cfg ? '## System-Kontext\n' + cfg + '\n' : null,
-    '## Aufgabe',
-    'Extrahiere alle Objekte aus dem folgenden ' + (typeNames[card.type] || 'Text') + '.',
+    '## Deine Aufgabe',
+    'Extrahiere alle Eintr\u00e4ge aus dem folgenden ' + (typeNames[card.type] || 'Text') + ' als saubere Bullet-Journal-Objekte.',
     '',
-    '## Objekt-Typen und Qualit\u00e4tskriterien',
+    '## Grundprinzipien (strikt einhalten)',
     '',
-    '**aufgabe** \u2013 Format: Aktionsverb + konkretes Objekt (stupidly specific)',
-    '  Richtig: "Drei Teller in die Sp\u00fclmaschine stellen"',
-    '  Falsch:  "K\u00fcche aufr\u00e4umen" (kein Verb, zu vage)',
-    '  Richtig: "E-Mail an Markus zu Thema X schreiben (15min)"',
-    '  - One-Step Rule: maximal eine unterbrechungsfreie Handlung',
-    '  - Implizite Aufgaben erfassen: "ich sollte", "muss noch", "w\u00e4re gut", "vergiss nicht"',
-    '  - energie: "niedrig" (mechanisch) | "normal" (bekannt) | "hoch" (kreativ/komplex)',
+    '**1. Ein Eintrag = genau ein Gedanke**',
+    '   Wenn ein Satz zwei Dinge enth\u00e4lt, mache zwei Objekte.',
+    '   Beispiel: "Meeting vorbereitet und Mail geschrieben" \u2192 zwei Objekte.',
     '',
-    '**ereignis** \u2013 Was passiert ist (Zeitstempel wenn vorhanden)',
-    '**notiz**    \u2013 Beobachtung, Gedanke, Fakt',
-    '**idee**     \u2013 Neue Idee, Proto-Gedanke, Einfall',
-    '**zitat**    \u2013 Zitierbarer Satz (eigen oder fremd)',
-    '**sop**      \u2013 Wiederholbarer Prozess der dokumentiert werden sollte',
-    '**beobachtung** \u2013 Systembeobachtung zu Energie, Verhalten, Mustern',
+    '**2. Klare Trennung der Typen** \u2014 Typen d\u00fcrfen nicht vermischt werden:',
     '',
-    '## Ausgabe-Format (NUR g\u00fcltiges JSON, kein Prosatext)',
+    '   aufgabe \u2013 Etwas, das aktiv erledigt werden muss.',
+    '     \u2022 Immer mit Aktionsverb beginnen.',
+    '     \u2022 One-Step-Rule: genau eine, unterbrechungsfreie Handlung.',
+    '     \u2022 Konkret und handlungsorientiert, kein Storytelling.',
+    '     \u2022 Implizite Aufgaben erfassen: "ich sollte", "muss noch", "w\u00e4re gut", "vergiss nicht".',
+    '     Richtig: "Arztpraxis wegen Termin anrufen"',
+    '     Falsch: "Ich muss irgendwann mal wegen des Arzttermins anrufen" (zu vage, kein Verb am Anfang)',
+    '     Falsch: "K\u00fcche aufr\u00e4umen" (kein konkreter n\u00e4chster Schritt)',
+    '',
+    '   ereignis \u2013 Etwas, das stattfindet oder stattgefunden hat.',
+    '     \u2022 Zeit- oder datumsgebunden.',
+    '     \u2022 Kein Handlungsverb n\u00f6tig.',
+    '     \u2022 Nicht als Aufgabe formulieren.',
+    '     Richtig: "Arzttermin 10:00", "Meeting mit Markus 14:30"',
+    '     Falsch: "Zum Arzt gehen" (das w\u00e4re eine Aufgabe)',
+    '',
+    '   notiz \u2013 Information, Gedanke oder Beobachtung.',
+    '     \u2022 Kein To-do, kein fixer Termin.',
+    '     \u2022 Nicht wie eine Aufgabe oder ein Ereignis klingen.',
+    '     Richtig: "Heute unkonzentriert", "Kaffee hilft morgens"',
+    '     Falsch: "Ich war heute nicht so fokussiert wie ich sein m\u00f6chte" (zu lang, nicht BuJo-Stil)',
+    '',
+    '   idee \u2013 Nur wenn klar ein neuer Einfall oder eine Idee vorliegt.',
+    '   zitat \u2013 Nur wenn ein zitierbarer, eigener oder fremder Satz vorliegt.',
+    '   sop \u2013 Nur wenn ein klar wiederholbarer Prozess beschrieben wird.',
+    '   beobachtung \u2013 Nur wenn eine explizite Systembeobachtung zu Energie, Muster, Verhalten vorliegt.',
+    '',
+    '**3. Formulierungsregeln**',
+    '   \u2022 Kurz und pr\u00e4zise \u2014 kein Storytelling, keine F\u00fcllw\u00f6rter',
+    '   \u2022 Aktiv, nicht passiv',
+    '   \u2022 text = bereinigte Bullet-Journal-Fassung (NICHT der Originalwortlaut)',
+    '   \u2022 sourceQuote = kurzer, w\u00f6rtlicher Ausschnitt aus dem Quelltext (max. 80 Zeichen)',
+    '   \u2022 Wenn beide identisch w\u00e4ren: sourceQuote weglassen',
+    '',
+    '**4. Validierung vor jeder Zeile**',
+    '   Frage dich: Ist das eine Aufgabe, ein Ereignis oder eine Notiz?',
+    '   Sind zwei Gedanken in einem? Dann aufteilen.',
+    '   Ist die Formulierung vage? Dann konkretisieren.',
+    '',
+    '## Ausgabe-Format (NUR g\u00fcltiges JSON-Array, kein Prosatext)',
     '```json',
     '[',
     '  {',
-    '    "typ": "aufgabe",',
-    '    "text": "Aktionsverb + konkretes Objekt",',
+    '    "typ": "aufgabe|ereignis|notiz|idee|zitat|sop|beobachtung",',
+    '    "text": "Bereinigte Bullet-Journal-Formulierung",',
     '    "zeit": "HH:MM oder leer",',
-    '    "energie": "niedrig|normal|hoch",',
-    '    "kontext": "@ort-oder-tool wenn erkennbar",',
-    '    "dauer": "5min|15min|30min|60min+"',
-    '  },',
-    '  {"typ": "ereignis", "text": "...", "zeit": "14:53", "kontext": ""}',
+    '    "kontext": "@ort-oder-tool oder leer",',
+    '    "energie": "niedrig|normal|hoch (nur bei aufgabe)",',
+    '    "dauer": "5min|15min|30min|60min+ (nur bei aufgabe, wenn erkennbar)",',
+    '    "sourceQuote": "Originalwortlaut-Ausschnitt (nur wenn abweichend von text)",',
+    '    "confidence": "hoch|mittel|niedrig",',
+    '    "needsReview": false',
+    '  }',
     ']',
     '```',
     '',
@@ -2951,7 +2990,8 @@ function buildExtractionPrompt(card) {
     '## Weitere Regeln',
     '- Nichts erfinden, nur was im Text steht',
     '- @kontext-Tags \u00fcbernehmen (ohne @-Zeichen ins kontext-Feld)',
-    '- Ortsangaben, Tool-Nennungen, Personennamen als Kontext erkennen',
+    '- confidence: "niedrig" wenn du dir nicht sicher bist, needsReview: true setzen',
+    '- Lieber zwei kleine klare Objekte als ein gemischtes schwammiges',
     '',
     '## Input',
     '```',
@@ -3005,15 +3045,52 @@ async function extractWithApi() {
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
       body: JSON.stringify({
         model: 'gpt-4o-mini',
-        messages: [{ role: 'user', content: prompt }],
-        temperature: 0.2
+        messages: [
+          {
+            role: 'system',
+            content: 'Du bist ein Bullet-Journal-Extraktions-Assistent. Antworte NUR mit einem gültigen JSON-Array, ohne Erklärungen, ohne Markdown, ohne Codeblöcke. Das Array beginnt mit [ und endet mit ].'
+          },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.1,   // deterministischer für strukturierte Extraktion
+        response_format: { type: 'json_object' }  // force JSON mode wenn unterstützt
       })
     });
     var data = await res.json();
-    if (!res.ok) throw new Error(data.error && data.error.message || 'API Fehler');
+    if (!res.ok) throw new Error(data.error && data.error.message || 'API Fehler ' + res.status);
     var text = data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content || '';
-    document.getElementById('extractResult').value = text;
-    showExtractNotice('✓ KI-Antwort erhalten – prüfen und importieren.', 'ok');
+
+    // Try to extract JSON array from response (handles json_object wrapper)
+    var cleaned = text.trim();
+    // If response is {"items": [...]} or {"objects": [...]} or similar wrapper
+    try {
+      var parsed = JSON.parse(cleaned);
+      if (!Array.isArray(parsed)) {
+        // Find first array value in object
+        var keys = Object.keys(parsed);
+        for (var ki = 0; ki < keys.length; ki++) {
+          if (Array.isArray(parsed[keys[ki]])) { cleaned = JSON.stringify(parsed[keys[ki]]); break; }
+        }
+      }
+    } catch(e) {
+      // If not valid JSON at all, extract array with regex
+      var arrMatch = cleaned.match(/\[[\s\S]*\]/);
+      if (arrMatch) cleaned = arrMatch[0];
+    }
+
+    document.getElementById('extractResult').value = cleaned;
+
+    // Quick validation feedback
+    try {
+      var items = JSON.parse(cleaned);
+      var needReview = Array.isArray(items) ? items.filter(function(i){ return i.needsReview; }).length : 0;
+      var msg = Array.isArray(items)
+        ? '✓ ' + items.length + ' Objekte – prüfen und importieren' + (needReview ? ' · ' + needReview + ' zur Prüfung' : '')
+        : '✓ KI-Antwort erhalten – prüfen und importieren';
+      showExtractNotice(msg, 'ok');
+    } catch(e) {
+      showExtractNotice('✓ Antwort erhalten – JSON prüfen und importieren.', 'ok');
+    }
   } catch(e) {
     showExtractNotice('Fehler: ' + e.message, 'warn');
   } finally {
@@ -3022,11 +3099,16 @@ async function extractWithApi() {
 }
 
 
+function sanitizeObjText(text) {
+  if (!text) return '';
+  return text.trim().replace(/^[\-\.\*\s]+/, '').replace(/[\s]+$/, '');
+}
+
 function importObjects() {
   var raw = document.getElementById('extractResult').value.trim();
   if (!raw) { showExtractNotice('Kein Inhalt eingefügt.', 'warn'); return; }
 
-  // Try to extract JSON from markdown code blocks if present
+  // Strip markdown code fences (robust: handles ```json and ```)
   var jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)```/);
   var jsonStr = jsonMatch ? jsonMatch[1].trim() : raw;
 
@@ -3034,10 +3116,19 @@ function importObjects() {
   try {
     objs = JSON.parse(jsonStr);
   } catch(e) {
-    showExtractNotice('Kein gültiges JSON. Bitte nur das JSON-Array einfügen (ohne ```).', 'warn');
-    return;
+    // Try to extract first JSON array from mixed content
+    var arrMatch = jsonStr.match(/\[\s*\{[\s\S]*\}\s*\]/);
+    if (arrMatch) {
+      try { objs = JSON.parse(arrMatch[0]); } catch(e2) {}
+    }
+    if (!objs) {
+      showExtractNotice('Kein gültiges JSON. Bitte nur das JSON-Array einfügen.', 'warn');
+      return;
+    }
   }
   if (!Array.isArray(objs)) { showExtractNotice('Erwartet ein JSON-Array [...].', 'warn'); return; }
+
+  var VALID_TYPES = ['aufgabe','ereignis','notiz','idee','zitat','sop','beobachtung','referenz'];
 
   var targetDate = currentExtractViewDate || viewDate;
   var vd = getDataForDate(targetDate);
@@ -3045,8 +3136,38 @@ function importObjects() {
     showExtractNotice('Diese Karte ist in der aktuellen Ansicht nicht mehr verfügbar.', 'warn');
     return;
   }
+
+  // Validate + normalize each object before import
+  var valid = [];
+  var skipped = 0;
+  objs.forEach(function(obj) {
+    if (!obj.typ || !obj.text) { skipped++; return; }
+    var typ = String(obj.typ).toLowerCase().trim();
+    if (VALID_TYPES.indexOf(typ) === -1) typ = 'notiz'; // fallback
+    var text = sanitizeObjText(obj.text);
+    if (!text) { skipped++; return; }
+    valid.push({
+      typ: typ,
+      text: text,
+      zeit: obj.zeit || '',
+      kontext: obj.kontext || '',
+      energie: obj.energie || '',
+      dauer: obj.dauer || '',
+      sourceQuote: obj.sourceQuote ? String(obj.sourceQuote).slice(0, 120) : '',
+      confidence: obj.confidence || 'hoch',
+      needsReview: !!obj.needsReview
+    });
+  });
+
+  if (!valid.length) {
+    showExtractNotice('Keine gültigen Objekte gefunden. ' + skipped + ' übersprungen.', 'warn');
+    return;
+  }
+
   var extractionSessionId = uid();
   var extractedAt = new Date().toISOString();
+
+  // ── Robust replace: use the safe tree-based logic from index (5) ──────────
   var replaceTree = getReplaceableExtractionTreeForCard(vd, currentExtractCardId);
   var previousTreeMap = {};
   replaceTree.treeIds.forEach(function(id){ previousTreeMap[id] = true; });
@@ -3061,14 +3182,8 @@ function importObjects() {
   var added = 0;
   var insertedIds = [];
   var seenFingerprints = {};
-  objs.forEach(function(obj) {
-    if (!obj.typ || !obj.text) return;
-    var fingerprint = [
-      String(obj.typ || '').trim().toLowerCase(),
-      String(obj.text || '').trim().toLowerCase(),
-      String(obj.zeit || '').trim().toLowerCase(),
-      String(obj.kontext || '').trim().toLowerCase()
-    ].join('|');
+  valid.forEach(function(obj) {
+    var fingerprint = [obj.typ, obj.text.trim().toLowerCase(), obj.zeit, obj.kontext].join('|');
     if (seenFingerprints[fingerprint]) return;
     seenFingerprints[fingerprint] = true;
     var newId = uid();
@@ -3076,11 +3191,16 @@ function importObjects() {
       id: newId,
       cardId: currentExtractCardId,
       parentId: null,
-      typ: obj.typ.toLowerCase(),
+      typ: obj.typ,
       text: obj.text,
-      zeit: obj.zeit || '',
-      kontext: obj.kontext || '',
-      contexts: parseContexts(obj.text + ' ' + (obj.kontext||'')),
+      zeit: obj.zeit,
+      kontext: obj.kontext,
+      contexts: parseContexts(obj.text + ' ' + obj.kontext),
+      energie: obj.energie,
+      dauer: obj.dauer,
+      sourceQuote: obj.sourceQuote,   // wörtlicher Originalausschnitt (neu)
+      confidence: obj.confidence,     // hoch | mittel | niedrig (neu)
+      needsReview: obj.needsReview,   // true = KI war unsicher (neu)
       status: 'open',
       signifiers: [],
       dismissed: false,
@@ -3117,6 +3237,9 @@ function importObjects() {
   syncDrawerBadges();
   closeModal('extractModal');
   var msg = added + ' Objekte importiert · ersetzt: ' + replaceTree.treeIds.length + ' · manuell entkoppelt: ' + detachedManualCount;
+  if (skipped > 0) msg += ' · ' + skipped + ' übersprungen';
+  var reviewCount = valid.filter(function(o){ return o.needsReview; }).length;
+  if (reviewCount > 0) msg += ' · ' + reviewCount + ' zur Prüfung markiert';
   toast(msg);
 }
 
@@ -3248,6 +3371,37 @@ function renderObjItem(obj, depth) {
     '</div>' +
   '</div>';
 
+  // ── Source panel (sourceQuote or raw card snippet as fallback) ────────────
+  var sourceText = '';
+  if (obj.sourceQuote) {
+    sourceText = obj.sourceQuote;
+  } else if (obj.cardId) {
+    var srcCard = getViewData().cards.find(function(c){ return c.id === obj.cardId; });
+    if (srcCard) sourceText = srcCard.text.slice(0, 200) + (srcCard.text.length > 200 ? '\u2026' : '');
+  }
+  var hasSource = !!sourceText;
+  var sourcePanel = hasSource
+    ? '<div class="obj-source-panel" id="src-' + obj.id + '" style="display:none">' +
+        '<div style="font-family:var(--mono);font-size:0.58rem;color:var(--ink-dim);margin-bottom:3px">' +
+          (obj.sourceQuote ? 'Originalausschnitt:' : 'Rohkarte:') +
+        '</div>' +
+        '<div style="font-family:var(--mono);font-size:0.72rem;color:var(--ink-mid);line-height:1.55;' +
+          'background:var(--bg);border-left:2px solid var(--border-mid);padding:6px 10px;border-radius:0 3px 3px 0;' +
+          'white-space:pre-wrap;word-break:break-word">' + esc(sourceText) + '</div>' +
+        (obj.confidence && obj.confidence !== 'hoch'
+          ? '<div style="font-family:var(--mono);font-size:0.58rem;color:' + (obj.confidence === 'niedrig' ? 'var(--orange)' : 'var(--ink-dim)') + ';margin-top:4px">' +
+              'KI-Konfidenz: ' + esc(obj.confidence) + (obj.needsReview ? ' \u00b7 zur Pr\u00fcfung markiert' : '') +
+            '</div>'
+          : '') +
+      '</div>'
+    : '';
+  var srcToggle = hasSource
+    ? '<button class="btn btn-sm btn-ghost" style="font-size:0.58rem;padding:2px 6px;min-height:20px;opacity:0.5" onclick="toggleObjSource(\'' + obj.id + '\')" title="Quelle anzeigen/ausblenden">\u00b6 Quelle</button>'
+    : '';
+  var reviewBadge = obj.needsReview
+    ? '<span style="font-family:var(--mono);font-size:0.58rem;color:var(--orange);border:1px solid var(--orange);border-radius:3px;padding:1px 5px">pr\u00fcfen</span>'
+    : '';
+
   var selClass = selMode ? ' selectable' + (selectedObjIds[obj.id] ? ' selected-for-prompt' : '') : '';
   var selCb = selMode ? '<div class="sel-checkbox">' + (selectedObjIds[obj.id] ? '✓' : '') + '</div>' : '';
   var clickHandler = selMode ? ' onclick="toggleObjSel(\'' + obj.id + '\')"' : '';
@@ -3267,8 +3421,11 @@ function renderObjItem(obj, depth) {
         ((obj.contexts && obj.contexts.length) ? obj.contexts.map(function(c){ return '<span class="ctx-tag">@' + esc(c) + '</span>'; }).join('') : '') +
         ((obj.signifiers && obj.signifiers.includes('*')) ? '<span style="color:var(--orange);font-family:var(--mono);font-size:0.7rem">★</span>' : '') +
         ((obj.signifiers && obj.signifiers.includes('!')) ? '<span style="color:var(--purple);font-family:var(--mono);font-size:0.7rem">!</span>' : '') +
+        reviewBadge +
+        srcToggle +
         '<button class="btn btn-sm btn-ghost" style="font-size:0.58rem;padding:2px 6px;min-height:20px;opacity:0.5" onclick="toggleExpand(\'' + obj.id + '\')" title="Ergänzung hinzufügen">+ Ergänzung</button>' +
       '</div>' +
+      sourcePanel +
       // Status row for aufgaben only
       (obj.typ === 'aufgabe' ?
         '<div class="status-row">' +
@@ -3321,6 +3478,23 @@ function renderObjChild(child, parentId) {
       '</div>' +
     '</div>' +
   '</div>';
+}
+
+// ── Source quote toggle ────────────────────────────────────────────────────
+function toggleObjSource(objId) {
+  var panel = document.getElementById('src-' + objId);
+  if (!panel) return;
+  var isHidden = panel.style.display === 'none' || !panel.style.display;
+  panel.style.display = isHidden ? 'block' : 'none';
+}
+
+// Global: show/hide all source panels
+function toggleAllSources() {
+  var panels = document.querySelectorAll('.obj-source-panel');
+  var anyVisible = Array.prototype.some.call(panels, function(p){ return p.style.display !== 'none'; });
+  panels.forEach(function(p){ p.style.display = anyVisible ? 'none' : 'block'; });
+  var btn = document.getElementById('btnToggleSources');
+  if (btn) btn.textContent = anyVisible ? '\u00b6 Quellen' : '\u00b6 Quellen aus';
 }
 
 // ── Object editing ──────────────────────────────────────────────────────────
