@@ -2428,6 +2428,10 @@ select:focus { outline: none; border-color: var(--border-mid); }
           ↑ Datei mergen
           <input type="file" accept=".json" style="display:none" onchange="importFileAndMerge(this)">
         </label>
+        <label class="btn btn-sm btn-ghost" style="cursor:pointer;color:var(--orange)" title="JSON-Datei laden und lokalen Stand vollständig ersetzen">
+          ⚠ Datei überschreiben
+          <input type="file" accept=".json" style="display:none" onchange="importFileAndOverwrite(this)">
+        </label>
       </div>
       <div id="compactInfo" style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim);margin-top:6px"></div>
     </div>
@@ -7468,35 +7472,74 @@ function renderCalendarDots() {
 // ════════════════════════════════════════════════
 // JSON-Datei hochladen & mergen
 // ════════════════════════════════════════════════
+function parseImportBackup(rawText) {
+  var raw = rawText.trim().replace(/^```json?\n?/, '').replace(/\n?```$/, '').trim();
+  var parsed = JSON.parse(raw);
+  var remoteS = parsed.S || {
+    days: parsed.days || [],
+    futurelog: parsed.futurelog || [],
+    migrationPuffer: parsed.migrationPuffer || [],
+    zettels: parsed.zettels || [],
+    feedLastReadwise: parsed.feedLastReadwise || '',
+    feedLastRaindrop: parsed.feedLastRaindrop || '',
+    feedLastHighlights: parsed.feedLastHighlights || '',
+    config: parsed.config || { name: '', context: '' },
+    trash: parsed.trash || { cards: [], objects: [] },
+    _lastExported: parsed.exported || ''
+  };
+  return { parsed: parsed, remoteS: remoteS, remoteTODAY: parsed.TODAY || parsed.today || null };
+}
+
+function ensureImportDefaults() {
+  if (!S.days) S.days = [];
+  if (!S.futurelog) S.futurelog = [];
+  if (!S.migrationPuffer) S.migrationPuffer = [];
+  if (!S.zettels) S.zettels = [];
+  if (!S.config) S.config = { name: '', context: '' };
+  if (!S.trash) S.trash = { cards: [], objects: [] };
+  if (!Array.isArray(S.trash.cards)) S.trash.cards = [];
+  if (!Array.isArray(S.trash.objects)) S.trash.objects = [];
+  if (!S.feedLastReadwise) S.feedLastReadwise = '';
+  if (!S.feedLastRaindrop) S.feedLastRaindrop = '';
+  if (!S.feedLastHighlights) S.feedLastHighlights = '';
+  if (!TODAY.date) TODAY.date = today();
+  if (!TODAY.cards) TODAY.cards = [];
+  if (!TODAY.objects) TODAY.objects = [];
+  if (!TODAY.feedItems) TODAY.feedItems = [];
+  if (TODAY.reviewDone === undefined) TODAY.reviewDone = false;
+  if (!TODAY.plan) TODAY.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
+  migrateLegacyObjectMetadata();
+}
+
+function refreshAfterImport() {
+  renderCardList();
+  updateBadges();
+  updateReviewBadge();
+  updateFLBadge();
+  updateFeedBadge();
+  updateZettelBadge();
+  updateDateNav();
+  renderCalendarDots();
+  refreshAllTabs();
+}
+
 function importFileAndMerge(input) {
   var file = input.files && input.files[0];
   if (!file) return;
   var reader = new FileReader();
   reader.onload = function(e) {
     try {
-      var raw = e.target.result.trim()
-        .replace(/^```json?\n?/, '').replace(/\n?```$/, '').trim();
-      var parsed = JSON.parse(raw);
+      var imp = parseImportBackup(e.target.result);
 
       // Archive stale TODAY before any merge
       archiveTodayIfStale();
 
       // Merge S
-      var remoteS = parsed.S || {
-        days: parsed.days || [],
-        futurelog: parsed.futurelog || [],
-        migrationPuffer: parsed.migrationPuffer || [],
-        zettels: parsed.zettels || [],
-        feedLastReadwise: parsed.feedLastReadwise || '',
-        feedLastRaindrop: parsed.feedLastRaindrop || '',
-        feedLastHighlights: parsed.feedLastHighlights || '',
-        config: parsed.config || { name: '', context: '' },
-        _lastExported: parsed.exported || ''
-      };
+      var remoteS = imp.remoteS;
       S = mergeS(S, remoteS);
 
       // Merge TODAY if dates match
-      var remoteTODAY = parsed.TODAY || parsed.today;
+      var remoteTODAY = imp.remoteTODAY;
       if (remoteTODAY && remoteTODAY.date) {
         if (remoteTODAY.date === today()) {
           var localObjs  = (TODAY.objects||[]).length + (TODAY.cards||[]).length;
@@ -7531,23 +7574,11 @@ function importFileAndMerge(input) {
       }
 
       // Ensure defaults
-      if (!S.config) S.config = { name: '', context: '' };
-      if (!TODAY.cards) TODAY.cards = [];
-      if (!TODAY.objects) TODAY.objects = [];
-      if (!TODAY.feedItems) TODAY.feedItems = [];
-      if (!TODAY.plan) TODAY.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
+      ensureImportDefaults();
 
       save();
       gistAutoSyncDebounced();
-
-      // Re-render
-      renderCardList();
-      updateBadges();
-      updateReviewBadge();
-      updateFLBadge();
-      updateFeedBadge();
-      updateZettelBadge();
-      renderCalendarDots();
+      refreshAfterImport();
 
       var dayCount = (S.days||[]).length;
       var objCount = TODAY.objects.length;
@@ -7557,6 +7588,63 @@ function importFileAndMerge(input) {
       toast('✗ Fehler beim Lesen der Datei: ' + err.message);
     }
     // Reset file input so same file can be loaded again
+    input.value = '';
+  };
+  reader.readAsText(file);
+}
+
+function importFileAndOverwrite(input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  var reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      var imp = parseImportBackup(e.target.result);
+      if (!confirm('⚠ Achtung: Diese Datei überschreibt deinen kompletten lokalen Stand. Fortfahren?')) {
+        input.value = '';
+        return;
+      }
+      var freshToday = function() {
+        return { date: today(), cards: [], objects: [], feedItems: [], reviewDone: false, plan: { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] } };
+      };
+      S = imp.remoteS || {};
+      TODAY = imp.remoteTODAY || freshToday();
+      if (TODAY.date !== today()) {
+        if (TODAY.date && TODAY.date < today()) {
+          if (!S.days) S.days = [];
+          var existing = (S.days||[]).find(function(d){ return d.date === TODAY.date; });
+          if (!existing) {
+            S.days.unshift({
+              date: TODAY.date,
+              cards: TODAY.cards || [],
+              objects: TODAY.objects || [],
+              feedItems: TODAY.feedItems || [],
+              reviewDone: TODAY.reviewDone || false,
+              plan: TODAY.plan || {}
+            });
+            S.days.sort(function(a,b){ return b.date > a.date ? 1 : -1; });
+          } else {
+            existing.objects = mergeById(existing.objects||[], TODAY.objects||[], 'id');
+            existing.cards = mergeById(existing.cards||[], TODAY.cards||[], 'id');
+            existing.feedItems = mergeById(existing.feedItems||[], TODAY.feedItems||[], 'id');
+            existing.reviewDone = existing.reviewDone || TODAY.reviewDone;
+            if ((!existing.plan || !existing.plan.intentionen) && TODAY.plan) existing.plan = TODAY.plan;
+          }
+        }
+        TODAY = freshToday();
+      }
+      viewDate = today();
+      ensureImportDefaults();
+      save();
+      gistAutoSyncDebounced();
+      refreshAfterImport();
+
+      var dayCount = (S.days||[]).length;
+      var objCount = (TODAY.objects||[]).length;
+      toast('✓ Datei überschrieben — ' + dayCount + ' Tage, ' + objCount + ' Objekte heute');
+    } catch(err) {
+      toast('✗ Fehler beim Lesen der Datei: ' + err.message);
+    }
     input.value = '';
   };
   reader.readAsText(file);
