@@ -2504,6 +2504,7 @@ var S = {
   trash: { cards: [], objects: [] },
   zettels: [],   // {id, title, body, tags, source, date, kept}
   config: { name: '', context: '', contexts: [] },
+  deletedIds: {}, // { id: deletedAt-ISO } — deletion tombstones for sync
   _lastExported: ''
 };
 var READWISE_KEY  = 'dailylog_readwise';
@@ -2602,8 +2603,10 @@ function load() {
   if (!Array.isArray(S.trash.cards)) S.trash.cards = [];
   if (!Array.isArray(S.trash.objects)) S.trash.objects = [];
   if (!S.zettels) S.zettels = [];
+  if (!S.deletedIds) S.deletedIds = {};
 
   migrateLegacyObjectMetadata();
+  pruneDeletedIds(); // remove tombstones older than 90 days
 
   // Archive and reset if new day
   if (TODAY.date !== today()) {
@@ -2656,8 +2659,43 @@ function migrateLegacyObjectMetadata() {
 }
 
 // ════════════════════════════════════════════════
-// Tabs
+// Deletion Log (tombstones for sync-stable deletes)
 // ════════════════════════════════════════════════
+
+// Record an id as deleted right now
+function recordDeletion(id) {
+  if (!S.deletedIds) S.deletedIds = {};
+  S.deletedIds[id] = new Date().toISOString();
+}
+
+// True if id has a deletion tombstone
+function isDeleted(id) {
+  return !!(S.deletedIds && S.deletedIds[id]);
+}
+
+// Remove tombstones older than 90 days (keep storage lean)
+function pruneDeletedIds() {
+  if (!S.deletedIds) { S.deletedIds = {}; return; }
+  var cutoff = new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString();
+  Object.keys(S.deletedIds).forEach(function(id) {
+    if (S.deletedIds[id] < cutoff) delete S.deletedIds[id];
+  });
+}
+
+// Merge two deletedIds maps: union, keep newer timestamp per id
+function mergeDeletedIds(local, remote) {
+  var result = Object.assign({}, local || {});
+  Object.keys(remote || {}).forEach(function(id) {
+    if (!result[id] || remote[id] > result[id]) result[id] = remote[id];
+  });
+  return result;
+}
+
+// Strip tombstoned items from an array (by .id field)
+function filterDeleted(arr) {
+  if (!arr || !S.deletedIds) return arr || [];
+  return arr.filter(function(item) { return !isDeleted(item.id); });
+}
 function switchTab(name) {
   ['sammeln','feed','objekte','plan','review','abschluss','futurelog','kontexte','zettel','verlauf'].forEach(function(t) {
     var p = document.getElementById('panel-' + t);
@@ -2840,6 +2878,10 @@ function deleteCard(id) {
   relatedObjects.forEach(function(obj) {
     trashPush('object', { data: JSON.parse(JSON.stringify(obj)), originalDate: viewDate, reason: 'delete-card-cascade' });
   });
+  // ── Record tombstones so sync never resurrects these ──────────────────────
+  recordDeletion(id);
+  treeIds.forEach(function(oid) { recordDeletion(oid); });
+  // ─────────────────────────────────────────────────────────────────────────
   vd.cards = (vd.cards || []).filter(function(c){ return c.id !== id; });
   vd.objects = (vd.objects || []).filter(function(o){ return treeIds.indexOf(o.id) === -1; });
   saveViewData();
@@ -3694,6 +3736,9 @@ function deleteObjectToTrash(id, reason) {
       reason: reason || 'delete-object'
     });
   });
+  // ── Record tombstones ──────────────────────────────────────────────────────
+  idsToRemove.forEach(function(oid) { recordDeletion(oid); });
+  // ─────────────────────────────────────────────────────────────────────────
   vd.objects = (vd.objects || []).filter(function(o){ return idsToRemove.indexOf(o.id) === -1; });
   saveViewData();
   renderObjectList();
@@ -3807,11 +3852,17 @@ function restoreTrashItem(type, entryId) {
       delete restoredCard._deletedObjectTree;
       target.cards.push(restoredCard);
     }
+    // ── Lift tombstone for the card ───────────────────────────────────────
+    if (S.deletedIds) delete S.deletedIds[entry.data.id];
+    // ─────────────────────────────────────────────────────────────────────
     var objectTree = (entry.data && entry.data._deletedObjectTree) || [];
     if (objectTree.length) {
       target.objects = target.objects || [];
       objectTree.forEach(function(obj) {
         if (!target.objects.some(function(o){ return o.id === obj.id; })) target.objects.push(obj);
+        // ── Lift tombstone for each restored object ───────────────────────
+        if (S.deletedIds) delete S.deletedIds[obj.id];
+        // ─────────────────────────────────────────────────────────────────
       });
       var linkedIds = objectTree.map(function(o){ return o.id; });
       S.trash.objects = (S.trash.objects || []).filter(function(objEntry) {
@@ -3826,6 +3877,9 @@ function restoreTrashItem(type, entryId) {
           var isLinked = linkedIds.indexOf(objEntry.data && objEntry.data.id) !== -1;
           if (isLinked && !target.objects.some(function(o){ return o.id === objEntry.data.id; })) {
             target.objects.push(objEntry.data);
+            // ── Lift tombstone ────────────────────────────────────────────
+            if (S.deletedIds) delete S.deletedIds[objEntry.data.id];
+            // ─────────────────────────────────────────────────────────────
           }
           return !isLinked;
         });
@@ -3834,6 +3888,9 @@ function restoreTrashItem(type, entryId) {
   } else {
     target.objects = target.objects || [];
     if (!target.objects.some(function(o){ return o.id === entry.data.id; })) target.objects.push(entry.data);
+    // ── Lift tombstone for restored object ────────────────────────────────
+    if (S.deletedIds) delete S.deletedIds[entry.data.id];
+    // ─────────────────────────────────────────────────────────────────────
   }
   arr.splice(idx, 1);
   save();
@@ -4550,6 +4607,11 @@ async function gistPull(silent, forceOverwrite) {
       }
     }
 
+    // Apply tombstones to TODAY after any pull/merge
+    if (!S.deletedIds) S.deletedIds = {};
+    TODAY.cards   = (TODAY.cards||[]).filter(function(c){ return !isDeleted(c.id); });
+    TODAY.objects = (TODAY.objects||[]).filter(function(o){ return !isDeleted(o.id); });
+
     // Ensure defaults
     if (!S.days) S.days = [];
     if (!S.futurelog) S.futurelog = [];
@@ -4559,6 +4621,7 @@ async function gistPull(silent, forceOverwrite) {
     if (!S.feedLastReadwise) S.feedLastReadwise = '';
     if (!S.feedLastRaindrop) S.feedLastRaindrop = '';
     if (!S.feedLastHighlights) S.feedLastHighlights = '';
+    if (!S.trash) S.trash = { cards: [], objects: [] };
     if (!TODAY.cards) TODAY.cards = [];
     if (!TODAY.objects) TODAY.objects = [];
     if (!TODAY.feedItems) TODAY.feedItems = [];
@@ -4594,6 +4657,8 @@ function mergeById(localArr, remoteArr, idKey) {
     map[item[idKey]] = item;
   });
   (remoteArr||[]).forEach(function(item) {
+    // Never resurrect tombstoned items from remote
+    if (isDeleted(item[idKey])) return;
     var existing = map[item[idKey]];
     if (!existing) {
       map[item[idKey]] = item; // new item from remote
@@ -4604,7 +4669,8 @@ function mergeById(localArr, remoteArr, idKey) {
       if (remoteTs > localTs) map[item[idKey]] = item;
     }
   });
-  return Object.values(map);
+  // Also filter out any locally tombstoned items that slipped through
+  return Object.values(map).filter(function(item) { return !isDeleted(item[idKey]); });
 }
 
 function mergeDays(localDays, remoteDays) {
@@ -4614,24 +4680,41 @@ function mergeDays(localDays, remoteDays) {
   (localDays||[]).forEach(function(day) { map[day.date] = day; });
   (remoteDays||[]).forEach(function(day) {
     var existing = map[day.date];
+    // Filter tombstoned items out of incoming remote day before comparing
+    var remoteCards   = (day.cards||[]).filter(function(c){ return !isDeleted(c.id); });
+    var remoteObjects = (day.objects||[]).filter(function(o){ return !isDeleted(o.id); });
     if (!existing) {
-      map[day.date] = day;
+      map[day.date] = Object.assign({}, day, { cards: remoteCards, objects: remoteObjects });
     } else {
-      var localObjs  = (existing.objects||[]).length;
-      var remoteObjs = (day.objects||[]).length;
+      var localObjs  = (existing.objects||[]).filter(function(o){ return !isDeleted(o.id); }).length;
+      var remoteObjs = remoteObjects.length;
       if (remoteObjs > localObjs) {
-        map[day.date] = day;
+        map[day.date] = Object.assign({}, day, { cards: remoteCards, objects: remoteObjects });
       } else if (remoteObjs === localObjs) {
-        // Same count — merge objects by id
+        // Same count — merge objects by id (mergeById already filters tombstones)
         map[day.date] = Object.assign({}, existing, {
-          objects:    mergeById(existing.objects||[], day.objects||[], 'id'),
-          cards:      mergeById(existing.cards||[], day.cards||[], 'id'),
+          objects:    mergeById(existing.objects||[], remoteObjects, 'id'),
+          cards:      mergeById(existing.cards||[],  remoteCards,   'id'),
           feedItems:  mergeById(existing.feedItems||[], day.feedItems||[], 'id'),
           reviewDone: existing.reviewDone || day.reviewDone,
           plan:       (existing.plan && existing.plan.intentionen) ? existing.plan : (day.plan || existing.plan)
         });
+      } else {
+        // local has more — still filter tombstoned items from local
+        map[day.date] = Object.assign({}, existing, {
+          cards:   (existing.cards||[]).filter(function(c){ return !isDeleted(c.id); }),
+          objects: (existing.objects||[]).filter(function(o){ return !isDeleted(o.id); })
+        });
       }
-      // else keep local (more objects)
+    }
+  });
+  // Also filter tombstones from local-only days
+  Object.keys(map).forEach(function(date) {
+    var day = map[date];
+    if (!day._tombstonesFiltered) {
+      day.cards   = (day.cards||[]).filter(function(c){ return !isDeleted(c.id); });
+      day.objects = (day.objects||[]).filter(function(o){ return !isDeleted(o.id); });
+      day._tombstonesFiltered = true; // marker so we don't re-filter unnecessarily
     }
   });
   // Sort descending by date
@@ -4661,31 +4744,26 @@ function mergeToday(local, remote) {
   // If remote TODAY is from a past day, archive it into S.days first
   if (remote && remote.date && remote.date !== today()) {
     var remoteDate = remote.date;
+    // Filter tombstoned items from remote before archiving
+    var remoteCards   = (remote.cards||[]).filter(function(c){ return !isDeleted(c.id); });
+    var remoteObjects = (remote.objects||[]).filter(function(o){ return !isDeleted(o.id); });
     var already = (S.days||[]).some(function(d){ return d.date === remoteDate; });
-    if (!already && (
-  (remote.objects||[]).length ||
-  (remote.cards||[]).length ||
-  (remote.feedItems||[]).length
-)) {
+    if (!already && (remoteObjects.length || remoteCards.length || (remote.feedItems||[]).length)) {
       if (!S.days) S.days = [];
       S.days.unshift({
         date:       remoteDate,
-        cards:      remote.cards   || [],
-        objects:    remote.objects || [],
+        cards:      remoteCards,
+        objects:    remoteObjects,
         feedItems:  remote.feedItems || [],
         reviewDone: remote.reviewDone || false,
         plan:       remote.plan || {}
       });
-    } else if (already && (
-  (remote.objects||[]).length ||
-  (remote.cards||[]).length ||
-  (remote.feedItems||[]).length
-)) {
-      // Merge objects into existing archived day
+    } else if (already && (remoteObjects.length || remoteCards.length || (remote.feedItems||[]).length)) {
+      // Merge objects into existing archived day, respecting tombstones
       var existing = S.days.find(function(d){ return d.date === remoteDate; });
       if (existing) {
         var existingIds = (existing.objects||[]).map(function(o){ return o.id; });
-        (remote.objects||[]).forEach(function(o) {
+        remoteObjects.forEach(function(o) {
           if (existingIds.indexOf(o.id) === -1) existing.objects.push(o);
         });
       }
@@ -4703,6 +4781,7 @@ function mergeToday(local, remote) {
   return {
     date:       t,
     reviewDone: local.reviewDone || remote.reviewDone,
+    // mergeById already filters tombstones
     cards:      mergeById(local.cards||[],   remote.cards||[],   'id'),
     objects:    mergeById(local.objects||[], remote.objects||[], 'id'),
     feedItems:  mergedFeed,
@@ -4711,16 +4790,31 @@ function mergeToday(local, remote) {
 }
 
 function mergeS(local, remote) {
+  // Merge deletedIds first — so mergeDays/mergeById can use the combined set
+  // We temporarily apply the merged deletedIds to S so isDeleted() sees them
+  var mergedDeletedIds = mergeDeletedIds(local.deletedIds || {}, remote.deletedIds || {});
+  S.deletedIds = mergedDeletedIds; // apply early so merge filters work correctly
+
+  // Merge trash: union by entry.id, no deduplication needed
+  var localTrashCards  = (local.trash && local.trash.cards)   || [];
+  var remoteTrashCards = (remote.trash && remote.trash.cards)  || [];
+  var localTrashObjs   = (local.trash && local.trash.objects)  || [];
+  var remoteTrashObjs  = (remote.trash && remote.trash.objects) || [];
+  var mergedTrashCards  = mergeById(localTrashCards,  remoteTrashCards,  'id');
+  var mergedTrashObjs   = mergeById(localTrashObjs,   remoteTrashObjs,   'id');
+
   return {
-    days:            mergeDays(local.days||[], remote.days||[]),
-    futurelog:       mergeById(local.futurelog||[], remote.futurelog||[], 'id'),
-    migrationPuffer: mergeById(local.migrationPuffer||[], remote.migrationPuffer||[], 'id'),
-    zettels:         mergeById(local.zettels||[], remote.zettels||[], 'id'),
+    days:              mergeDays(local.days||[], remote.days||[]),
+    futurelog:         mergeById(local.futurelog||[], remote.futurelog||[], 'id'),
+    migrationPuffer:   mergeById(local.migrationPuffer||[], remote.migrationPuffer||[], 'id'),
+    zettels:           mergeById(local.zettels||[], remote.zettels||[], 'id'),
     feedLastReadwise:  (local.feedLastReadwise||'') > (remote.feedLastReadwise||'')  ? local.feedLastReadwise  : remote.feedLastReadwise,
     feedLastRaindrop:  (local.feedLastRaindrop||'') > (remote.feedLastRaindrop||'')  ? local.feedLastRaindrop  : remote.feedLastRaindrop,
     feedLastHighlights:(local.feedLastHighlights||'') > (remote.feedLastHighlights||'') ? local.feedLastHighlights : remote.feedLastHighlights,
-    config:          local.config || remote.config,
-    _lastExported:   local._lastExported || remote._lastExported
+    config:            local.config || remote.config,
+    deletedIds:        mergedDeletedIds,
+    trash:             { cards: mergedTrashCards, objects: mergedTrashObjs },
+    _lastExported:     local._lastExported || remote._lastExported
   };
 }
 
@@ -4788,6 +4882,10 @@ async function gistSync() {
 
     S     = mergedS;
     TODAY = mergedToday;
+
+    // Apply tombstones to TODAY (mergedS already applied them to S.days)
+    TODAY.cards   = (TODAY.cards||[]).filter(function(c){ return !isDeleted(c.id); });
+    TODAY.objects = (TODAY.objects||[]).filter(function(o){ return !isDeleted(o.id); });
 
     // Ensure defaults
     if (!S.config) S.config = { name: '', context: '' };
@@ -7673,6 +7771,7 @@ function ensureImportDefaults() {
   if (!S.trash) S.trash = { cards: [], objects: [] };
   if (!Array.isArray(S.trash.cards)) S.trash.cards = [];
   if (!Array.isArray(S.trash.objects)) S.trash.objects = [];
+  if (!S.deletedIds) S.deletedIds = {};
   if (!S.feedLastReadwise) S.feedLastReadwise = '';
   if (!S.feedLastRaindrop) S.feedLastRaindrop = '';
   if (!S.feedLastHighlights) S.feedLastHighlights = '';
@@ -7682,6 +7781,9 @@ function ensureImportDefaults() {
   if (!TODAY.feedItems) TODAY.feedItems = [];
   if (TODAY.reviewDone === undefined) TODAY.reviewDone = false;
   if (!TODAY.plan) TODAY.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
+  // Apply tombstones to TODAY after any import
+  TODAY.cards   = TODAY.cards.filter(function(c){ return !isDeleted(c.id); });
+  TODAY.objects = TODAY.objects.filter(function(o){ return !isDeleted(o.id); });
   migrateLegacyObjectMetadata();
 }
 
