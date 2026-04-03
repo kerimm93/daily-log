@@ -1608,6 +1608,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
         <button class="sort-btn active" id="btnSortAsc" onclick="setObjSort('asc')" title="Älteste oben">↑ chronologisch</button>
         <button class="sort-btn" id="btnSortDesc" onclick="setObjSort('desc')" title="Neueste oben">↓ neueste oben</button>
         <button class="sort-btn" id="btnHideDone" onclick="toggleHideDone()" title="Erledigte ausblenden">☐ erledigte</button>
+        <button class="sort-btn" id="btnHideMigrated" onclick="toggleHideMigrated()" title="Migrierte (>) ausblenden">☐ migrierte</button>
         <button class="sort-btn" id="btnToggleSources" onclick="toggleAllSources()" title="Alle Quellen ein-/ausblenden">¶ Quellen</button>
       </div>
       <div id="objectList" class="obj-list">
@@ -1631,9 +1632,22 @@ select:focus { outline: none; border-color: var(--border-mid); }
 
     <!-- Karten zur Extraktion -->
     <div class="section">
-      <div class="section-title">Karten zur Objekt-Extraktion</div>
+      <div class="section-title">Karten zur Objekt-Extraktion
+        <span style="margin-left:auto;font-family:var(--mono);font-size:0.6rem;color:var(--ink-dim)" id="extractCardMeta"></span>
+      </div>
       <div id="extractCardList" class="card-list">
         <div class="empty-state">Keine Karten vorhanden.</div>
+      </div>
+    </div>
+
+    <!-- Globaler Rückstand: noch nicht extrahierte Karten aller Tage -->
+    <div class="section" id="backlogSection" style="display:none">
+      <div class="section-title">
+        ⏳ Rückstand — nicht extrahierte Karten
+        <span style="margin-left:auto;font-family:var(--mono);font-size:0.6rem;color:var(--ink-dim)" id="backlogMeta"></span>
+      </div>
+      <div id="backlogList" class="card-list">
+        <div class="empty-state">Keine Rückstände.</div>
       </div>
     </div>
 
@@ -3277,6 +3291,7 @@ function importObjects() {
   renderCalendarDots();
   updateDrawerActive('sammeln');
   syncDrawerBadges();
+  renderBacklogCards(); // update global backlog after extraction
   closeModal('extractModal');
   var msg = added + ' Objekte importiert · ersetzt: ' + replaceTree.treeIds.length + ' · manuell entkoppelt: ' + detachedManualCount;
   if (skipped > 0) msg += ' · ' + skipped + ' übersprungen';
@@ -3306,6 +3321,100 @@ var OBJ_ICONS = {
 function renderObjectsTab() {
   renderObjectList();
   renderExtractCards();
+  renderBacklogCards();
+}
+
+// ════════════════════════════════════════════════
+// Globaler Karten-Rückstand (alle Tage, unverarbeitet)
+// ════════════════════════════════════════════════
+function renderBacklogCards() {
+  var section  = document.getElementById('backlogSection');
+  var listEl   = document.getElementById('backlogList');
+  var metaEl   = document.getElementById('backlogMeta');
+  if (!section || !listEl) return;
+
+  // Collect all unprocessed cards across all days
+  var backlog = [];
+
+  // Today
+  (TODAY.cards || []).forEach(function(card) {
+    if (!card.processed) backlog.push({ card: card, date: today() });
+  });
+
+  // Past days
+  (S.days || []).forEach(function(day) {
+    (day.cards || []).forEach(function(card) {
+      if (!card.processed) backlog.push({ card: card, date: day.date });
+    });
+  });
+
+  // Sort oldest first so backlog is worked off in order
+  backlog.sort(function(a, b) {
+    var da = a.date + (a.card.time || '');
+    var db = b.date + (b.card.time || '');
+    return da < db ? -1 : da > db ? 1 : 0;
+  });
+
+  // Only show cards from past days in the backlog section.
+  // Today's unprocessed cards are already visible in the extract-cards section above.
+  var allBacklog = backlog.filter(function(e) { return e.date !== today(); });
+
+  section.style.display = allBacklog.length ? 'block' : 'none';
+  if (metaEl) metaEl.textContent = allBacklog.length + ' Karte' + (allBacklog.length !== 1 ? 'n' : '') + ' aus vergangenen Tagen';
+
+  if (!allBacklog.length) {
+    listEl.innerHTML = '<div class="empty-state">Kein Rückstand. Alle Karten sind extrahiert.</div>';
+    return;
+  }
+
+  listEl.innerHTML = allBacklog.map(function(entry) {
+    var card    = entry.card;
+    var date    = entry.date;
+    var preview = card.text.split('\n')[0].slice(0, 60);
+    var isToday = date === today();
+    var dateLabel = isToday
+      ? 'Heute'
+      : new Date(date + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
+
+    return '<div class="card">' +
+      '<div class="card-header" style="cursor:default">' +
+        '<span class="card-time" style="min-width:0">' +
+          '<span style="color:var(--accent)">' + esc(dateLabel) + '</span>' +
+          '<span style="color:var(--ink-dim);margin-left:4px">' + esc(card.time) + '</span>' +
+        '</span>' +
+        typeLabel(card.type) +
+        '<span class="card-preview">' + esc(preview) + '</span>' +
+      '</div>' +
+      '<div style="padding:8px 14px;display:flex;gap:8px">' +
+        '<button class="btn btn-sm btn-primary" ' +
+          'onclick="openExtractForDate(\'' + card.id + '\',\'' + date + '\')">' +
+          '→ Extrahieren' +
+        '</button>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+
+// Open extraction modal for a card from a specific date
+// (sets currentExtractViewDate so importObjects() saves to the right day)
+function openExtractForDate(cardId, date) {
+  var dayData = getDataForDate(date);
+  var card = (dayData.cards || []).find(function(c) { return c.id === cardId; });
+  if (!card) { toast('Karte nicht gefunden.'); return; }
+
+  currentExtractCardId   = cardId;
+  currentExtractViewDate = date;
+
+  var prompt = buildExtractionPrompt(card);
+  var ept = document.getElementById('extractPromptText');
+  if (ept) ept.textContent = prompt;
+  document.getElementById('extractResult').value = '';
+  document.getElementById('extractNotice').innerHTML = '';
+
+  var apiRow = document.getElementById('extractApiRow');
+  if (apiRow) apiRow.style.display = getOpenAIKey() ? 'block' : 'none';
+
+  openModal('extractModal');
 }
 
 function setObjFilter(typ) {
@@ -3313,8 +3422,9 @@ function setObjFilter(typ) {
   renderObjectList();
 }
 
-var objSortDir  = 'asc';  // 'asc' | 'desc'
-var hideDone    = false;
+var objSortDir    = 'asc';  // 'asc' | 'desc'
+var hideDone      = false;
+var hideMigrated  = false;  // hide status='>' aufgaben
 
 function setObjSort(dir) {
   objSortDir = dir;
@@ -3333,6 +3443,16 @@ function toggleHideDone() {
   renderObjectList();
 }
 
+function toggleHideMigrated() {
+  hideMigrated = !hideMigrated;
+  var btn = document.getElementById('btnHideMigrated');
+  if (btn) {
+    btn.textContent = hideMigrated ? '✓ migrierte' : '☐ migrierte';
+    btn.classList.toggle('active', hideMigrated);
+  }
+  renderObjectList();
+}
+
 function renderObjectList() { renderObjectListForDate(); }
 function renderObjectListForDate() {
   var container = document.getElementById('objectList');
@@ -3341,11 +3461,16 @@ function renderObjectListForDate() {
   var active   = rootObjs.filter(function(o){ return !o.dismissed; });
   var isPast   = !isViewingToday();
 
-  // Hide done if toggled
+  // Hide done if toggled (xx = canceln, x = erledigt; '--' war ein verwaister Legacy-Wert und wird nicht mehr gesetzt)
   var pool = showDismissed ? rootObjs : active;
   if (hideDone) {
     pool = pool.filter(function(o){
-      return !(o.typ === 'aufgabe' && (o.status === 'x' || o.status === 'xx' || o.status === '--'));
+      return !(o.typ === 'aufgabe' && (o.status === 'x' || o.status === 'xx'));
+    });
+  }
+  if (hideMigrated) {
+    pool = pool.filter(function(o){
+      return !(o.typ === 'aufgabe' && o.status === '>');
     });
   }
 
@@ -3669,10 +3794,11 @@ function saveEditMain(objId) {
   var inp = document.getElementById('main-input-' + objId);
   if (!inp) return;
   var newText = inp.value.trim();
-  var obj = getViewData().objects.find(function(o){ return o.id === objId; });
-  if (obj && newText) obj.text = newText;
-  save();
+  var result = findObjGlobal(objId);
+  if (result && newText) { result.obj.text = newText; result.save(); }
   renderObjectList();
+  if (activeCtxDetail) openCtxDetail(activeCtxDetail);
+  if (activeCtxReview) renderCtxView();
 }
 
 function startEditChild(childId) {
@@ -3752,8 +3878,17 @@ function deleteObjectToTrash(id, reason) {
 function renderExtractCards() {
   var container = document.getElementById('extractCardList');
   var vd = getViewData();
+
+  // Update extractCardMeta
+  var metaEl = document.getElementById('extractCardMeta');
+  if (metaEl) {
+    var unproc = (vd.cards || []).filter(function(c){ return !c.processed; }).length;
+    metaEl.textContent = unproc ? unproc + ' unverarbeitet' : '';
+  }
+
   if (!(vd.cards || []).length) {
     container.innerHTML = '<div class="empty-state">Keine Karten vorhanden. Zuerst im Tab "Sammeln" Karten hinzufügen.</div>';
+    renderBacklogCards();
     return;
   }
   container.innerHTML = (vd.cards||[]).map(function(card) {
@@ -3774,16 +3909,26 @@ function renderExtractCards() {
       '</div>' +
     '</div>';
   }).join('');
+
+  renderBacklogCards();
 }
 
 function dismissObj(id) {
-  var obj = getViewData().objects.find(function(o){ return o.id === id; });
-  if (obj) { obj.dismissed = true; saveViewData(); renderObjectList(); updateBadges(); }
+  var result = findObjGlobal(id);
+  if (result) { result.obj.dismissed = true; result.save(); }
+  renderObjectList();
+  updateBadges();
+  if (activeCtxDetail) openCtxDetail(activeCtxDetail);
+  if (activeCtxReview) renderCtxView();
 }
 
 function restoreObj(id) {
-  var obj = getViewData().objects.find(function(o){ return o.id === id; });
-  if (obj) { obj.dismissed = false; saveViewData(); renderObjectList(); updateBadges(); }
+  var result = findObjGlobal(id);
+  if (result) { result.obj.dismissed = false; result.save(); }
+  renderObjectList();
+  updateBadges();
+  if (activeCtxDetail) openCtxDetail(activeCtxDetail);
+  if (activeCtxReview) renderCtxView();
 }
 
 function openTrashModal() {
@@ -4160,12 +4305,18 @@ function finishDay() {
       });
       migrated++;
     } else if (obj.status === '<') {
-      // Terminiert → Future Log
+      // Terminiert → Future Log (Datum aus reviewNote wenn vorhanden, sonst leer lassen für manuelle Zuordnung)
+      var flDate = '';
+      if (obj.reviewNote) {
+        // Try to parse a date from the review note (YYYY-MM-DD)
+        var dateMatch = obj.reviewNote.match(/(\d{4}-\d{2}-\d{2})/);
+        if (dateMatch) flDate = dateMatch[1];
+      }
       S.futurelog.push({
         id: uid(),
         text: obj.text,
         note: obj.reviewNote || '',
-        date: '',
+        date: flDate,
         month: '',
         fromDate: today(),
         objId: obj.id,
@@ -4177,11 +4328,14 @@ function finishDay() {
     }
   });
 
+  var closedAt = new Date().toISOString();
   var entry = {
     id: uid(),
     date: today(),
     cards: JSON.parse(JSON.stringify(TODAY.cards)),
     objects: JSON.parse(JSON.stringify(TODAY.objects)),
+    reviewDone: TODAY.reviewDone || false,  // carry over review status
+    closedAt: closedAt,                      // explicit close — only set by finishDay()
     createdAt: new Date().toISOString()
   };
   S.days.unshift(entry);
@@ -4226,11 +4380,38 @@ function renderHistory() {
     var checked   = selectedExportDays[day.date] ? 'checked' : '';
     var d = new Date(day.date + 'T00:00:00');
     var label = d.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
+
+    // ── Day status badge ───────────────────────────────────────────────────
+    var statusBadge;
+    if (day.closedAt) {
+      // Explicitly closed via finishDay()
+      statusBadge = '<span title="Abgeschlossen am ' + esc(day.closedAt.slice(0,10)) + '" ' +
+        'style="font-family:var(--mono);font-size:0.58rem;padding:2px 7px;border-radius:3px;' +
+        'background:var(--green-bg);color:var(--green);border:1px solid rgba(106,152,112,0.25);' +
+        'flex-shrink:0">✓ abgeschlossen</span>';
+    } else if (day.reviewDone) {
+      // Review done but finishDay() not called
+      statusBadge = '<span title="Review abgeschlossen, Tag nicht explizit beendet" ' +
+        'style="font-family:var(--mono);font-size:0.58rem;padding:2px 7px;border-radius:3px;' +
+        'background:var(--blue-bg);color:var(--blue);border:1px solid rgba(98,130,160,0.25);' +
+        'flex-shrink:0">✓ reviewt</span>';
+    } else {
+      // Auto-archived or no review
+      var openTasks = (day.objects||[]).filter(function(o){
+        return o.typ === 'aufgabe' && (!o.status || o.status === 'open') && !o.dismissed;
+      }).length;
+      statusBadge = '<span title="Nicht abgeschlossen" ' +
+        'style="font-family:var(--mono);font-size:0.58rem;padding:2px 7px;border-radius:3px;' +
+        'background:var(--surface-2);color:var(--ink-dim);border:1px solid var(--border);' +
+        'flex-shrink:0">' + (openTasks ? '⚠ ' + openTasks + ' offen' : '· offen') + '</span>';
+    }
+    // ──────────────────────────────────────────────────────────────────────
+
     return '<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">' +
       '<input type="checkbox" ' + checked + (hasCards ? '' : ' disabled title="Keine Rohdaten"') +
         ' style="width:15px;height:15px;accent-color:var(--accent);flex-shrink:0;cursor:pointer"' +
         ' onchange="toggleExportDay(\'' + day.date + '\',this.checked)">' +
-      '<div style="flex:1;cursor:pointer" onclick="navToDate(\'' + day.date + '\');switchTab(\'sammeln\')">' +
+      '<div style="flex:1;cursor:pointer;min-width:0" onclick="navToDate(\'' + day.date + '\');switchTab(\'sammeln\')">' +
         '<div style="font-family:var(--mono);font-size:0.78rem;color:var(--ink)">' + esc(day.date) +
           ' <span style="color:var(--ink-dim);font-size:0.65rem">· ' + label + '</span></div>' +
         '<div style="font-family:var(--mono);font-size:0.63rem;color:var(--ink-dim);margin-top:2px">' +
@@ -4238,6 +4419,7 @@ function renderHistory() {
           (!hasCards ? ' <span style="color:var(--orange)">· keine Rohdaten</span>' : '') +
         '</div>' +
       '</div>' +
+      statusBadge +
     '</div>';
   }).join('');
 }
@@ -4686,10 +4868,16 @@ function mergeDays(localDays, remoteDays) {
     if (!existing) {
       map[day.date] = Object.assign({}, day, { cards: remoteCards, objects: remoteObjects });
     } else {
+      // closedAt: once set, never lose it (either side wins if one has it)
+      var mergedClosedAt = existing.closedAt || day.closedAt || undefined;
       var localObjs  = (existing.objects||[]).filter(function(o){ return !isDeleted(o.id); }).length;
       var remoteObjs = remoteObjects.length;
       if (remoteObjs > localObjs) {
-        map[day.date] = Object.assign({}, day, { cards: remoteCards, objects: remoteObjects });
+        map[day.date] = Object.assign({}, day, {
+          cards: remoteCards, objects: remoteObjects,
+          closedAt: mergedClosedAt,
+          reviewDone: existing.reviewDone || day.reviewDone
+        });
       } else if (remoteObjs === localObjs) {
         // Same count — merge objects by id (mergeById already filters tombstones)
         map[day.date] = Object.assign({}, existing, {
@@ -4697,13 +4885,15 @@ function mergeDays(localDays, remoteDays) {
           cards:      mergeById(existing.cards||[],  remoteCards,   'id'),
           feedItems:  mergeById(existing.feedItems||[], day.feedItems||[], 'id'),
           reviewDone: existing.reviewDone || day.reviewDone,
+          closedAt:   mergedClosedAt,
           plan:       (existing.plan && existing.plan.intentionen) ? existing.plan : (day.plan || existing.plan)
         });
       } else {
         // local has more — still filter tombstoned items from local
         map[day.date] = Object.assign({}, existing, {
-          cards:   (existing.cards||[]).filter(function(c){ return !isDeleted(c.id); }),
-          objects: (existing.objects||[]).filter(function(o){ return !isDeleted(o.id); })
+          cards:     (existing.cards||[]).filter(function(c){ return !isDeleted(c.id); }),
+          objects:   (existing.objects||[]).filter(function(o){ return !isDeleted(o.id); }),
+          closedAt:  mergedClosedAt
         });
       }
     }
@@ -4756,6 +4946,7 @@ function mergeToday(local, remote) {
         objects:    remoteObjects,
         feedItems:  remote.feedItems || [],
         reviewDone: remote.reviewDone || false,
+        closedAt:   remote.closedAt || undefined,
         plan:       remote.plan || {}
       });
     } else if (already && (remoteObjects.length || remoteCards.length || (remote.feedItems||[]).length)) {
@@ -4766,6 +4957,10 @@ function mergeToday(local, remote) {
         remoteObjects.forEach(function(o) {
           if (existingIds.indexOf(o.id) === -1) existing.objects.push(o);
         });
+        // Preserve closedAt: once set on either side, never lose it
+        if (!existing.closedAt && remote.closedAt) existing.closedAt = remote.closedAt;
+        // Preserve reviewDone the same way
+        if (!existing.reviewDone && remote.reviewDone) existing.reviewDone = remote.reviewDone;
       }
     }
   }
@@ -4781,6 +4976,7 @@ function mergeToday(local, remote) {
   return {
     date:       t,
     reviewDone: local.reviewDone || remote.reviewDone,
+    closedAt:   local.closedAt || remote.closedAt || undefined,
     // mergeById already filters tombstones
     cards:      mergeById(local.cards||[],   remote.cards||[],   'id'),
     objects:    mergeById(local.objects||[], remote.objects||[], 'id'),
@@ -5350,13 +5546,15 @@ function openCtxDetail(ctx) {
   var hits = getObjsForCtx(ctx);
   var metaEl = document.getElementById('ctxDetailMeta');
   if (metaEl) {
-    var total  = hits.length;
-    var open   = hits.filter(function(h){ return h.obj.typ === 'aufgabe' && (!h.obj.status || h.obj.status === 'open'); }).length;
-    var ideas  = hits.filter(function(h){ return h.obj.typ === 'idee'; }).length;
-    var parts  = [total + ' Objekte'];
-    if (open) parts.push('<span style="color:var(--orange)">' + open + ' offene Aufgaben</span>');
+    var total = hits.length;
+    var open  = hits.filter(function(h){ return h.obj.typ === 'aufgabe' && (!h.obj.status || h.obj.status === 'open'); }).length;
+    var ideas = hits.filter(function(h){ return h.obj.typ === 'idee'; }).length;
+    var parts = [total + ' Objekte'];
+    if (open)  parts.push('<span style="color:var(--orange)">' + open + ' offene Aufgaben</span>');
     if (ideas) parts.push(ideas + ' Ideen');
-    metaEl.innerHTML = parts.map(function(p){ return '<span style="font-family:var(--mono);font-size:0.64rem;color:var(--ink-dim)">' + p + '</span>'; }).join('');
+    metaEl.innerHTML = parts.map(function(p){
+      return '<span style="font-family:var(--mono);font-size:0.64rem;color:var(--ink-dim)">' + p + '</span>';
+    }).join('');
   }
 
   var listEl = document.getElementById('ctxDetailList');
@@ -5374,33 +5572,36 @@ function openCtxDetail(ctx) {
     byDate[h.date].push(h.obj);
   });
 
+  var savedViewDate = viewDate; // save current viewDate
+
   var dates = Object.keys(byDate).sort().reverse();
-  listEl.innerHTML = dates.map(function(date) {
+  var html = dates.map(function(date) {
     var isToday = date === today();
     var objs = byDate[date];
-    return '<div style="margin-bottom:14px">' +
-      '<div style="font-family:var(--mono);font-size:0.64rem;color:' + (isToday ? 'var(--accent)' : 'var(--ink-dim)') + ';margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border)">' +
-        (isToday ? 'Heute' : date) +
+    var dateDE = isToday
+      ? 'Heute'
+      : new Date(date + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+    // Temporarily set viewDate so renderObjItem's edit/save functions target the right day
+    viewDate = date;
+
+    var objsHtml = objs.map(function(obj) {
+      return renderObjItem(obj, 0);
+    }).join('');
+
+    return '<div style="margin-bottom:18px">' +
+      '<div style="font-family:var(--mono);font-size:0.64rem;color:' +
+        (isToday ? 'var(--accent)' : 'var(--ink-dim)') +
+        ';margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border)">' +
+        esc(dateDE) +
       '</div>' +
-      objs.map(function(obj) {
-        var children = (isToday ? TODAY.objects : (byDate[date] || [])).filter(function(o){ return o.parentId === obj.id; });
-        return '<div style="display:flex;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">' +
-          '<div style="font-size:0.85rem;flex-shrink:0;padding-top:1px">' + (OBJ_ICONS[obj.typ]||'·') + '</div>' +
-          '<div style="flex:1">' +
-            '<div style="font-family:var(--serif);font-size:0.9rem;color:var(--ink);line-height:1.5">' + esc(obj.text) + '</div>' +
-            '<div style="display:flex;gap:6px;margin-top:3px;flex-wrap:wrap;align-items:center">' +
-              '<span class="obj-type-label t-' + obj.typ + '" style="font-size:0.55rem">' + obj.typ + '</span>' +
-              (obj.zeit ? '<span style="font-family:var(--mono);font-size:0.6rem;color:var(--ink-dim)">' + esc(obj.zeit) + '</span>' : '') +
-              statusChip(obj.status) +
-            '</div>' +
-            (children.length ? '<div style="margin-top:4px;padding-left:8px;border-left:2px solid var(--border-mid)">' +
-              children.map(function(c){ return '<div style="font-family:var(--serif);font-size:0.82rem;color:var(--ink-mid);padding:2px 0">→ ' + esc(c.text) + '</div>'; }).join('') +
-            '</div>' : '') +
-          '</div>' +
-        '</div>';
-      }).join('') +
+      '<div class="obj-list">' + objsHtml + '</div>' +
     '</div>';
   }).join('');
+
+  viewDate = savedViewDate; // restore viewDate
+
+  listEl.innerHTML = html;
 }
 
 function closeCtxDetail() {
@@ -5428,10 +5629,92 @@ function ctxToPrompt() {
   toast('Prompt für @' + activeCtxDetail + ' kopiert');
 }
 
-// Legacy compat
-function renderCtxView() { renderKontexteTab(); }
-function setCtxFilter(c) { openCtxDetail(c); }
-var activeCtxFilter = null;
+// renderCtxView: fills the Kontext mini-view inside the Review tab.
+// renderKontexteTab: renders the full Kontexte tab (separate).
+function renderCtxView() {
+  var filterRow = document.getElementById('ctxFilterRow');
+  var listEl    = document.getElementById('ctxObjectList');
+  if (!filterRow || !listEl) return;
+
+  var ctxMap  = getAllContextsGlobal();
+  var ctxList = Object.keys(ctxMap).sort();
+
+  if (!ctxList.length) {
+    filterRow.innerHTML = '';
+    listEl.innerHTML = '<div class="empty-state">Noch keine Kontexte.</div>';
+    return;
+  }
+
+  // Render context filter buttons
+  filterRow.innerHTML = ctxList.map(function(c) {
+    var isActive = (activeCtxReview === c);
+    return '<button class="sort-btn' + (isActive ? ' active' : '') + '" ' +
+      'onclick="setCtxReview(\'' + esc(c) + '\')">' +
+      '@' + esc(c) + '</button>';
+  }).join('');
+
+  // Render objects for selected context, grouped by date
+  if (!activeCtxReview || ctxList.indexOf(activeCtxReview) === -1) {
+    // Auto-select first context with open tasks, else first
+    var withOpen = ctxList.find(function(c) {
+      return getObjsForCtx(c).some(function(h){ return h.obj.typ === 'aufgabe' && (!h.obj.status || h.obj.status === 'open'); });
+    });
+    activeCtxReview = withOpen || ctxList[0];
+    // Re-render filter buttons with new selection
+    filterRow.innerHTML = ctxList.map(function(c) {
+      var isActive = (activeCtxReview === c);
+      return '<button class="sort-btn' + (isActive ? ' active' : '') + '" ' +
+        'onclick="setCtxReview(\'' + esc(c) + '\')">' +
+        '@' + esc(c) + '</button>';
+    }).join('');
+  }
+
+  var hits = getObjsForCtx(activeCtxReview);
+  if (!hits.length) {
+    listEl.innerHTML = '<div class="empty-state">Keine Objekte mit @' + esc(activeCtxReview) + '.</div>';
+    return;
+  }
+
+  // Group by date, show date + time, use renderObjItem for edit support
+  var byDate = {};
+  hits.forEach(function(h) {
+    if (!byDate[h.date]) byDate[h.date] = [];
+    byDate[h.date].push(h.obj);
+  });
+
+  var savedViewDate = viewDate;
+  var dates = Object.keys(byDate).sort().reverse();
+  var html = dates.map(function(date) {
+    var isToday = date === today();
+    var dateLabel = isToday
+      ? 'Heute'
+      : new Date(date + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+
+    viewDate = date; // set so renderObjItem edit-save targets correct day
+    var objsHtml = byDate[date].map(function(obj) {
+      return renderObjItem(obj, 0);
+    }).join('');
+
+    return '<div style="margin-bottom:14px">' +
+      '<div style="font-family:var(--mono);font-size:0.62rem;color:' +
+        (isToday ? 'var(--accent)' : 'var(--ink-dim)') +
+        ';margin-bottom:6px;padding-bottom:3px;border-bottom:1px solid var(--border)">' +
+        esc(dateLabel) +
+      '</div>' +
+      '<div class="obj-list">' + objsHtml + '</div>' +
+    '</div>';
+  }).join('');
+
+  viewDate = savedViewDate;
+  listEl.innerHTML = html;
+}
+
+var activeCtxReview = null; // selected context in Review tab
+
+function setCtxReview(ctx) {
+  activeCtxReview = ctx;
+  renderCtxView();
+}
 
 
 // ════════════════════════════════════════════════
@@ -5447,24 +5730,47 @@ function statusChip(status) {
   return '<span style="font-family:var(--mono);font-size:0.6rem;color:' + (colors[status]||'var(--ink-dim)') + '">' + (labels[status]||status) + '</span>';
 }
 
-function setObjStatus(objId, status) {
+// Find an object by id across all days (today + S.days)
+function findObjGlobal(objId) {
   var obj = getViewData().objects.find(function(o){ return o.id === objId; });
-  if (!obj) return;
-  obj.status = (obj.status === status) ? 'open' : status;
-  save();
+  if (obj) return { obj: obj, save: saveViewData };
+  // Search past days
+  var found = null;
+  var foundDay = null;
+  (S.days||[]).forEach(function(day) {
+    if (!found) {
+      var o = (day.objects||[]).find(function(o){ return o.id === objId; });
+      if (o) { found = o; foundDay = day; }
+    }
+  });
+  if (found) return { obj: found, save: save };
+  return null;
+}
+
+function setObjStatus(objId, status) {
+  var result = findObjGlobal(objId);
+  if (!result) return;
+  result.obj.status = (result.obj.status === status) ? 'open' : status;
+  result.save();
   renderObjectList();
   updateReviewBadge();
+  // Re-render ctx detail if open (Kontexte tab or Review tab)
+  if (activeCtxDetail) openCtxDetail(activeCtxDetail);
+  if (activeCtxReview) renderCtxView();
 }
 
 function setSignifier(objId, sig) {
-  var obj = getViewData().objects.find(function(o){ return o.id === objId; });
-  if (!obj) return;
-  if (!obj.signifiers) obj.signifiers = [];
-  var idx = obj.signifiers.indexOf(sig);
-  if (idx > -1) obj.signifiers.splice(idx, 1);
-  else obj.signifiers.push(sig);
-  save();
+  var result = findObjGlobal(objId);
+  if (!result) return;
+  if (!result.obj.signifiers) result.obj.signifiers = [];
+  var idx = result.obj.signifiers.indexOf(sig);
+  if (idx > -1) result.obj.signifiers.splice(idx, 1);
+  else result.obj.signifiers.push(sig);
+  result.save();
   renderObjectList();
+  // Re-render ctx detail if open
+  if (activeCtxDetail) openCtxDetail(activeCtxDetail);
+  if (activeCtxReview) renderCtxView();
 }
 
 // ════════════════════════════════════════════════
@@ -5548,13 +5854,18 @@ function renderEveningMigration() {
     if (obj.status === 'xx') cls = ' done-xx';
 
     var noteVal = obj.reviewNote || '';
+    // Hint for < status: suggest entering a date
+    var notePlaceholder = obj.status === '<'
+      ? 'Zieldatum eingeben (YYYY-MM-DD) — wird ins Future Log übernommen…'
+      : 'Kontext-Notiz zur Migration (optional)…';
     return '<div class="review-task' + cls + '" id="rtask-' + obj.id + '">' +
       '<div class="review-task-text">' + esc(obj.text) + '</div>' +
       '<div class="review-task-meta">' +
         (obj.zeit ? '<span>' + esc(obj.zeit) + '</span>' : '') +
         (obj.contexts && obj.contexts.length ? obj.contexts.map(function(c){ return '<span class="ctx-tag">@'+esc(c)+'</span>'; }).join('') : '') +
+        (obj.status === '<' ? '<span style="font-family:var(--mono);font-size:0.6rem;color:var(--orange);margin-left:auto">→ Future Log</span>' : '') +
       '</div>' +
-      '<textarea data-oid="' + obj.id + '" class="review-note-input" placeholder="Kontext-Notiz zur Migration (optional)…" onchange="saveReviewNote(this.dataset.oid, this.value)" style="width:100%;margin:6px 0;font-family:var(--serif);font-size:0.84rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--ink);padding:6px 8px;resize:vertical;min-height:48px;line-height:1.55">' + esc(noteVal) + '</textarea>' +
+      '<textarea data-oid="' + obj.id + '" class="review-note-input" placeholder="' + notePlaceholder + '" onchange="saveReviewNote(this.dataset.oid, this.value)" style="width:100%;margin:6px 0;font-family:var(--serif);font-size:0.84rem;background:var(--bg);border:1px solid var(--border);border-radius:3px;color:var(--ink);padding:6px 8px;resize:vertical;min-height:48px;line-height:1.55">' + esc(noteVal) + '</textarea>' +
       '<div class="review-actions">' + buildReviewBtns(obj) + '</div>' +
     '</div>';
   }).join('');
@@ -7661,7 +7972,20 @@ function updateDateNav() {
   if (bannerText && isPast) {
     var d = new Date(viewDate + 'T00:00:00');
     var label = d.toLocaleDateString('de-DE', { weekday: 'long', day: 'numeric', month: 'long' });
-    bannerText.textContent = '📅 ' + label;
+    // Add day-status indicator
+    var dayData = getDataForDate(viewDate);
+    var statusStr = '';
+    if (dayData && dayData.closedAt) {
+      statusStr = ' <span style="font-family:var(--mono);font-size:0.6rem;color:var(--green);' +
+        'border:1px solid rgba(106,152,112,0.4);border-radius:3px;padding:1px 5px;margin-left:6px">✓ abgeschlossen</span>';
+    } else if (dayData && dayData.reviewDone) {
+      statusStr = ' <span style="font-family:var(--mono);font-size:0.6rem;color:var(--blue);' +
+        'border:1px solid rgba(98,130,160,0.4);border-radius:3px;padding:1px 5px;margin-left:6px">✓ reviewt</span>';
+    } else {
+      statusStr = ' <span style="font-family:var(--mono);font-size:0.6rem;color:var(--ink-dim);' +
+        'border:1px solid var(--border);border-radius:3px;padding:1px 5px;margin-left:6px">· offen</span>';
+    }
+    bannerText.innerHTML = '📅 ' + esc(label) + statusStr;
   }
   renderCalendarDots();
 }
