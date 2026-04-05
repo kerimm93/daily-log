@@ -2430,6 +2430,22 @@ select:focus { outline: none; border-color: var(--border-mid); }
     <label style="margin-top:10px">Raw Backup Gist ID</label>
     <input type="text" id="cfgRawGistId" placeholder="abc123...">
 
+    <label style="margin-top:18px">🔒 Sync-Passphrase (Gist-Verschlüsselung)</label>
+    <input type="password" id="cfgSyncPassphrase" placeholder="Passphrase für AES-GCM-Verschlüsselung des Gists…">
+    <div style="margin-top:6px;display:flex;align-items:flex-start;gap:8px">
+      <input type="checkbox" id="cfgSyncPassphraseRemember"
+        style="width:15px;height:15px;margin-top:2px;accent-color:var(--accent);flex-shrink:0;cursor:pointer">
+      <div>
+        <label for="cfgSyncPassphraseRemember" style="display:inline;text-transform:none;letter-spacing:0;font-size:0.72rem;cursor:pointer;color:var(--ink-mid)">
+          Passphrase auf diesem Gerät merken
+        </label>
+        <div style="font-family:var(--mono);font-size:0.6rem;color:var(--ink-dim);margin-top:2px;line-height:1.55">
+          Schützt Gist-Daten auf GitHub · Lokale Exporte bleiben unverschlüsselt ·
+          Speichert die Passphrase lokal im Browser. Bequemer, aber weniger sicher als nur für diese Sitzung.
+        </div>
+      </div>
+    </div>
+
     <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
       <div style="font-family:var(--mono);font-size:0.64rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:10px">Speicher & Daten</div>
       <div id="storageBar" style="height:6px;background:var(--border);border-radius:3px;margin-bottom:6px;overflow:hidden">
@@ -4635,6 +4651,13 @@ function loadSettingsUI() {
   if (document.getElementById('cfgOpenAI')) document.getElementById('cfgOpenAI').value = localStorage.getItem(OPENAI_KEY) || '';
   if (document.getElementById('cfgReadwise')) document.getElementById('cfgReadwise').value = localStorage.getItem(READWISE_KEY) || '';
   if (document.getElementById('cfgRaindrop')) document.getElementById('cfgRaindrop').value = localStorage.getItem(RAINDROP_KEY) || '';
+  // Passphrase: show current session value or remembered value; also restore checkbox
+  if (document.getElementById('cfgSyncPassphrase')) {
+    document.getElementById('cfgSyncPassphrase').value = getSyncPassphrase();
+  }
+  if (document.getElementById('cfgSyncPassphraseRemember')) {
+    document.getElementById('cfgSyncPassphraseRemember').checked = isSyncPassphraseRemembered();
+  }
 }
 
 function saveSettings() {
@@ -4654,9 +4677,16 @@ function saveSettings() {
   var rdKey = document.getElementById('cfgRaindrop') ? document.getElementById('cfgRaindrop').value.trim() : '';
   if (rwKey) localStorage.setItem(READWISE_KEY, rwKey);
   if (rdKey) localStorage.setItem(RAINDROP_KEY, rdKey);
+  // Passphrase: store in session (+ optionally localStorage) based on checkbox
+  var pp       = document.getElementById('cfgSyncPassphrase') ? document.getElementById('cfgSyncPassphrase').value : '';
+  var remember = !!(document.getElementById('cfgSyncPassphraseRemember') && document.getElementById('cfgSyncPassphraseRemember').checked);
+  setSyncPassphrase(pp, remember);
+  var ppToast = !getSyncPassphrase()
+    ? ' · ⚠ Keine Passphrase — Gist bleibt unverschlüsselt'
+    : (remember ? ' · 🔒 Passphrase lokal im Browser gespeichert' : ' · 🔒 Passphrase nur für diese Sitzung gesetzt');
   save();
   closeModal('settingsModal');
-  toast('Einstellungen gespeichert');
+  toast('Einstellungen gespeichert' + ppToast);
 }
 
 function exportData() {
@@ -4713,8 +4743,127 @@ function copyText(text, msg) {
 // ════════════════════════════════════════════════
 var gistTimer = null;
 
-function gistPayload() {
-  return { version: 2, exported: new Date().toISOString(), S: S, TODAY: TODAY };
+// ════════════════════════════════════════════════
+// Client-Side Encryption (Gist only — localStorage stays plaintext)
+// ════════════════════════════════════════════════
+
+var _syncPassphrase = ''; // runtime session value
+var SYNC_PASSPHRASE_KEY    = 'dailylog_sync_passphrase';
+var SYNC_PASSPHRASE_REMEMBER_KEY = 'dailylog_sync_pp_remember';
+
+function getSyncPassphrase() {
+  // Prefer session value; fall back to localStorage if remembered
+  if (_syncPassphrase) return _syncPassphrase;
+  if (localStorage.getItem(SYNC_PASSPHRASE_REMEMBER_KEY) === '1') {
+    return localStorage.getItem(SYNC_PASSPHRASE_KEY) || '';
+  }
+  return '';
+}
+
+function setSyncPassphrase(p, remember) {
+  _syncPassphrase = (p || '').trim();
+  if (remember) {
+    if (_syncPassphrase) {
+      localStorage.setItem(SYNC_PASSPHRASE_KEY, _syncPassphrase);
+      localStorage.setItem(SYNC_PASSPHRASE_REMEMBER_KEY, '1');
+    } else {
+      // Empty passphrase + remember = clear stored
+      localStorage.removeItem(SYNC_PASSPHRASE_KEY);
+      localStorage.removeItem(SYNC_PASSPHRASE_REMEMBER_KEY);
+    }
+  } else {
+    // remember=false: remove any stored copy
+    localStorage.removeItem(SYNC_PASSPHRASE_KEY);
+    localStorage.removeItem(SYNC_PASSPHRASE_REMEMBER_KEY);
+  }
+}
+
+function clearSyncPassphrase() {
+  _syncPassphrase = '';
+  localStorage.removeItem(SYNC_PASSPHRASE_KEY);
+  localStorage.removeItem(SYNC_PASSPHRASE_REMEMBER_KEY);
+}
+
+function isSyncPassphraseRemembered() {
+  return localStorage.getItem(SYNC_PASSPHRASE_REMEMBER_KEY) === '1';
+}
+
+function arrayBufferToBase64(buf) {
+  var bytes = new Uint8Array(buf);
+  var bin = '';
+  for (var i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+  return btoa(bin);
+}
+
+function base64ToArrayBuffer(b64) {
+  var bin = atob(b64);
+  var buf = new Uint8Array(bin.length);
+  for (var i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+  return buf.buffer;
+}
+
+function textToUint8(str) {
+  return new TextEncoder().encode(str);
+}
+
+function uint8ToText(buf) {
+  return new TextDecoder().decode(buf);
+}
+
+function isEncryptedEnvelope(obj) {
+  return obj && obj.format === 'dailylog-encrypted-v1';
+}
+
+async function deriveKeyFromPassphrase(passphrase, saltBuf) {
+  var keyMaterial = await crypto.subtle.importKey(
+    'raw', textToUint8(passphrase), { name: 'PBKDF2' }, false, ['deriveKey']
+  );
+  return crypto.subtle.deriveKey(
+    { name: 'PBKDF2', salt: saltBuf, iterations: 250000, hash: 'SHA-256' },
+    keyMaterial,
+    { name: 'AES-GCM', length: 256 },
+    false,
+    ['encrypt', 'decrypt']
+  );
+}
+
+async function encryptJsonPayload(payloadObj, passphrase) {
+  var plaintext = JSON.stringify(payloadObj);
+  var salt = crypto.getRandomValues(new Uint8Array(16));
+  var iv   = crypto.getRandomValues(new Uint8Array(12));
+  var key  = await deriveKeyFromPassphrase(passphrase, salt.buffer);
+  var cipherBuf = await crypto.subtle.encrypt(
+    { name: 'AES-GCM', iv: iv },
+    key,
+    textToUint8(plaintext)
+  );
+  return {
+    format:     'dailylog-encrypted-v1',
+    kdf:        { name: 'PBKDF2', hash: 'SHA-256', iterations: 250000 },
+    cipher:     { name: 'AES-GCM' },
+    salt:       arrayBufferToBase64(salt.buffer),
+    iv:         arrayBufferToBase64(iv.buffer),
+    ciphertext: arrayBufferToBase64(cipherBuf)
+  };
+}
+
+async function decryptJsonPayload(envelope, passphrase) {
+  // envelope must be an isEncryptedEnvelope() object
+  var saltBuf    = base64ToArrayBuffer(envelope.salt);
+  var ivBuf      = base64ToArrayBuffer(envelope.iv);
+  var cipherBuf  = base64ToArrayBuffer(envelope.ciphertext);
+  var key = await deriveKeyFromPassphrase(passphrase, saltBuf);
+  var plainBuf = await crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: new Uint8Array(ivBuf) },
+    key,
+    cipherBuf
+  );
+  return JSON.parse(uint8ToText(plainBuf));
+}
+
+function gistPayload(syncTs) {
+  // syncTs is the shared timestamp for both exported field and S._lastExported
+  return { version: 2, exported: syncTs || new Date().toISOString(), S: S, TODAY: TODAY };
 }
 
 function gistAutoSyncDebounced() {
@@ -4731,25 +4880,38 @@ function gistAutoSyncDebounced() {
 async function gistPush(silent) {
   var token = localStorage.getItem(GIST_TOKEN_KEY);
   var gid   = localStorage.getItem(GIST_ID_KEY);
-  if (!token || !gid) { toast('Kein Token oder Gist-ID konfiguriert.'); return; }
+  if (!token || !gid) { if (!silent) toast('Kein Token oder Gist-ID konfiguriert.'); return; }
+  var passphrase = getSyncPassphrase();
+  if (!passphrase) {
+    if (!silent) toast('⚠ Keine Sync-Passphrase gesetzt — Gist nicht beschrieben. Bitte in Einstellungen eingeben.');
+    return;
+  }
   var btn = document.getElementById('btnGistPush');
   if (btn) btn.textContent = '⏳ Speichern…';
+  // Save previous timestamp so we can revert if push fails
+  var prevLastExported = S._lastExported || '';
   try {
+    // Single shared timestamp — prevents freshness drift between payload and local state
+    var syncTs = new Date().toISOString();
+    S._lastExported = syncTs;
+    var envelope = await encryptJsonPayload(gistPayload(syncTs), passphrase);
     var r = await fetch('https://api.github.com/gists/' + gid, {
       method: 'PATCH',
       headers: { 'Authorization': 'token ' + token, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ files: { [GIST_FILE]: { content: JSON.stringify(gistPayload(), null, 2) } } })
+      body: JSON.stringify({ files: { [GIST_FILE]: { content: JSON.stringify(envelope, null, 2) } } })
     });
     if (r.ok) {
-      if (!silent) toast('☁ Daten gespeichert');
-      else toast('☁ Synced');
+      if (!silent) toast('☁ Daten verschlüsselt gespeichert');
+      else toast('☁ Synced (verschlüsselt)');
     } else {
       var err = await r.json();
+      // Revert timestamp exactly — push did not reach the Gist
+      S._lastExported = prevLastExported;
       toast('Fehler: ' + (err.message || r.status));
     }
-    // Update last exported timestamp
-    S._lastExported = new Date().toISOString();
   } catch(e) {
+    // Revert on any network/crypto error
+    S._lastExported = prevLastExported;
     toast('Sync-Fehler: ' + e.message);
   } finally {
     if (btn) btn.textContent = '☁ Jetzt speichern';
@@ -4779,18 +4941,47 @@ async function gistPull(silent, forceOverwrite) {
       if (!silent) toast('Keine Daten im Gist gefunden.');
       return false;
     }
-    var parsed = JSON.parse(file.content);
+    var raw = JSON.parse(file.content);
 
-    // Compare timestamps — only pull if Gist is newer
-    var gistTime   = parsed.exported || '0';
-    var localTime  = (S && S._lastExported) || '0';
-    var gistNewer  = gistTime > localTime;
+    // ── Decrypt if envelope, else use plaintext as-is ─────────────────────
+    var parsed;
+    if (isEncryptedEnvelope(raw)) {
+      var passphrase = getSyncPassphrase();
+      if (!passphrase) {
+        toast('🔒 Gist ist verschlüsselt — bitte Sync-Passphrase in Einstellungen eingeben.');
+        return false;
+      }
+      try {
+        parsed = await decryptJsonPayload(raw, passphrase);
+      } catch(e) {
+        toast('🔑 Entschlüsselung fehlgeschlagen — falsche Passphrase?');
+        return false;
+      }
+    } else {
+      // Legacy plaintext Gist — read as-is, will be encrypted on next push
+      parsed = raw;
+    }
+    // ─────────────────────────────────────────────────────────────────────
 
-    if (!forceOverwrite && !gistNewer && !silent) {
+    // gistTime from decrypted payload (not from envelope wrapper)
+    var gistTime  = parsed.exported || (parsed.S && parsed.S._lastExported) || '';
+    var localTime = (S && S._lastExported) || '';
+    var gistNewer = gistTime > localTime;
+
+    // Force pull when local state is effectively empty (new browser / fresh install)
+    var localHasData = (S.days||[]).length > 0 ||
+                       (TODAY.cards||[]).length > 0 ||
+                       (TODAY.objects||[]).length > 0 ||
+                       (TODAY.feedItems||[]).length > 0 ||
+                       (S.futurelog||[]).length > 0 ||
+                       (S.zettels||[]).length > 0;
+    var localIsEmpty = !localTime && !localHasData;
+
+    if (!forceOverwrite && !gistNewer && !localIsEmpty && !silent) {
       toast('Lokale Daten sind aktuell — kein Pull nötig.');
       return false;
     }
-    if (!forceOverwrite && !gistNewer && silent) return false;
+    if (!forceOverwrite && !gistNewer && !localIsEmpty && silent) return false;
 
     if (forceOverwrite) {
       // Hard overwrite — but still archive stale TODAY first
@@ -5057,16 +5248,48 @@ async function gistSync() {
     var data   = await r.json();
     var file   = data.files && data.files[GIST_FILE];
     if (!file || !file.content) {
-      // Gist is empty — push local data
+      // Gist is empty — push local data (only if passphrase set)
       await gistPush(true);
       return;
     }
 
-    var remote = JSON.parse(file.content);
-    var gistTime  = remote.exported || '0';
-    var localTime = S._lastExported || '0';
+    var rawGistObj = JSON.parse(file.content);
 
-    if (gistTime === localTime) return; // identical, nothing to do
+    // ── Decrypt if envelope ────────────────────────────────────────────────
+    var remote;
+    if (isEncryptedEnvelope(rawGistObj)) {
+      var passphrase = getSyncPassphrase();
+      if (!passphrase) {
+        // Encrypted gist but no passphrase — show notice, do NOT overwrite
+        toast('🔒 Gist verschlüsselt — Sync übersprungen. Bitte Passphrase in Einstellungen setzen.');
+        return;
+      }
+      try {
+        remote = await decryptJsonPayload(rawGistObj, passphrase);
+      } catch(e) {
+        toast('🔑 Gist-Entschlüsselung fehlgeschlagen — falsches Passwort? Sync abgebrochen.');
+        return;
+      }
+    } else {
+      // Legacy plaintext — read as-is, will be encrypted on next push
+      remote = rawGistObj;
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
+    // gistTime from decrypted payload (not envelope wrapper)
+    var gistTime  = remote.exported || (remote.S && remote.S._lastExported) || '';
+    var localTime = S._lastExported || '';
+
+    // Force sync when local state is effectively empty
+    var localHasData = (S.days||[]).length > 0 ||
+                       (TODAY.cards||[]).length > 0 ||
+                       (TODAY.objects||[]).length > 0 ||
+                       (TODAY.feedItems||[]).length > 0 ||
+                       (S.futurelog||[]).length > 0 ||
+                       (S.zettels||[]).length > 0;
+    var localIsEmpty = !localTime && !localHasData;
+
+    if (gistTime === localTime && !localIsEmpty) return; // identical, nothing to do
 
     // Archive local TODAY into S before merge if it's from a past day
     if (TODAY && TODAY.date && TODAY.date !== today()) {
@@ -5110,7 +5333,7 @@ async function gistSync() {
     if (!TODAY.feedItems) TODAY.feedItems = [];
     if (!TODAY.plan) TODAY.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
 
-    // Push merged result back
+    // Push merged result back (gistPush handles passphrase check internally)
     S._lastExported = new Date().toISOString();
     save();
     await gistPush(true);
@@ -5228,6 +5451,11 @@ async function rawGistPush(silent) {
   var token = localStorage.getItem(RAW_GIST_TOKEN_KEY);
   var gid   = localStorage.getItem(RAW_GIST_ID_KEY);
   if (!token || !gid) { if (!silent) toast('Kein Raw-Backup-Gist konfiguriert.'); return false; }
+  var passphrase = getSyncPassphrase();
+  if (!passphrase) {
+    if (!silent) toast('⚠ Keine Sync-Passphrase gesetzt — Raw-Backup nicht geschrieben.');
+    return false;
+  }
   var btn = document.getElementById('btnRawPush');
   if (btn) btn.textContent = '⏳ Rohkarten…';
   try {
@@ -5237,7 +5465,18 @@ async function rawGistPush(silent) {
       if (getRes.ok) {
         var getData = await getRes.json();
         var getFile = getData.files && getData.files[RAW_GIST_FILE];
-        if (getFile && getFile.content) remoteCards = flattenRawPayload(JSON.parse(getFile.content));
+        if (getFile && getFile.content) {
+          var existing = JSON.parse(getFile.content);
+          // Decrypt if encrypted, else use as-is
+          var existingParsed;
+          if (isEncryptedEnvelope(existing)) {
+            try { existingParsed = await decryptJsonPayload(existing, passphrase); }
+            catch(e) { existingParsed = null; } // wrong passphrase — skip remote merge
+          } else {
+            existingParsed = existing;
+          }
+          if (existingParsed) remoteCards = flattenRawPayload(existingParsed);
+        }
       }
     } catch(e) {
       console.warn('Raw backup GET failed:', e.message);
@@ -5249,16 +5488,17 @@ async function rawGistPush(silent) {
       grouped[card.date].push(card);
     });
     var payload = { version: 1, exported: new Date().toISOString(), days: grouped };
+    var envelope = await encryptJsonPayload(payload, passphrase);
     var writeRes = await fetch('https://api.github.com/gists/' + gid, {
       method: 'PATCH',
       headers: githubHeaders(token, true),
-      body: JSON.stringify({ files: { [RAW_GIST_FILE]: { content: JSON.stringify(payload, null, 2) } } })
+      body: JSON.stringify({ files: { [RAW_GIST_FILE]: { content: JSON.stringify(envelope, null, 2) } } })
     });
     if (!writeRes.ok) {
       var err = await writeRes.json().catch(function(){ return {}; });
       throw new Error(err.message || writeRes.status);
     }
-    if (!silent) toast('🗃 Rohkarten gesichert');
+    if (!silent) toast('🗃 Rohkarten verschlüsselt gesichert');
     return true;
   } catch(e) {
     if (!silent) toast('Raw-Backup-Fehler: ' + e.message);
@@ -5287,7 +5527,27 @@ async function loadRawRestoreFromGist() {
     var data = await r.json();
     var file = data.files && data.files[RAW_GIST_FILE];
     if (!file || !file.content) throw new Error('Keine Raw-Datei im Gist');
-    var parsed = JSON.parse(file.content);
+    var raw = JSON.parse(file.content);
+
+    // ── Decrypt if envelope, else use plaintext ───────────────────────────
+    var parsed;
+    if (isEncryptedEnvelope(raw)) {
+      var passphrase = getSyncPassphrase();
+      if (!passphrase) {
+        toast('🔒 Raw-Backup ist verschlüsselt — bitte Passphrase in Einstellungen setzen.');
+        return;
+      }
+      try {
+        parsed = await decryptJsonPayload(raw, passphrase);
+      } catch(e) {
+        toast('🔑 Raw-Entschlüsselung fehlgeschlagen — falsche Passphrase?');
+        return;
+      }
+    } else {
+      parsed = raw;
+    }
+    // ─────────────────────────────────────────────────────────────────────
+
     RAW_RESTORE.items = flattenRawPayload(parsed).map(function(card) {
       var exists = rawCardExistsLocally(card);
       return Object.assign({}, card, { existsLocally: exists });
