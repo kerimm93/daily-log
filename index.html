@@ -4288,16 +4288,19 @@ function exportAllPipePrompts() {
 // Finish Day
 // ════════════════════════════════════════════════
 function finishDay() {
-  // Process > and < tasks before archiving
+  var targetDate = viewDate;          // the day we're closing
+  var vd = getViewData();             // data for that day (TODAY ref or S.days ref)
+  var isPast = (targetDate !== today());
+
+  // ── 1. Process > and < tasks on the target day's objects ─────────────────
   var migrated = 0, scheduled = 0;
-  TODAY.objects.forEach(function(obj) {
+  (vd.objects || []).forEach(function(obj) {
     if (obj.typ !== 'aufgabe' || obj.parentId || obj.dismissed) return;
     if (obj.status === '>') {
-      // Migriert → Puffer für morgen
       S.migrationPuffer.push({
         id: uid(),
         text: obj.text + (obj.reviewNote ? '\n→ ' + obj.reviewNote : ''),
-        fromDate: today(),
+        fromDate: targetDate,
         objId: obj.id,
         contexts: obj.contexts || [],
         signifiers: obj.signifiers || [],
@@ -4305,10 +4308,8 @@ function finishDay() {
       });
       migrated++;
     } else if (obj.status === '<') {
-      // Terminiert → Future Log (Datum aus reviewNote wenn vorhanden, sonst leer lassen für manuelle Zuordnung)
       var flDate = '';
       if (obj.reviewNote) {
-        // Try to parse a date from the review note (YYYY-MM-DD)
         var dateMatch = obj.reviewNote.match(/(\d{4}-\d{2}-\d{2})/);
         if (dateMatch) flDate = dateMatch[1];
       }
@@ -4318,7 +4319,7 @@ function finishDay() {
         note: obj.reviewNote || '',
         date: flDate,
         month: '',
-        fromDate: today(),
+        fromDate: targetDate,
         objId: obj.id,
         contexts: obj.contexts || [],
         done: false,
@@ -4329,19 +4330,44 @@ function finishDay() {
   });
 
   var closedAt = new Date().toISOString();
-  var entry = {
-    id: uid(),
-    date: today(),
-    cards: JSON.parse(JSON.stringify(TODAY.cards)),
-    objects: JSON.parse(JSON.stringify(TODAY.objects)),
-    reviewDone: TODAY.reviewDone || false,  // carry over review status
-    closedAt: closedAt,                      // explicit close — only set by finishDay()
-    createdAt: new Date().toISOString()
-  };
-  S.days.unshift(entry);
-  TODAY = { date: today(), cards: [], objects: [], feedItems: [], reviewDone: false, plan: { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] } };
-  pipeStepsDone = {};
-  save();
+
+  if (isPast) {
+    // ── 2a. Past day: the day is already in S.days by reference via getViewData().
+    //        Just stamp closedAt (and reviewDone) on it — no new entry, TODAY untouched.
+    vd.closedAt   = closedAt;
+    vd.reviewDone = vd.reviewDone || false;
+    save();
+  } else {
+    // ── 2b. Today: upsert into S.days (never create a duplicate for the same date).
+    var existingIdx = (S.days || []).findIndex(function(d){ return d.date === targetDate; });
+    var entry = {
+      id:         existingIdx >= 0 ? (S.days[existingIdx].id || uid()) : uid(),
+      date:       targetDate,
+      cards:      JSON.parse(JSON.stringify(TODAY.cards)),
+      objects:    JSON.parse(JSON.stringify(TODAY.objects)),
+      reviewDone: TODAY.reviewDone || false,
+      closedAt:   closedAt,
+      createdAt:  existingIdx >= 0 ? (S.days[existingIdx].createdAt || closedAt) : closedAt
+    };
+    if (existingIdx >= 0) {
+      S.days[existingIdx] = entry;   // update in place — no duplicate
+    } else {
+      S.days.unshift(entry);
+      S.days.sort(function(a,b){ return b.date > a.date ? 1 : -1; });
+    }
+    // Reset TODAY only when closing today
+    TODAY = { date: today(), cards: [], objects: [], feedItems: [], reviewDone: false,
+              plan: { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] } };
+    pipeStepsDone = {};
+    for (var i = 1; i <= 5; i++) {
+      var el = document.getElementById('pipe-out-' + i);
+      if (el) el.style.display = 'none';
+      var nav = document.getElementById('pnav-' + i);
+      if (nav) nav.classList.remove('done');
+    }
+    save();
+  }
+
   renderCardList();
   updateBadges();
   updateDateNav();
@@ -4349,14 +4375,8 @@ function finishDay() {
   updateDrawerActive('sammeln');
   syncDrawerBadges();
   updateFLBadge();
-  for (var i = 1; i <= 5; i++) {
-    var el = document.getElementById('pipe-out-' + i);
-    if (el) el.style.display = 'none';
-    var nav = document.getElementById('pnav-' + i);
-    if (nav) nav.classList.remove('done');
-  }
-  var msg = '✓ Tag gespeichert';
-  if (migrated) msg += ' · ' + migrated + ' migriert';
+  var msg = '✓ ' + targetDate + ' abgeschlossen';
+  if (migrated)  msg += ' · ' + migrated  + ' migriert';
   if (scheduled) msg += ' · ' + scheduled + ' terminiert';
   toast(msg);
   switchTab('verlauf');
