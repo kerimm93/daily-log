@@ -2668,16 +2668,25 @@ function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 // ════════════════════════════════════════════════
 // Persistence
 // ════════════════════════════════════════════════
+var _syncInProgress = false; // true while gistSync/gistPull/gistPush is running
+
 function save() {
-  S._lastExported = new Date().toISOString();
+  if (!_syncInProgress) {
+    // Only update _lastExported outside of active sync — gistSync manages its own timestamp
+    S._lastExported = new Date().toISOString();
+  }
   var payload = { S: S, TODAY: TODAY };
   try { localStorage.setItem(LKEY, JSON.stringify(payload)); } catch(e) { toast('⚠ Speicherfehler'); }
-  gistAutoSyncDebounced();
-  rawBackupAutoSyncDebounced();
+  if (!_syncInProgress) {
+    // Don't kick auto-sync while sync is already running
+    gistAutoSyncDebounced();
+    rawBackupAutoSyncDebounced();
+  }
 }
 
 var _saveDebounceTimer = null;
 function saveDebounced() {
+  if (_syncInProgress) return; // ignore micro-saves during active sync
   if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
   _saveDebounceTimer = setTimeout(function() {
     _saveDebounceTimer = null;
@@ -5054,6 +5063,8 @@ async function gistPull(silent, forceOverwrite) {
   }
   var btn = document.getElementById('btnGistPull');
   if (btn && !silent) btn.textContent = '⏳ Laden…';
+  var wasSyncing = _syncInProgress;
+  _syncInProgress = true;
   try {
     var r = await fetch('https://api.github.com/gists/' + gid, {
       headers: { 'Authorization': 'token ' + token }
@@ -5166,6 +5177,7 @@ async function gistPull(silent, forceOverwrite) {
     return false;
   } finally {
     if (btn && !silent) btn.textContent = '↓ Von Gist laden';
+    _syncInProgress = wasSyncing; // restore — don't clear if caller already set it
   }
 }
 
@@ -5366,6 +5378,8 @@ async function gistSync() {
   var token = localStorage.getItem(GIST_TOKEN_KEY);
   var gid   = localStorage.getItem(GIST_ID_KEY);
   if (!token || !gid) return;
+  if (_syncInProgress) return; // prevent re-entrant sync
+  _syncInProgress = true;
 
   // Always archive stale TODAY before any network operation
   archiveTodayIfStale();
@@ -5437,6 +5451,9 @@ async function gistSync() {
         plan: { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] } };
     }
 
+    // ── Snapshot BEFORE merge (before mergeS mutates S.deletedIds as side-effect) ─
+    var beforeSnapshot = JSON.stringify({ S: S, TODAY: TODAY });
+
     // Merge both sides
     var mergedS = mergeS(S, remote.S || {});
 
@@ -5449,6 +5466,13 @@ async function gistSync() {
     } else {
       mergedToday = mergeToday(remote.TODAY, TODAY);
     }
+
+    // ── Detect whether the merge actually changed anything ─────────────────
+    // Serialize before/after to detect real changes. Avoids unnecessary writes
+    // and prevents the "save while nothing changed" Speicherfehler on reload.
+    var afterSnapshot  = JSON.stringify({ S: mergedS, TODAY: mergedToday });
+    var didChange = (beforeSnapshot !== afterSnapshot);
+    // ─────────────────────────────────────────────────────────────────────
 
     S     = mergedS;
     TODAY = mergedToday;
@@ -5465,26 +5489,30 @@ async function gistSync() {
     if (!TODAY.feedItems) TODAY.feedItems = [];
     if (!TODAY.plan) TODAY.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
 
-    // Push merged result back (gistPush handles passphrase check internally)
-    S._lastExported = new Date().toISOString();
-    save();
-    await gistPush(true);
+    if (didChange) {
+      // Something actually changed — persist and push
+      S._lastExported = new Date().toISOString();
+      save();
+      await gistPush(true);
 
-    // Re-render
-    renderCardList();
-    updateBadges();
-    updateReviewBadge();
-    updateFLBadge();
-    updateFeedBadge();
-    updateZettelBadge();
-    cleanOrphanCollectionRefs();
+      // Re-render with merged state
+      renderCardList();
+      updateBadges();
+      updateReviewBadge();
+      updateFLBadge();
+      updateFeedBadge();
+      updateZettelBadge();
+      cleanOrphanCollectionRefs();
 
-    var diff = gistTime !== localTime ? '☁ Sync: Daten zusammengeführt' : '☁ Synced';
-    toast(diff);
+      var diff = gistTime > localTime ? '☁ Sync: neuere Daten geladen' : '☁ Sync: Daten zusammengeführt';
+      toast(diff);
+    }
 
   } catch(e) {
     // Silent fail on startup
     console.warn('gistSync error:', e.message);
+  } finally {
+    _syncInProgress = false;
   }
 }
 
