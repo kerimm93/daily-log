@@ -2676,6 +2676,15 @@ function save() {
   rawBackupAutoSyncDebounced();
 }
 
+var _saveDebounceTimer = null;
+function saveDebounced() {
+  if (_saveDebounceTimer) clearTimeout(_saveDebounceTimer);
+  _saveDebounceTimer = setTimeout(function() {
+    _saveDebounceTimer = null;
+    save();
+  }, 600);
+}
+
 function load() {
   try {
     var d = localStorage.getItem(LKEY);
@@ -3917,7 +3926,7 @@ function saveEditMain(objId) {
   if (!inp) return;
   var newText = inp.value.trim();
   var result = findObjGlobal(objId);
-  if (result && newText) { result.obj.text = newText; result.save(); }
+  if (result && newText) { result.obj.text = newText; touchObj(result.obj); saveDebounced(); }
   renderObjectList();
   if (activeCtxDetail) openCtxDetail(activeCtxDetail);
   if (activeCtxReview) renderCtxView();
@@ -3945,7 +3954,7 @@ function saveEditChild(childId) {
   if (!inp) return;
   var newText = inp.value.trim();
   var obj = getViewData().objects.find(function(o){ return o.id === childId; });
-  if (obj && newText) { obj.text = newText; saveViewData(); renderObjectList(); }
+  if (obj && newText) { obj.text = newText; touchObj(obj); saveDebounced(); renderObjectList(); }
 }
 
 function promoteChild(childId) {
@@ -3953,6 +3962,7 @@ function promoteChild(childId) {
   if (!obj) return;
   obj.parentId = null;
   obj.createdAt = obj.createdAt || new Date().toISOString();
+  touchObj(obj);
   saveViewData();
   renderObjectList();
   toast('Zu eigenem Objekt gemacht');
@@ -4037,7 +4047,7 @@ function renderExtractCards() {
 
 function dismissObj(id) {
   var result = findObjGlobal(id);
-  if (result) { result.obj.dismissed = true; result.save(); }
+  if (result) { result.obj.dismissed = true; touchObj(result.obj); result.save(); }
   renderObjectList();
   updateBadges();
   if (activeCtxDetail) openCtxDetail(activeCtxDetail);
@@ -4046,7 +4056,7 @@ function dismissObj(id) {
 
 function restoreObj(id) {
   var result = findObjGlobal(id);
-  if (result) { result.obj.dismissed = false; result.save(); }
+  if (result) { result.obj.dismissed = false; touchObj(result.obj); result.save(); }
   renderObjectList();
   updateBadges();
   if (activeCtxDetail) openCtxDetail(activeCtxDetail);
@@ -6150,14 +6160,20 @@ function findObjGlobal(objId) {
   return null;
 }
 
+// Stamp updatedAt on an object so mergeById can resolve conflicts correctly.
+// Call this whenever a field other than text/creation is mutated.
+function touchObj(obj) {
+  obj.updatedAt = new Date().toISOString();
+}
+
 function setObjStatus(objId, status) {
   var result = findObjGlobal(objId);
   if (!result) return;
   result.obj.status = (result.obj.status === status) ? 'open' : status;
-  result.save();
+  touchObj(result.obj);
+  saveDebounced();
   renderObjectList();
   updateReviewBadge();
-  // Re-render ctx detail if open (Kontexte tab or Review tab)
   if (activeCtxDetail) openCtxDetail(activeCtxDetail);
   if (activeCtxReview) renderCtxView();
 }
@@ -6169,9 +6185,9 @@ function setSignifier(objId, sig) {
   var idx = result.obj.signifiers.indexOf(sig);
   if (idx > -1) result.obj.signifiers.splice(idx, 1);
   else result.obj.signifiers.push(sig);
-  result.save();
+  touchObj(result.obj);
+  saveDebounced();
   renderObjectList();
-  // Re-render ctx detail if open
   if (activeCtxDetail) openCtxDetail(activeCtxDetail);
   if (activeCtxReview) renderCtxView();
 }
@@ -6216,7 +6232,7 @@ function renderMorningReview() {
 
 function saveReviewNote(objId, note) {
   var obj = getViewData().objects.find(function(o){ return o.id === objId; });
-  if (obj) { obj.reviewNote = note; save(); }
+  if (obj) { obj.reviewNote = note; touchObj(obj); saveDebounced(); }
 }
 
 function buildReviewBtns(obj) {
@@ -7668,6 +7684,7 @@ function assignObjToCollection(objId, colId) {
   if (!result.obj.collectionIds) result.obj.collectionIds = [];
   if (result.obj.collectionIds.indexOf(colId) === -1) {
     result.obj.collectionIds.push(colId);
+    touchObj(result.obj);  // stamp updatedAt so mergeById picks this version
     result.save();
     // Touch updatedAt on collection
     var col = (S.collections||[]).find(function(c){ return c.id === colId; });
@@ -7681,6 +7698,7 @@ function removeObjFromCollection(objId, colId) {
   if (!result) return;
   if (!result.obj.collectionIds) return;
   result.obj.collectionIds = result.obj.collectionIds.filter(function(id){ return id !== colId; });
+  touchObj(result.obj);  // stamp updatedAt so mergeById picks this version
   result.save();
   save();
 }
