@@ -2670,13 +2670,17 @@ function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
 // ════════════════════════════════════════════════
 var _syncInProgress = false; // true while gistSync/gistPull/gistPush is running
 
+function persistLocalOnly() {
+  var payload = { S: S, TODAY: TODAY };
+  try { localStorage.setItem(LKEY, JSON.stringify(payload)); } catch(e) { toast('⚠ Speicherfehler'); }
+}
+
 function save() {
   if (!_syncInProgress) {
     // Only update _lastExported outside of active sync — gistSync manages its own timestamp
     S._lastExported = new Date().toISOString();
   }
-  var payload = { S: S, TODAY: TODAY };
-  try { localStorage.setItem(LKEY, JSON.stringify(payload)); } catch(e) { toast('⚠ Speicherfehler'); }
+  persistLocalOnly();
   if (!_syncInProgress) {
     // Don't kick auto-sync while sync is already running
     gistAutoSyncDebounced();
@@ -5037,6 +5041,8 @@ async function gistPush(silent) {
       body: JSON.stringify({ files: { [GIST_FILE]: { content: JSON.stringify(envelope, null, 2) } } })
     });
     if (r.ok) {
+      // Keep local storage in lockstep with the successful push timestamp.
+      persistLocalOnly();
       if (!silent) toast('☁ Daten verschlüsselt gespeichert');
       else toast('☁ Synced (verschlüsselt)');
     } else {
@@ -5254,11 +5260,8 @@ function mergeDays(localDays, remoteDays) {
   // Also filter tombstones from local-only days
   Object.keys(map).forEach(function(date) {
     var day = map[date];
-    if (!day._tombstonesFiltered) {
-      day.cards   = (day.cards||[]).filter(function(c){ return !isDeleted(c.id); });
-      day.objects = (day.objects||[]).filter(function(o){ return !isDeleted(o.id); });
-      day._tombstonesFiltered = true; // marker so we don't re-filter unnecessarily
-    }
+    day.cards   = (day.cards||[]).filter(function(c){ return !isDeleted(c.id); });
+    day.objects = (day.objects||[]).filter(function(o){ return !isDeleted(o.id); });
   });
   // Sort descending by date
   return Object.values(map).sort(function(a,b){ return b.date > a.date ? 1 : -1; });
@@ -5492,17 +5495,9 @@ async function gistSync() {
     if (didChange) {
       // Something actually changed — persist and push
       S._lastExported = new Date().toISOString();
+      cleanOrphanCollectionRefs();
       save();
       await gistPush(true);
-
-      // Re-render with merged state
-      renderCardList();
-      updateBadges();
-      updateReviewBadge();
-      updateFLBadge();
-      updateFeedBadge();
-      updateZettelBadge();
-      cleanOrphanCollectionRefs();
 
       var diff = gistTime > localTime ? '☁ Sync: neuere Daten geladen' : '☁ Sync: Daten zusammengeführt';
       toast(diff);
@@ -9056,11 +9051,11 @@ function loadTheme() {
 }
 
 
-function init() {
+async function init() {
   loadTheme();
   load();
   var hd = document.getElementById('headerDate'); if (hd) hd.textContent = todayDE();
-  gistSync(); // auto two-way sync on startup
+  await gistSync(); // auto two-way sync on startup (before first visible render)
   loadSettingsUI();
   renderCardList();
   updateBadges();
