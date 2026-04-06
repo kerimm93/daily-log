@@ -879,17 +879,29 @@ textarea { min-height: 120px; }
 .sig-btn.active-insp { background: var(--purple-bg); border-color: var(--purple); color: var(--purple); }
 
 /* ── Context tag ── */
-.ctx-tag {
+/* ── Meta tags (shared base for context + collection tags) ── */
+.ctx-tag, .kol-tag {
   font-family: var(--mono);
   font-size: 0.6rem;
   padding: 1px 6px;
   border-radius: 3px;
+  cursor: pointer;
+  display: inline-block;
+}
+.ctx-tag {
   background: var(--surface-3);
   border: 1px solid var(--border-mid);
   color: var(--accent-dim);
-  cursor: pointer;
 }
 .ctx-tag:hover { color: var(--accent); border-color: var(--accent-dim); }
+
+/* ── Collection tag (visually distinct from context tags) ── */
+.kol-tag {
+  background: var(--purple-bg);
+  border: 1px solid rgba(126,106,158,0.3);
+  color: var(--purple);
+}
+.kol-tag:hover { opacity: 0.85; }
 
 /* ── Review tab ── */
 .review-task {
@@ -1467,6 +1479,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
     <button class="tab-btn" onclick="switchTab('futurelog')" id="tab-futurelog">Future Log <span id="badge-fl" class="tab-badge" style="display:none">0</span></button>
     <button class="tab-btn" onclick="switchTab('kontexte')" id="tab-kontexte">Kontexte</button>
     <button class="tab-btn" onclick="switchTab('zettel')" id="tab-zettel">Zettel <span id="badge-zettel" class="tab-badge" style="display:none">0</span></button>
+    <button class="tab-btn" onclick="switchTab('kollektionen')" id="tab-kollektionen">Kollektionen <span id="badge-kollektionen" class="tab-badge" style="display:none">0</span></button>
     <button class="tab-btn" onclick="switchTab('verlauf')" id="tab-verlauf">
       Verlauf
     </button>
@@ -1609,6 +1622,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
         <button class="sort-btn" id="btnSortDesc" onclick="setObjSort('desc')" title="Neueste oben">↓ neueste oben</button>
         <button class="sort-btn" id="btnHideDone" onclick="toggleHideDone()" title="Erledigte ausblenden">☐ erledigte</button>
         <button class="sort-btn" id="btnHideMigrated" onclick="toggleHideMigrated()" title="Migrierte (>) ausblenden">☐ migrierte</button>
+        <button class="sort-btn" id="btnHideScheduled" onclick="toggleHideScheduled()" title="Terminierte (<) ausblenden">☐ terminierte</button>
         <button class="sort-btn" id="btnToggleSources" onclick="toggleAllSources()" title="Alle Quellen ein-/ausblenden">¶ Quellen</button>
       </div>
       <div id="objectList" class="obj-list">
@@ -2027,6 +2041,71 @@ select:focus { outline: none; border-color: var(--border-mid); }
         <button class="btn btn-sm btn-ghost" onclick="openModal('zettelAddModal')">+ Zettel manuell hinzufügen</button>
         <button class="btn btn-sm btn-primary" onclick="exportZettelZip()">↓ Als ZIP exportieren</button>
         <button class="btn btn-sm btn-ghost" onclick="exportZettelSingle()">↓ Als einzelne .md</button>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════ -->
+  <!-- Tab: Kollektionen                           -->
+  <!-- ══════════════════════════════════════════ -->
+  <div id="panel-kollektionen" class="panel">
+
+    <!-- Kollektion anlegen -->
+    <div class="section">
+      <div class="section-title">
+        Kollektionen
+        <span style="margin-left:auto;font-family:var(--mono);font-size:0.6rem;color:var(--ink-dim)" id="kolMeta"></span>
+      </div>
+      <p style="font-family:var(--serif);font-size:0.88rem;color:var(--ink-mid);line-height:1.7;margin-bottom:14px">
+        Kollektionen sind thematische Sammelräume. Objekte bleiben an ihrem ursprünglichen Tag — eine Kollektion ist nur eine zusätzliche Ordnungsebene.
+      </p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:flex-end">
+        <div style="flex:1;min-width:180px">
+          <label>Name der Kollektion</label>
+          <input type="text" id="newKolName" placeholder="z.B. Projektname, Thema, Lernfeld…"
+            onkeydown="if(event.key==='Enter')addCollection()">
+        </div>
+        <div style="flex:2;min-width:200px">
+          <label>Beschreibung (optional)</label>
+          <input type="text" id="newKolDesc" placeholder="Worum geht es in dieser Kollektion?"
+            onkeydown="if(event.key==='Enter')addCollection()">
+        </div>
+        <button class="btn btn-primary btn-sm" onclick="addCollection()">+ Anlegen</button>
+      </div>
+    </div>
+
+    <!-- Kollektion-Liste / Detail -->
+    <div id="kolListSection" class="section">
+      <div id="kolList">
+        <div class="empty-state">Noch keine Kollektionen. Lege oben eine neue an.</div>
+      </div>
+    </div>
+
+    <!-- Kollektion-Detail -->
+    <div id="kolDetailSection" class="section" style="display:none">
+      <div class="section-title" id="kolDetailTitle">
+        Kollektion
+        <button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="closeKolDetail()">← Alle</button>
+      </div>
+      <div id="kolDetailMeta" style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim);margin-bottom:10px"></div>
+      <div id="kolDetailDesc" style="font-family:var(--serif);font-size:0.88rem;color:var(--ink-mid);line-height:1.65;margin-bottom:14px;display:none"></div>
+      <div id="kolDetailObjects" class="obj-list">
+        <div class="empty-state">Noch keine Objekte in dieser Kollektion.</div>
+      </div>
+      <!-- Zusammenfassung-Prompt (Bonus) -->
+      <div id="kolSummarySection" style="display:none;margin-top:14px">
+        <div class="prompt-block">
+          <div class="prompt-block-header">
+            <span class="prompt-block-label">Zusammenfassungs-Prompt</span>
+            <button class="btn btn-sm" onclick="copyText(document.getElementById('kolSummaryText').textContent,'✓ Prompt kopiert')">Kopieren</button>
+          </div>
+          <pre id="kolSummaryText" style="max-height:260px"></pre>
+        </div>
+      </div>
+      <div class="btn-row" style="margin-top:12px">
+        <button class="btn btn-sm btn-ghost" onclick="generateKolSummaryPrompt()">✨ Zusammenfassung erstellen</button>
+        <button class="btn btn-sm btn-ghost" style="color:var(--red)" id="kolDeleteBtn" onclick="deleteCurrentCollection()">Kollektion löschen</button>
       </div>
     </div>
 
@@ -2533,6 +2612,7 @@ var S = {
   feedLastHighlights: '',
   trash: { cards: [], objects: [] },
   zettels: [],   // {id, title, body, tags, source, date, kept}
+  collections: [], // {id, name, description, summary, createdAt, updatedAt}
   config: { name: '', context: '', contexts: [] },
   deletedIds: {}, // { id: deletedAt-ISO } — deletion tombstones for sync
   _lastExported: ''
@@ -2633,10 +2713,12 @@ function load() {
   if (!Array.isArray(S.trash.cards)) S.trash.cards = [];
   if (!Array.isArray(S.trash.objects)) S.trash.objects = [];
   if (!S.zettels) S.zettels = [];
+  if (!S.collections) S.collections = [];
   if (!S.deletedIds) S.deletedIds = {};
 
   migrateLegacyObjectMetadata();
   pruneDeletedIds(); // remove tombstones older than 90 days
+  cleanOrphanCollectionRefs(); // remove refs to deleted collections
 
   // Archive and reset if new day
   if (TODAY.date !== today()) {
@@ -2727,7 +2809,7 @@ function filterDeleted(arr) {
   return arr.filter(function(item) { return !isDeleted(item.id); });
 }
 function switchTab(name) {
-  ['sammeln','feed','objekte','plan','review','abschluss','futurelog','kontexte','zettel','verlauf'].forEach(function(t) {
+  ['sammeln','feed','objekte','plan','review','abschluss','futurelog','kontexte','zettel','kollektionen','verlauf'].forEach(function(t) {
     var p = document.getElementById('panel-' + t);
     var b = document.getElementById('tab-' + t);
     if (p) p.classList.remove('active');
@@ -2742,7 +2824,8 @@ function switchTab(name) {
   if (name === 'kontexte')   renderKontexteTab();
   updateDrawerActive(name);
   syncDrawerBadges();
-  if (name === 'zettel')     renderZettelTab();
+  if (name === 'zettel')        renderZettelTab();
+  if (name === 'kollektionen')  renderKollektionenTab();
   if (name === 'objekte')    renderObjectsTab();
   if (name === 'review')     renderReviewTab();
   if (name === 'futurelog')  renderFutureLog();
@@ -3441,6 +3524,7 @@ function setObjFilter(typ) {
 var objSortDir    = 'asc';  // 'asc' | 'desc'
 var hideDone      = false;
 var hideMigrated  = false;  // hide status='>' aufgaben
+var hideScheduled = false;  // hide status='<' aufgaben
 
 function setObjSort(dir) {
   objSortDir = dir;
@@ -3469,6 +3553,16 @@ function toggleHideMigrated() {
   renderObjectList();
 }
 
+function toggleHideScheduled() {
+  hideScheduled = !hideScheduled;
+  var btn = document.getElementById('btnHideScheduled');
+  if (btn) {
+    btn.textContent = hideScheduled ? '✓ terminierte' : '☐ terminierte';
+    btn.classList.toggle('active', hideScheduled);
+  }
+  renderObjectList();
+}
+
 function renderObjectList() { renderObjectListForDate(); }
 function renderObjectListForDate() {
   var container = document.getElementById('objectList');
@@ -3487,6 +3581,11 @@ function renderObjectListForDate() {
   if (hideMigrated) {
     pool = pool.filter(function(o){
       return !(o.typ === 'aufgabe' && o.status === '>');
+    });
+  }
+  if (hideScheduled) {
+    pool = pool.filter(function(o){
+      return !(o.typ === 'aufgabe' && o.status === '<');
     });
   }
 
@@ -3602,10 +3701,17 @@ function renderObjItem(obj, depth) {
         (obj.zeit ? '<span class="obj-meta">' + esc(obj.zeit) + '</span>' : '') +
         statusChip(obj.status) +
         ((obj.contexts && obj.contexts.length) ? obj.contexts.map(function(c){ return '<span class="ctx-tag">@' + esc(c) + '</span>'; }).join('') : '') +
+        // Collection tags — visually distinct from context tags
+        ((obj.collectionIds && obj.collectionIds.length) ? obj.collectionIds.map(function(cid) {
+          var col = (S.collections||[]).find(function(c){ return c.id === cid; });
+          if (!col) return '';
+          return '<span class="kol-tag" onclick="switchTab(\'kollektionen\');setTimeout(function(){openKolDetail(\'' + cid + '\');},0)" title="Kollektion: ' + esc(col.name) + '">⬡ ' + esc(col.name) + '</span>';
+        }).filter(Boolean).join('') : '') +
         ((obj.signifiers && obj.signifiers.includes('*')) ? '<span style="color:var(--orange);font-family:var(--mono);font-size:0.7rem">★</span>' : '') +
         ((obj.signifiers && obj.signifiers.includes('!')) ? '<span style="color:var(--purple);font-family:var(--mono);font-size:0.7rem">!</span>' : '') +
         reviewBadge +
         srcToggle +
+        '<button class="btn btn-sm btn-ghost" style="font-size:0.58rem;padding:2px 6px;min-height:20px;opacity:0.5" onclick="openKolAssignModal(\'' + obj.id + '\')" title="Kollektion zuweisen">⬡</button>' +
         '<button class="btn btn-sm btn-ghost" style="font-size:0.58rem;padding:2px 6px;min-height:20px;opacity:0.5" onclick="toggleExpand(\'' + obj.id + '\')" title="Ergänzung hinzufügen">+ Ergänzung</button>' +
       '</div>' +
       sourcePanel +
@@ -5022,6 +5128,7 @@ async function gistPull(silent, forceOverwrite) {
     if (!S.futurelog) S.futurelog = [];
     if (!S.migrationPuffer) S.migrationPuffer = [];
     if (!S.zettels) S.zettels = [];
+    if (!S.collections) S.collections = [];
     if (!S.config) S.config = { name: '', context: '' };
     if (!S.feedLastReadwise) S.feedLastReadwise = '';
     if (!S.feedLastRaindrop) S.feedLastRaindrop = '';
@@ -5039,6 +5146,7 @@ async function gistPull(silent, forceOverwrite) {
     updateFLBadge();
     updateFeedBadge();
     updateZettelBadge();
+    cleanOrphanCollectionRefs();
     if (!silent) toast('✓ Daten vom Gist geladen (' + gistTime.slice(0,10) + ')');
     else toast('☁ Sync: neuere Daten geladen');
     renderCalendarDots();
@@ -5227,6 +5335,7 @@ function mergeS(local, remote) {
     futurelog:         mergeById(local.futurelog||[], remote.futurelog||[], 'id'),
     migrationPuffer:   mergeById(local.migrationPuffer||[], remote.migrationPuffer||[], 'id'),
     zettels:           mergeById(local.zettels||[], remote.zettels||[], 'id'),
+    collections:       mergeById(local.collections||[], remote.collections||[], 'id'),
     feedLastReadwise:  (local.feedLastReadwise||'') > (remote.feedLastReadwise||'')  ? local.feedLastReadwise  : remote.feedLastReadwise,
     feedLastRaindrop:  (local.feedLastRaindrop||'') > (remote.feedLastRaindrop||'')  ? local.feedLastRaindrop  : remote.feedLastRaindrop,
     feedLastHighlights:(local.feedLastHighlights||'') > (remote.feedLastHighlights||'') ? local.feedLastHighlights : remote.feedLastHighlights,
@@ -5340,6 +5449,7 @@ async function gistSync() {
 
     // Ensure defaults
     if (!S.config) S.config = { name: '', context: '' };
+    if (!S.collections) S.collections = [];
     if (!TODAY.cards) TODAY.cards = [];
     if (!TODAY.objects) TODAY.objects = [];
     if (!TODAY.feedItems) TODAY.feedItems = [];
@@ -5357,6 +5467,7 @@ async function gistSync() {
     updateFLBadge();
     updateFeedBadge();
     updateZettelBadge();
+    cleanOrphanCollectionRefs();
 
     var diff = gistTime !== localTime ? '☁ Sync: Daten zusammengeführt' : '☁ Synced';
     toast(diff);
@@ -7505,8 +7616,338 @@ function addZettelManual() {
 
 
 // ════════════════════════════════════════════════
-// Zettel Export (ZIP + single MD)
+// Kollektionen
 // ════════════════════════════════════════════════
+var activeKolId = null; // currently viewed collection id
+
+// ── CRUD ─────────────────────────────────────────
+
+function addCollection() {
+  var nameEl = document.getElementById('newKolName');
+  var descEl = document.getElementById('newKolDesc');
+  var name = nameEl ? nameEl.value.trim() : '';
+  if (!name) { toast('Bitte einen Namen eingeben.'); return; }
+  var now = new Date().toISOString();
+  var col = {
+    id: 'col-' + uid(),
+    name: name,
+    description: descEl ? descEl.value.trim() : '',
+    summary: '',
+    createdAt: now,
+    updatedAt: now
+  };
+  if (!S.collections) S.collections = [];
+  S.collections.push(col);
+  save();
+  if (nameEl) nameEl.value = '';
+  if (descEl) descEl.value = '';
+  renderKollektionenTab();
+  toast('Kollektion „' + col.name + '" angelegt');
+}
+
+function deleteCurrentCollection() {
+  if (!activeKolId) return;
+  var col = (S.collections||[]).find(function(c){ return c.id === activeKolId; });
+  if (!col) return;
+  if (!confirm('Kollektion „' + col.name + '" löschen? Die Objekte bleiben erhalten.')) return;
+  // Remove collectionId from all objects
+  removeCollectionFromAllObjects(activeKolId);
+  S.collections = S.collections.filter(function(c){ return c.id !== activeKolId; });
+  activeKolId = null;
+  save();
+  renderKollektionenTab();
+  toast('Kollektion gelöscht');
+}
+
+// ── Object membership ────────────────────────────
+
+// Adds a collectionId to an object anywhere in the data
+function assignObjToCollection(objId, colId) {
+  var result = findObjGlobal(objId);
+  if (!result) return;
+  if (!result.obj.collectionIds) result.obj.collectionIds = [];
+  if (result.obj.collectionIds.indexOf(colId) === -1) {
+    result.obj.collectionIds.push(colId);
+    result.save();
+    // Touch updatedAt on collection
+    var col = (S.collections||[]).find(function(c){ return c.id === colId; });
+    if (col) col.updatedAt = new Date().toISOString();
+    save();
+  }
+}
+
+function removeObjFromCollection(objId, colId) {
+  var result = findObjGlobal(objId);
+  if (!result) return;
+  if (!result.obj.collectionIds) return;
+  result.obj.collectionIds = result.obj.collectionIds.filter(function(id){ return id !== colId; });
+  result.save();
+  save();
+}
+
+function removeCollectionFromAllObjects(colId) {
+  // Sweep TODAY
+  (TODAY.objects||[]).forEach(function(o) {
+    if (o.collectionIds) o.collectionIds = o.collectionIds.filter(function(id){ return id !== colId; });
+  });
+  // Sweep all S.days
+  (S.days||[]).forEach(function(day) {
+    (day.objects||[]).forEach(function(o) {
+      if (o.collectionIds) o.collectionIds = o.collectionIds.filter(function(id){ return id !== colId; });
+    });
+  });
+}
+
+function getObjectsForCollection(colId) {
+  var hits = [];
+  // Early return if no colId
+  if (!colId) return hits;
+  (TODAY.objects||[]).forEach(function(o) {
+    if (!o.dismissed && !o.parentId && o.collectionIds && o.collectionIds.indexOf(colId) !== -1)
+      hits.push({ obj: o, date: today() });
+  });
+  (S.days||[]).forEach(function(day) {
+    (day.objects||[]).forEach(function(o) {
+      if (!o.dismissed && !o.parentId && o.collectionIds && o.collectionIds.indexOf(colId) !== -1)
+        hits.push({ obj: o, date: day.date });
+    });
+  });
+  hits.sort(function(a, b){ return b.date > a.date ? 1 : a.date > b.date ? -1 : 0; });
+  return hits;
+}
+
+// Orphan protection: remove collectionIds that point to deleted collections
+function cleanOrphanCollectionRefs() {
+  var valid = {};
+  (S.collections||[]).forEach(function(c){ valid[c.id] = true; });
+  (TODAY.objects||[]).forEach(function(o) {
+    if (o.collectionIds) o.collectionIds = o.collectionIds.filter(function(id){ return valid[id]; });
+  });
+  (S.days||[]).forEach(function(day) {
+    (day.objects||[]).forEach(function(o) {
+      if (o.collectionIds) o.collectionIds = o.collectionIds.filter(function(id){ return valid[id]; });
+    });
+  });
+}
+
+// ── Render ───────────────────────────────────────
+
+function updateKollektionenBadge() {
+  var count = (S.collections||[]).length;
+  var badge = document.getElementById('badge-kollektionen');
+  if (badge) {
+    badge.style.display = count > 0 ? 'inline-flex' : 'none';
+    badge.textContent = count;
+  }
+}
+
+function renderKollektionenTab() {
+  updateKollektionenBadge();
+  var metaEl = document.getElementById('kolMeta');
+  if (metaEl) metaEl.textContent = (S.collections||[]).length + ' Kollektionen';
+
+  // Reset detail view
+  var listSection   = document.getElementById('kolListSection');
+  var detailSection = document.getElementById('kolDetailSection');
+  if (listSection)   listSection.style.display = 'block';
+  if (detailSection) detailSection.style.display = 'none';
+  activeKolId = null;
+
+  var listEl = document.getElementById('kolList');
+  if (!listEl) return;
+
+  var cols = S.collections || [];
+  if (!cols.length) {
+    listEl.innerHTML = '<div class="notice" style="margin-bottom:0">' +
+      'Kollektionen helfen dir, Objekte aus verschiedenen Tagen thematisch zu bündeln — z.B. für ein Projekt, ein Thema oder eine Idee. ' +
+      'Objekte bleiben an ihrem ursprünglichen Tag und erscheinen zusätzlich in der Kollektion.' +
+    '</div>';
+    return;
+  }
+
+  listEl.innerHTML = cols.map(function(col) {
+    var objCount = getObjectsForCollection(col.id).length;
+    return '<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--border);cursor:pointer" onclick="openKolDetail(\'' + col.id + '\')">' +
+      '<div style="flex:1">' +
+        '<div style="font-family:var(--serif);font-size:0.95rem;color:var(--ink);font-weight:500">' + esc(col.name) + '</div>' +
+        (col.description ? '<div style="font-family:var(--serif);font-size:0.82rem;color:var(--ink-mid);margin-top:2px">' + esc(col.description) + '</div>' : '') +
+        '<div style="font-family:var(--mono);font-size:0.6rem;color:var(--ink-dim);margin-top:4px">' +
+          objCount + ' Objekt' + (objCount !== 1 ? 'e' : '') +
+          ' · angelegt ' + col.createdAt.slice(0,10) +
+        '</div>' +
+      '</div>' +
+      '<span style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim)">›</span>' +
+    '</div>';
+  }).join('');
+}
+
+function openKolDetail(colId) {
+  activeKolId = colId;
+  var col = (S.collections||[]).find(function(c){ return c.id === colId; });
+  if (!col) return;
+
+  var listSection   = document.getElementById('kolListSection');
+  var detailSection = document.getElementById('kolDetailSection');
+  if (listSection)   listSection.style.display = 'none';
+  if (detailSection) detailSection.style.display = 'block';
+
+  var titleEl = document.getElementById('kolDetailTitle');
+  if (titleEl) {
+    // Keep the back button, update the text node
+    titleEl.childNodes[0].textContent = esc(col.name) + ' ';
+  }
+
+  var descEl = document.getElementById('kolDetailDesc');
+  if (descEl) {
+    if (col.description) {
+      descEl.textContent = col.description;
+      descEl.style.display = 'block';
+    } else {
+      descEl.style.display = 'none';
+    }
+  }
+
+  renderKolDetailObjects(colId);
+}
+
+function renderKolDetailObjects(colId) {
+  var metaEl = document.getElementById('kolDetailMeta');
+  var listEl = document.getElementById('kolDetailObjects');
+  if (!listEl) return;
+
+  var hits = getObjectsForCollection(colId);
+  if (metaEl) metaEl.textContent = hits.length + ' Objekt' + (hits.length !== 1 ? 'e' : '');
+
+  if (!hits.length) {
+    listEl.innerHTML = '<div class="empty-state">Noch keine Objekte in dieser Kollektion.<br>Weise Objekte über den ⬡-Button an einem Objekt zu.</div>';
+    return;
+  }
+
+  // Group by date, newest first
+  var byDate = {};
+  hits.forEach(function(h) {
+    if (!byDate[h.date]) byDate[h.date] = [];
+    byDate[h.date].push(h.obj);
+  });
+
+  var savedViewDate = viewDate;
+  var dates = Object.keys(byDate).sort().reverse();
+  listEl.innerHTML = dates.map(function(date) {
+    var isToday = date === today();
+    var dateLabel = isToday
+      ? 'Heute'
+      : new Date(date + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+
+    viewDate = date;
+    var objsHtml = byDate[date].map(function(obj) {
+      return '<div style="margin-bottom:6px">' + renderObjItem(obj, 0) + '</div>';
+    }).join('');
+
+    return '<div style="margin-bottom:14px">' +
+      '<div style="font-family:var(--mono);font-size:0.62rem;color:' + (isToday ? 'var(--accent)' : 'var(--ink-dim)') + ';margin-bottom:6px;padding-bottom:3px;border-bottom:1px solid var(--border)">' + esc(dateLabel) + '</div>' +
+      objsHtml +
+    '</div>';
+  }).join('');
+
+  viewDate = savedViewDate;
+}
+
+function closeKolDetail() {
+  activeKolId = null;
+  var sec = document.getElementById('kolSummarySection');
+  if (sec) sec.style.display = 'none';
+  renderKollektionenTab();
+}
+
+function generateKolSummaryPrompt() {
+  if (!activeKolId) return;
+  var col = (S.collections||[]).find(function(c){ return c.id === activeKolId; });
+  if (!col) return;
+  var hits = getObjectsForCollection(activeKolId);
+  if (!hits.length) { toast('Keine Objekte in dieser Kollektion.'); return; }
+
+  var cfg = S.config.context || '';
+  var lines = [
+    '# Kollektion: ' + col.name,
+    '',
+    cfg ? '## System-Kontext\n' + cfg + '\n' : null,
+    col.description ? '## Beschreibung\n' + col.description + '\n' : null,
+    '## Aufgabe',
+    'Fasse die folgenden Objekte aus der Kollektion „' + col.name + '" zusammen.',
+    'Erkenne Muster, Zusammenhänge und offene Stränge. Formuliere eine prägnante Zusammenfassung.',
+    '',
+    '## Objekte (' + hits.length + ')',
+  ];
+  hits.forEach(function(h) {
+    var prefix = h.date === today() ? 'Heute' : h.date;
+    lines.push('[' + prefix + '] [' + h.obj.typ.toUpperCase() + ']' +
+      (h.obj.zeit ? ' ' + h.obj.zeit : '') + ' ' + h.obj.text +
+      (h.obj.status && h.obj.status !== 'open' ? ' [' + h.obj.status + ']' : ''));
+  });
+
+  var prompt = lines.filter(function(l){ return l !== null; }).join('\n');
+  var textEl = document.getElementById('kolSummaryText');
+  var sec    = document.getElementById('kolSummarySection');
+  if (textEl) textEl.textContent = prompt;
+  if (sec)    sec.style.display  = 'block';
+  copyText(prompt, '✓ Zusammenfassungs-Prompt kopiert');
+}
+
+// ── Assign Modal (opened from renderObjItem) ─────
+
+var _kolAssignObjId = null;
+
+function openKolAssignModal(objId) {
+  _kolAssignObjId = objId;
+  var result = findObjGlobal(objId);
+  if (!result) return;
+
+  var textEl = document.getElementById('kolAssignObjText');
+  if (textEl) textEl.textContent = result.obj.text.slice(0, 100) + (result.obj.text.length > 100 ? '…' : '');
+
+  var listEl = document.getElementById('kolAssignList');
+  if (!listEl) { openModal('kolAssignModal'); return; }
+
+  var cols = S.collections || [];
+  if (!cols.length) {
+    listEl.innerHTML = '<div class="empty-state">Keine Kollektionen vorhanden. Lege zuerst eine im Kollektionen-Tab an.</div>';
+  } else {
+    var assigned = result.obj.collectionIds || [];
+    listEl.innerHTML = cols.map(function(col) {
+      var isIn = assigned.indexOf(col.id) !== -1;
+      return '<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--r);border:1px solid ' + (isIn ? 'var(--accent-dim)' : 'var(--border)') + ';background:' + (isIn ? 'var(--surface-2)' : 'var(--bg-mid)') + '">' +
+        '<div style="flex:1">' +
+          '<div style="font-family:var(--serif);font-size:0.9rem;color:var(--ink)">' + esc(col.name) + '</div>' +
+          (col.description ? '<div style="font-family:var(--serif);font-size:0.78rem;color:var(--ink-mid)">' + esc(col.description) + '</div>' : '') +
+        '</div>' +
+        (isIn
+          ? '<button class="btn btn-sm btn-ghost" style="color:var(--ink-dim)" data-cid="' + col.id + '" onclick="kolAssignToggle(this.dataset.cid)">✓ entfernen</button>'
+          : '<button class="btn btn-sm btn-primary" data-cid="' + col.id + '" onclick="kolAssignToggle(this.dataset.cid)">+ zuweisen</button>') +
+      '</div>';
+    }).join('');
+  }
+
+  openModal('kolAssignModal');
+}
+
+function kolAssignToggle(colId) {
+  if (!_kolAssignObjId) return;
+  var result = findObjGlobal(_kolAssignObjId);
+  if (!result) return;
+  var ids = result.obj.collectionIds || [];
+  if (ids.indexOf(colId) !== -1) {
+    removeObjFromCollection(_kolAssignObjId, colId);
+    toast('Aus Kollektion entfernt');
+  } else {
+    assignObjToCollection(_kolAssignObjId, colId);
+    toast('Zur Kollektion hinzugefügt');
+  }
+  // Refresh modal list
+  openKolAssignModal(_kolAssignObjId);
+  // Refresh detail if open
+  if (activeKolId) renderKolDetailObjects(activeKolId);
+  renderObjectList();
+}
 
 function zettelToMarkdown(z) {
   // Generate timestamp-based filename prefix: YYYYMMDDHHmmss
@@ -8172,7 +8613,7 @@ function drawerNav(name) {
 
 function updateDrawerActive(name) {
   currentTab = name;
-  var tabs = ['sammeln','feed','objekte','plan','review','abschluss','futurelog','kontexte','zettel','verlauf'];
+  var tabs = ['sammeln','feed','objekte','plan','review','abschluss','futurelog','kontexte','zettel','kollektionen','verlauf'];
   tabs.forEach(function(t) {
     var el = document.getElementById('dnav-' + t);
     if (el) el.classList.toggle('active', t === name);
@@ -8383,6 +8824,7 @@ function ensureImportDefaults() {
   if (!S.futurelog) S.futurelog = [];
   if (!S.migrationPuffer) S.migrationPuffer = [];
   if (!S.zettels) S.zettels = [];
+  if (!S.collections) S.collections = [];
   if (!S.config) S.config = { name: '', context: '' };
   if (!S.trash) S.trash = { cards: [], objects: [] };
   if (!Array.isArray(S.trash.cards)) S.trash.cards = [];
@@ -8584,6 +9026,7 @@ function init() {
   updateFLBadge();
   updateFeedBadge();
   updateZettelBadge();
+  updateKollektionenBadge();
 }
 
 init();
@@ -8619,6 +9062,7 @@ if ('serviceWorker' in navigator) {
     <button class="nav-drawer-item" id="dnav-zettel" onclick="drawerNav('zettel')">
       ⬡ Zettel <span class="nav-drawer-badge" id="dbadge-zettel" style="display:none">0</span>
     </button>
+    <button class="nav-drawer-item" id="dnav-kollektionen" onclick="drawerNav('kollektionen')">⬡ Kollektionen</button>
     <button class="nav-drawer-item" id="dnav-verlauf" onclick="drawerNav('verlauf')">◷ Verlauf</button>
   </div>
 </div>
@@ -8647,6 +9091,20 @@ if ('serviceWorker' in navigator) {
       <button class="btn btn-primary" onclick="runDayImport('merge')">↔ Merge</button>
       <button class="btn btn-ghost" onclick="runDayImport('overwrite')" style="color:var(--orange)">⚠ Überschreiben</button>
       <button class="btn btn-ghost" onclick="closeModal('importModal')">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- Kollektion Assign Modal                         -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="modal-bg hidden" id="kolAssignModal">
+  <div class="modal-box" style="max-width:460px">
+    <div class="modal-title">⬡ Kollektion zuweisen</div>
+    <div style="font-family:var(--serif);font-size:0.88rem;color:var(--ink-mid);margin-bottom:12px" id="kolAssignObjText"></div>
+    <div id="kolAssignList" style="display:flex;flex-direction:column;gap:6px;max-height:260px;overflow-y:auto"></div>
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-ghost" onclick="closeModal('kolAssignModal')">Schließen</button>
     </div>
   </div>
 </div>
