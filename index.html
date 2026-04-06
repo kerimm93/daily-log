@@ -2503,6 +2503,14 @@ select:focus { outline: none; border-color: var(--border-mid); }
     <label style="margin-top:10px">Gist ID</label>
     <input type="text" id="cfgGistId" placeholder="abc123...">
 
+    <label style="margin-top:14px">Gerätename (Sync)</label>
+    <input type="text" id="cfgDeviceName" placeholder="Dieses Gerät">
+
+    <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+      <input type="checkbox" id="cfgAutoSyncEnabled" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer">
+      <label for="cfgAutoSyncEnabled" style="display:inline;text-transform:none;letter-spacing:0;font-size:0.74rem;cursor:pointer;color:var(--ink-mid)">Auto-Sync aktiv</label>
+    </div>
+
     <label style="margin-top:14px">Raw Backup Gist Token (optional)</label>
     <input type="password" id="cfgRawGistToken" placeholder="ghp_...">
 
@@ -2555,6 +2563,15 @@ select:focus { outline: none; border-color: var(--border-mid); }
         </label>
       </div>
       <div id="compactInfo" style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim);margin-top:6px"></div>
+
+      <div style="margin-top:12px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-soft)">
+        <div style="font-family:var(--mono);font-size:0.62rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:6px">Sync-Diagnostik</div>
+        <div id="syncDiag" style="font-family:var(--mono);font-size:0.64rem;line-height:1.6;color:var(--ink-mid)">Noch keine Sync-Information.</div>
+        <details style="margin-top:8px">
+          <summary style="cursor:pointer;font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim)">Letzte 20 Sync-Events</summary>
+          <div id="syncLogList" style="margin-top:6px;max-height:180px;overflow-y:auto;font-family:var(--mono);font-size:0.62rem;line-height:1.55;color:var(--ink-mid)"></div>
+        </details>
+      </div>
     </div>
     <!-- Theme Switcher -->
     <div style="margin-bottom:14px">
@@ -2569,6 +2586,23 @@ select:focus { outline: none; border-color: var(--border-mid); }
     <div class="btn-row" style="margin-top:14px">
       <button class="btn btn-primary" onclick="saveSettings()">Speichern</button>
       <button class="btn" onclick="closeModal('settingsModal')">Abbrechen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- Sync Conflict Modal                            -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="modal-bg hidden" id="syncConflictModal">
+  <div class="modal-box" style="max-width:840px">
+    <div class="modal-title">⚠ Sync-Konflikte erkannt</div>
+    <div style="font-family:var(--mono);font-size:0.64rem;color:var(--ink-dim);margin-bottom:10px">
+      Für jede Einheit bitte entscheiden, ob lokal oder remote übernommen werden soll.
+    </div>
+    <div id="syncConflictList" style="max-height:420px;overflow-y:auto;margin-bottom:10px"></div>
+    <div class="btn-row">
+      <button class="btn btn-primary" onclick="confirmSyncConflicts()">Auswahl anwenden</button>
+      <button class="btn" onclick="cancelSyncConflicts()">Sync abbrechen</button>
     </div>
   </div>
 </div>
@@ -2607,6 +2641,11 @@ var GIST_FILE      = 'dailylog_v2_data.json';
 var RAW_GIST_TOKEN_KEY = 'dailylog_raw_gist_token';
 var RAW_GIST_ID_KEY    = 'dailylog_raw_gist_id';
 var RAW_GIST_FILE      = 'dailylog_raw_cards.json';
+var DEVICE_ID_KEY       = 'dailylog_device_id';
+var DEVICE_NAME_KEY     = 'dailylog_device_name';
+var AUTO_SYNC_KEY       = 'dailylog_auto_sync_enabled';
+var SYNC_LOG_KEY        = 'dailylog_sync_log';
+var SYNC_STATE_KEY      = 'dailylog_sync_state';
 
 var S = {
   days: [],
@@ -2667,13 +2706,155 @@ function toast(msg) {
   t.textContent = msg; t.classList.add('show');
   setTimeout(function(){ t.classList.remove('show'); }, 2600);
 }
-function openModal(id)  { document.getElementById(id).classList.remove('hidden'); if (id === 'settingsModal') setTimeout(updateStorageDisplay, 50); if (id === 'rawRestoreModal') setTimeout(renderRawRestoreList, 50); if (id === 'trashModal') setTimeout(renderTrashModal, 20); }
+function openModal(id)  {
+  document.getElementById(id).classList.remove('hidden');
+  if (id === 'settingsModal') {
+    setTimeout(function() {
+      loadSettingsUI();
+      updateStorageDisplay();
+      renderSyncDiagnostics();
+      renderSyncLogList();
+    }, 50);
+  }
+  if (id === 'rawRestoreModal') setTimeout(renderRawRestoreList, 50);
+  if (id === 'trashModal') setTimeout(renderTrashModal, 20);
+}
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function inferDefaultDeviceName() {
+  var ua = navigator.userAgent || '';
+  if (/mobile|android|iphone|ipad/i.test(ua)) return 'Mobilgerät';
+  if (/macintosh|windows|linux/i.test(ua)) return 'Laptop';
+  return 'Dieses Gerät';
+}
+function getDeviceId() {
+  var id = localStorage.getItem(DEVICE_ID_KEY);
+  if (!id) {
+    id = 'dev-' + uid();
+    localStorage.setItem(DEVICE_ID_KEY, id);
+  }
+  return id;
+}
+function getDeviceName() {
+  var name = localStorage.getItem(DEVICE_NAME_KEY);
+  if (!name) {
+    name = inferDefaultDeviceName();
+    localStorage.setItem(DEVICE_NAME_KEY, name);
+  }
+  return name;
+}
+function setDeviceName(name) {
+  var clean = (name || '').trim() || inferDefaultDeviceName();
+  localStorage.setItem(DEVICE_NAME_KEY, clean);
+  renderSyncDiagnostics();
+}
+function isAutoSyncEnabled() {
+  var raw = localStorage.getItem(AUTO_SYNC_KEY);
+  return raw === null ? true : raw !== '0';
+}
+function setAutoSyncEnabled(on) {
+  localStorage.setItem(AUTO_SYNC_KEY, on ? '1' : '0');
+  renderSyncDiagnostics();
+}
+function stampItemEditMeta(item) {
+  if (!item || typeof item !== 'object') return item;
+  item.lastEditedByDeviceId = getDeviceId();
+  item.lastEditedByDeviceName = getDeviceName();
+  return item;
+}
+function getSyncLog() {
+  try {
+    var raw = localStorage.getItem(SYNC_LOG_KEY);
+    var arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch(e) { return []; }
+}
+function recordSyncLog(entry) {
+  var current = getSyncLog();
+  current.unshift(Object.assign({
+    time: new Date().toISOString(),
+    deviceId: getDeviceId(),
+    deviceName: getDeviceName(),
+    action: 'sync',
+    localLastExported: (S && S._lastExported) || '',
+    remoteTime: _syncState.lastRemoteTime || '',
+    todayCardCount: (TODAY.cards || []).length,
+    todayObjectCount: (TODAY.objects || []).length
+  }, entry || {}));
+  current = current.slice(0, 20);
+  localStorage.setItem(SYNC_LOG_KEY, JSON.stringify(current));
+  renderSyncLogList();
+}
+function loadSyncState() {
+  try {
+    var raw = localStorage.getItem(SYNC_STATE_KEY);
+    if (!raw) return;
+    var parsed = JSON.parse(raw);
+    if (parsed && typeof parsed === 'object') _syncState = Object.assign(_syncState, parsed);
+  } catch(e) {}
+}
+function setSyncStatus(status, message, remoteTime, conflictCount) {
+  _syncState.lastStatus = status || _syncState.lastStatus;
+  _syncState.lastAttemptAt = new Date().toISOString();
+  if (remoteTime !== undefined) _syncState.lastRemoteTime = remoteTime || '';
+  _syncState.lastMessage = message || '';
+  _syncState.lastConflictCount = conflictCount || 0;
+  localStorage.setItem(SYNC_STATE_KEY, JSON.stringify(_syncState));
+  renderSyncDiagnostics();
+}
+function renderSyncDiagnostics() {
+  var el = document.getElementById('syncDiag');
+  if (!el) return;
+  var did = getDeviceId();
+  var log = getSyncLog();
+  var last = log[0];
+  var gistTime = _syncState.lastRemoteTime || '-';
+  var lastAttempt = _syncState.lastAttemptAt ? _syncState.lastAttemptAt.replace('T', ' ').slice(0, 19) : '-';
+  var lastMsg = _syncState.lastMessage || '-';
+  el.innerHTML = [
+    'Gerät: ' + esc(getDeviceName()),
+    'ID: ' + esc(did.slice(0, 12) + '…'),
+    'Auto-Sync: ' + (isAutoSyncEnabled() ? 'an' : 'aus'),
+    '_lastExported (lokal): ' + esc((S._lastExported || '-').slice(0, 19).replace('T', ' ')),
+    'Letzter Remote-Zeitstempel: ' + esc(String(gistTime).slice(0, 19).replace('T', ' ')),
+    'Letzter Sync-Status: ' + esc(_syncState.lastStatus || '-'),
+    'Letzter Versuch: ' + esc(lastAttempt),
+    'TODAY: Karten ' + (TODAY.cards || []).length + ' · Objekte ' + (TODAY.objects || []).length,
+    'Kurzinfo: ' + esc(lastMsg),
+    last ? ('Letzter Log: ' + esc((last.action || '-') + ' · ' + (last.shortMessage || ''))) : 'Letzter Log: -'
+  ].join('<br>');
+}
+function renderSyncLogList() {
+  var el = document.getElementById('syncLogList');
+  if (!el) return;
+  var log = getSyncLog();
+  if (!log.length) {
+    el.innerHTML = '<div class="empty-state">Noch keine Sync-Ereignisse.</div>';
+    return;
+  }
+  el.innerHTML = log.map(function(item) {
+    return '<div style="padding:6px 0;border-bottom:1px solid var(--border)">' +
+      esc((item.time || '').replace('T', ' ').slice(0, 19)) + ' · ' + esc(item.action || '-') +
+      ' · ' + esc(item.shortMessage || '') +
+      '<br><span style="color:var(--ink-dim)">lokal=' + esc((item.localLastExported || '-').slice(0, 19)) +
+      ' · remote=' + esc((item.remoteTime || '-').slice(0, 19)) +
+      ' · Karten=' + (item.todayCardCount || 0) + ' · Objekte=' + (item.todayObjectCount || 0) +
+      (item.conflictCount ? (' · Konflikte=' + item.conflictCount) : '') + '</span></div>';
+  }).join('');
+}
 
 // ════════════════════════════════════════════════
 // Persistence
 // ════════════════════════════════════════════════
 var _syncInProgress = false; // true while gistSync/gistPull/gistPush is running
+var _syncConflictResolver = null;
+var _syncConflictState = { conflicts: [] };
+var _syncState = {
+  lastStatus: 'skipped',
+  lastAttemptAt: '',
+  lastRemoteTime: '',
+  lastMessage: '',
+  lastConflictCount: 0
+};
 
 function persistLocalOnly() {
   var payload = { S: S, TODAY: TODAY };
@@ -2688,7 +2869,7 @@ function save() {
   persistLocalOnly();
   if (!_syncInProgress) {
     // Don't kick auto-sync while sync is already running
-    gistAutoSyncDebounced();
+    if (isAutoSyncEnabled()) gistAutoSyncDebounced();
     rawBackupAutoSyncDebounced();
   }
 }
@@ -2780,6 +2961,9 @@ function load() {
     TODAY = { date: today(), cards: [], objects: [], feedItems: [], reviewDone: false, plan: { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] } };
     save();
   }
+  getDeviceId();
+  getDeviceName();
+  loadSyncState();
 }
 
 function migrateLegacyObjectMetadata() {
@@ -2889,6 +3073,7 @@ function addCard() {
     text: text,
     processed: false
   };
+  stampItemEditMeta(card);
   getViewData().cards.unshift(card);
   saveViewData();
   clearNewCard();
@@ -3369,7 +3554,7 @@ function importObjects() {
     if (seenFingerprints[fingerprint]) return;
     seenFingerprints[fingerprint] = true;
     var newId = uid();
-    vd.objects.push({
+    vd.objects.push(stampItemEditMeta({
       id: newId,
       cardId: currentExtractCardId,
       parentId: null,
@@ -3388,7 +3573,7 @@ function importObjects() {
       dismissed: false,
       createdAt: extractedAt,
       source: { kind: 'extract', extractionSessionId: extractionSessionId, extractedAt: extractedAt }
-    });
+    }));
     insertedIds.push(newId);
     added++;
   });
@@ -3400,6 +3585,7 @@ function importObjects() {
     card.lastExtractionAt = extractedAt;
     card.lastExtractionSessionId = extractionSessionId;
     card.lastExtractionObjectIds = insertedIds.slice();
+    stampItemEditMeta(card);
   }
 
   console.debug('[extract/import]', {
@@ -3866,6 +4052,7 @@ function applyParentPicker(objId) {
   if (!obj) return;
 
   obj.parentId = newParentId;
+  touchObj(obj);
   wrap.classList.remove('visible');
   save();
   renderObjectList();
@@ -3887,7 +4074,7 @@ function addChildKey(event, parentId) {
     var now = new Date();
     var timeStr = now.getHours().toString().padStart(2,'0') + ':' + now.getMinutes().toString().padStart(2,'0');
     var vd = getViewData();
-    vd.objects.push({
+    vd.objects.push(stampItemEditMeta({
       id: uid(),
       cardId: null,
       parentId: parentId,
@@ -3898,7 +4085,7 @@ function addChildKey(event, parentId) {
       dismissed: false,
       createdAt: now.toISOString(),
       source: { kind: 'manual', createdManually: true }
-    });
+    }));
     if (input) input.value = '';
     saveViewData();
     renderObjectList();
@@ -4792,6 +4979,10 @@ function loadSettingsUI() {
   if (document.getElementById('cfgSyncPassphraseRemember')) {
     document.getElementById('cfgSyncPassphraseRemember').checked = isSyncPassphraseRemembered();
   }
+  if (document.getElementById('cfgDeviceName')) document.getElementById('cfgDeviceName').value = getDeviceName();
+  if (document.getElementById('cfgAutoSyncEnabled')) document.getElementById('cfgAutoSyncEnabled').checked = isAutoSyncEnabled();
+  renderSyncDiagnostics();
+  renderSyncLogList();
 }
 
 function saveSettings() {
@@ -4809,8 +5000,12 @@ function saveSettings() {
   if (oaiKey) localStorage.setItem(OPENAI_KEY, oaiKey);
   var rwKey = document.getElementById('cfgReadwise') ? document.getElementById('cfgReadwise').value.trim() : '';
   var rdKey = document.getElementById('cfgRaindrop') ? document.getElementById('cfgRaindrop').value.trim() : '';
+  var deviceName = document.getElementById('cfgDeviceName') ? document.getElementById('cfgDeviceName').value.trim() : '';
+  var autoSyncEnabled = !!(document.getElementById('cfgAutoSyncEnabled') && document.getElementById('cfgAutoSyncEnabled').checked);
   if (rwKey) localStorage.setItem(READWISE_KEY, rwKey);
   if (rdKey) localStorage.setItem(RAINDROP_KEY, rdKey);
+  setDeviceName(deviceName);
+  setAutoSyncEnabled(autoSyncEnabled);
   // Passphrase: store in session (+ optionally localStorage) based on checkbox
   var pp       = document.getElementById('cfgSyncPassphrase') ? document.getElementById('cfgSyncPassphrase').value : '';
   var remember = !!(document.getElementById('cfgSyncPassphraseRemember') && document.getElementById('cfgSyncPassphraseRemember').checked);
@@ -5278,13 +5473,220 @@ function gistAutoSyncDebounced() {
   }, 30000);
 }
 
+function comparableCardSignature(card) {
+  return JSON.stringify({
+    text: normalizeText(card && card.text),
+    type: (card && card.type) || '',
+    processed: !!(card && card.processed),
+    time: (card && card.time) || ''
+  });
+}
+function childTextSignature(allObjects, parentId) {
+  return (allObjects || [])
+    .filter(function(o){ return o && o.parentId === parentId; })
+    .map(function(o){ return normalizeText(o.text) + '|' + (o.typ || ''); })
+    .sort()
+    .join('||');
+}
+function comparableObjectSignature(obj, allObjects) {
+  return JSON.stringify({
+    text: normalizeText(obj && obj.text),
+    typ: (obj && obj.typ) || '',
+    zeit: (obj && obj.zeit) || '',
+    kontext: normalizeText(obj && obj.kontext),
+    contexts: ((obj && obj.contexts) || []).slice().sort(),
+    energie: (obj && obj.energie) || '',
+    dauer: (obj && obj.dauer) || '',
+    sourceQuote: normalizeText(obj && obj.sourceQuote),
+    confidence: (obj && obj.confidence) || '',
+    needsReview: !!(obj && obj.needsReview),
+    status: (obj && obj.status) || 'open',
+    signifiers: ((obj && obj.signifiers) || []).slice().sort(),
+    reviewNote: normalizeText(obj && obj.reviewNote),
+    collectionIds: ((obj && obj.collectionIds) || []).slice().sort(),
+    childText: childTextSignature(allObjects, obj && obj.id)
+  });
+}
+function compareLocalRemoteItems(type, localItem, remoteItem, localAllObjects, remoteAllObjects) {
+  var localSig = type === 'card'
+    ? comparableCardSignature(localItem)
+    : comparableObjectSignature(localItem, localAllObjects);
+  var remoteSig = type === 'card'
+    ? comparableCardSignature(remoteItem)
+    : comparableObjectSignature(remoteItem, remoteAllObjects);
+  if (localSig === remoteSig) return null;
+
+  var diffKinds = [];
+  if (normalizeText(localItem.text) !== normalizeText(remoteItem.text)) diffKinds.push('Text/Inhalt');
+  if ((localItem.zeit || '') !== (remoteItem.zeit || '')) diffKinds.push('Zeit');
+  if (normalizeText(localItem.kontext || '') !== normalizeText(remoteItem.kontext || '')) diffKinds.push('Kontext');
+  if (JSON.stringify((localItem.contexts || []).slice().sort()) !== JSON.stringify((remoteItem.contexts || []).slice().sort())) diffKinds.push('Kontexte');
+  if ((localItem.energie || '') !== (remoteItem.energie || '')) diffKinds.push('Energie');
+  if ((localItem.dauer || '') !== (remoteItem.dauer || '')) diffKinds.push('Dauer');
+  if (normalizeText(localItem.sourceQuote || '') !== normalizeText(remoteItem.sourceQuote || '')) diffKinds.push('SourceQuote');
+  if ((localItem.confidence || '') !== (remoteItem.confidence || '')) diffKinds.push('Confidence');
+  if (!!localItem.needsReview !== !!remoteItem.needsReview) diffKinds.push('NeedsReview');
+  if ((localItem.status || 'open') !== (remoteItem.status || 'open')) diffKinds.push('Status');
+  if (JSON.stringify((localItem.signifiers || []).slice().sort()) !== JSON.stringify((remoteItem.signifiers || []).slice().sort())) diffKinds.push('Signifier');
+  if (normalizeText(localItem.reviewNote || '') !== normalizeText(remoteItem.reviewNote || '')) diffKinds.push('Review');
+  if (JSON.stringify((localItem.collectionIds || []).slice().sort()) !== JSON.stringify((remoteItem.collectionIds || []).slice().sort())) diffKinds.push('Collection-Zuweisung');
+  if (type === 'object' && childTextSignature(localAllObjects, localItem.id) !== childTextSignature(remoteAllObjects, remoteItem.id)) diffKinds.push('Kind-Objekte');
+  if ((localItem.lastEditedByDeviceId || '') !== (remoteItem.lastEditedByDeviceId || '') && diffKinds.length) diffKinds.push('Gerät-Metadaten');
+
+  return {
+    diffKinds: diffKinds,
+    summary: diffKinds.length ? ('Unterschiede: ' + diffKinds.join(', ')) : 'Materielle Unterschiede erkannt'
+  };
+}
+function getDayMap(days) {
+  var map = {};
+  (days || []).forEach(function(day) { if (day && day.date) map[day.date] = day; });
+  return map;
+}
+function detectSyncConflicts(localState, remoteState) {
+  var conflicts = [];
+  var localS = (localState && localState.S) || {};
+  var remoteS = (remoteState && remoteState.S) || {};
+  var localToday = (localState && localState.TODAY) || {};
+  var remoteToday = (remoteState && remoteState.TODAY) || {};
+
+  function collectFromBuckets(localBucket, remoteBucket, dateLabel, scope) {
+    var localCards = (localBucket.cards || []).reduce(function(m, c){ if (c && c.id) m[c.id] = c; return m; }, {});
+    var remoteCards = (remoteBucket.cards || []).reduce(function(m, c){ if (c && c.id) m[c.id] = c; return m; }, {});
+    Object.keys(localCards).forEach(function(id) {
+      if (!remoteCards[id]) return;
+      var diff = compareLocalRemoteItems('card', localCards[id], remoteCards[id], localBucket.objects || [], remoteBucket.objects || []);
+      if (diff) {
+        conflicts.push({ type: 'card', id: id, date: dateLabel, scope: scope, summary: diff.summary, diffKinds: diff.diffKinds, localItem: localCards[id], remoteItem: remoteCards[id] });
+      }
+    });
+
+    var localObjects = (localBucket.objects || []).reduce(function(m, o){ if (o && o.id) m[o.id] = o; return m; }, {});
+    var remoteObjects = (remoteBucket.objects || []).reduce(function(m, o){ if (o && o.id) m[o.id] = o; return m; }, {});
+    Object.keys(localObjects).forEach(function(id) {
+      if (!remoteObjects[id]) return;
+      var diff = compareLocalRemoteItems('object', localObjects[id], remoteObjects[id], localBucket.objects || [], remoteBucket.objects || []);
+      if (diff) {
+        conflicts.push({ type: 'object', id: id, date: dateLabel, scope: scope, summary: diff.summary, diffKinds: diff.diffKinds, localItem: localObjects[id], remoteItem: remoteObjects[id] });
+      }
+    });
+
+    // Risk heuristic: same card id but highly divergent object counts
+    Object.keys(localCards).forEach(function(cardId) {
+      if (!remoteCards[cardId]) return;
+      var localCount = (localBucket.objects || []).filter(function(o){ return o && o.cardId === cardId; }).length;
+      var remoteCount = (remoteBucket.objects || []).filter(function(o){ return o && o.cardId === cardId; }).length;
+      if (Math.abs(localCount - remoteCount) >= 3 && Math.min(localCount, remoteCount) * 2 < Math.max(localCount, remoteCount)) {
+        if (!conflicts.some(function(c){ return c.type === 'card' && c.id === cardId && c.date === dateLabel; })) {
+          conflicts.push({
+            type: 'card',
+            id: cardId,
+            date: dateLabel,
+            scope: scope,
+            summary: 'Riskanter Delta: deutlich abweichende Objektanzahl je Karte',
+            diffKinds: ['Objektanzahl pro Karte'],
+            localItem: localCards[cardId],
+            remoteItem: remoteCards[cardId]
+          });
+        }
+      }
+    });
+  }
+
+  if (localToday.date && remoteToday.date && localToday.date === remoteToday.date) {
+    collectFromBuckets(localToday, remoteToday, localToday.date, 'today');
+  }
+  var localDayMap = getDayMap(localS.days || []);
+  var remoteDayMap = getDayMap(remoteS.days || []);
+  Object.keys(localDayMap).forEach(function(date) {
+    if (remoteDayMap[date]) collectFromBuckets(localDayMap[date], remoteDayMap[date], date, 'day');
+  });
+  return conflicts;
+}
+function renderSyncConflictModal(conflicts) {
+  var listEl = document.getElementById('syncConflictList');
+  if (!listEl) return;
+  if (!conflicts.length) {
+    listEl.innerHTML = '<div class="empty-state">Keine Konflikte.</div>';
+    return;
+  }
+  listEl.innerHTML = conflicts.map(function(c, idx) {
+    var localBy = c.localItem.lastEditedByDeviceName || c.localItem.lastEditedByDeviceId || 'Unbekannt';
+    var remoteBy = c.remoteItem.lastEditedByDeviceName || c.remoteItem.lastEditedByDeviceId || 'Unbekannt';
+    var localText = (c.localItem.text || '').slice(0, 120);
+    var remoteText = (c.remoteItem.text || '').slice(0, 120);
+    return '<div style="border:1px solid var(--border);border-radius:8px;padding:10px;margin-bottom:8px;background:var(--bg)">' +
+      '<div style="font-family:var(--mono);font-size:0.63rem;color:var(--ink-dim)">Typ: ' + esc(c.type) + ' · ID: ' + esc(c.id) + ' · Tag: ' + esc(c.date || '-') + '</div>' +
+      '<div style="font-size:0.8rem;margin-top:4px">' + esc(c.summary || '') + '</div>' +
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">' +
+        '<div style="padding:6px;border:1px solid var(--border);border-radius:6px"><b>Lokal</b><br><span style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim)">updatedAt: ' + esc((c.localItem.updatedAt || c.localItem.createdAt || '-').slice(0, 19)) + '<br>by: ' + esc(localBy) + '</span><br>' + esc(localText) + '</div>' +
+        '<div style="padding:6px;border:1px solid var(--border);border-radius:6px"><b>Remote</b><br><span style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim)">updatedAt: ' + esc((c.remoteItem.updatedAt || c.remoteItem.createdAt || '-').slice(0, 19)) + '<br>by: ' + esc(remoteBy) + '</span><br>' + esc(remoteText) + '</div>' +
+      '</div>' +
+      '<div style="margin-top:8px;display:flex;gap:12px">' +
+        '<label style="font-size:0.75rem"><input type="radio" name="sync-res-' + idx + '" value="local" checked> Lokal behalten</label>' +
+        '<label style="font-size:0.75rem"><input type="radio" name="sync-res-' + idx + '" value="remote"> Remote übernehmen</label>' +
+      '</div>' +
+    '</div>';
+  }).join('');
+}
+function openSyncConflictModal(conflicts) {
+  return new Promise(function(resolve) {
+    _syncConflictState.conflicts = conflicts || [];
+    _syncConflictResolver = resolve;
+    renderSyncConflictModal(_syncConflictState.conflicts);
+    openModal('syncConflictModal');
+  });
+}
+function confirmSyncConflicts() {
+  if (!_syncConflictResolver) return;
+  var resolutions = {};
+  (_syncConflictState.conflicts || []).forEach(function(c, idx) {
+    var checked = document.querySelector('input[name="sync-res-' + idx + '"]:checked');
+    resolutions[c.type + '|' + c.scope + '|' + c.date + '|' + c.id] = checked ? checked.value : 'local';
+  });
+  var resolve = _syncConflictResolver;
+  _syncConflictResolver = null;
+  closeModal('syncConflictModal');
+  resolve({ cancelled: false, resolutions: resolutions });
+}
+function cancelSyncConflicts() {
+  if (!_syncConflictResolver) return;
+  var resolve = _syncConflictResolver;
+  _syncConflictResolver = null;
+  closeModal('syncConflictModal');
+  resolve({ cancelled: true, resolutions: {} });
+}
+function upsertById(arr, item) {
+  var list = arr || [];
+  var idx = list.findIndex(function(x){ return x && x.id === item.id; });
+  if (idx === -1) list.push(item);
+  else list[idx] = item;
+  return list;
+}
+function applyConflictResolutions(mergedS, mergedToday, conflicts, resolutions) {
+  (conflicts || []).forEach(function(c) {
+    var key = c.type + '|' + c.scope + '|' + c.date + '|' + c.id;
+    var choice = resolutions[key] || 'local';
+    var selected = choice === 'remote' ? c.remoteItem : c.localItem;
+    if (!selected) return;
+    var bucket;
+    if (c.scope === 'today') bucket = mergedToday;
+    else bucket = (mergedS.days || []).find(function(day){ return day.date === c.date; });
+    if (!bucket) return;
+    if (c.type === 'card') bucket.cards = upsertById(bucket.cards || [], selected);
+    if (c.type === 'object') bucket.objects = upsertById(bucket.objects || [], selected);
+  });
+}
+
 async function gistPush(silent) {
   var token = localStorage.getItem(GIST_TOKEN_KEY);
   var gid   = localStorage.getItem(GIST_ID_KEY);
   if (!token || !gid) { if (!silent) toast('Kein Token oder Gist-ID konfiguriert.'); return; }
   var passphrase = getSyncPassphrase();
-  if (!passphrase) {
+    if (!passphrase) {
     if (!silent) toast('⚠ Keine Sync-Passphrase gesetzt — Gist nicht beschrieben. Bitte in Einstellungen eingeben.');
+    setSyncStatus('failed', 'Push abgebrochen: keine Passphrase');
+    recordSyncLog({ action: 'fail', shortMessage: 'Push ohne Passphrase abgebrochen' });
     return;
   }
   var btn = document.getElementById('btnGistPush');
@@ -5306,16 +5708,22 @@ async function gistPush(silent) {
       persistLocalOnly();
       if (!silent) toast('☁ Daten verschlüsselt gespeichert');
       else toast('☁ Synced (verschlüsselt)');
+      setSyncStatus('pushed', 'Gist erfolgreich aktualisiert', syncTs);
+      recordSyncLog({ action: 'push', remoteTime: syncTs, shortMessage: 'Gist-Stand geschrieben' });
     } else {
       var err = await r.json();
       // Revert timestamp exactly — push did not reach the Gist
       S._lastExported = prevLastExported;
       toast('Fehler: ' + (err.message || r.status));
+      setSyncStatus('failed', 'Push fehlgeschlagen: ' + (err.message || r.status));
+      recordSyncLog({ action: 'fail', shortMessage: 'Push-Fehler: ' + (err.message || r.status) });
     }
   } catch(e) {
     // Revert on any network/crypto error
     S._lastExported = prevLastExported;
     toast('Sync-Fehler: ' + e.message);
+    setSyncStatus('failed', 'Push Exception: ' + e.message);
+    recordSyncLog({ action: 'fail', shortMessage: 'Push Exception: ' + e.message });
   } finally {
     if (btn) btn.textContent = '☁ Jetzt speichern';
   }
@@ -5326,11 +5734,13 @@ async function gistPull(silent, forceOverwrite) {
   var gid   = localStorage.getItem(GIST_ID_KEY);
   if (!token || !gid) {
     if (!silent) toast('Kein Token oder Gist-ID konfiguriert.');
+    setSyncStatus('failed', 'Pull abgebrochen: keine Gist-Konfiguration');
     return false;
   }
   var btn = document.getElementById('btnGistPull');
   if (btn && !silent) btn.textContent = '⏳ Laden…';
   var wasSyncing = _syncInProgress;
+  var pullHadConflictResolution = false;
   _syncInProgress = true;
   try {
     var r = await fetch('https://api.github.com/gists/' + gid, {
@@ -5338,12 +5748,16 @@ async function gistPull(silent, forceOverwrite) {
     });
     if (!r.ok) {
       if (!silent) toast('Fehler: ' + r.status);
+      setSyncStatus('failed', 'Pull HTTP-Fehler: ' + r.status);
+      recordSyncLog({ action: 'fail', shortMessage: 'Pull HTTP ' + r.status });
       return false;
     }
     var data = await r.json();
     var file = data.files && data.files[GIST_FILE];
     if (!file) {
       if (!silent) toast('Keine Daten im Gist gefunden.');
+      setSyncStatus('skipped', 'Keine Daten im Gist');
+      recordSyncLog({ action: 'skip', shortMessage: 'Pull: Gist leer' });
       return false;
     }
     var rawText = await getFullGistFileText(file);
@@ -5355,12 +5769,14 @@ async function gistPull(silent, forceOverwrite) {
       var passphrase = getSyncPassphrase();
       if (!passphrase) {
         toast('🔒 Gist ist verschlüsselt — bitte Sync-Passphrase in Einstellungen eingeben.');
+        setSyncStatus('failed', 'Pull blockiert: Passphrase fehlt');
         return false;
       }
       try {
         parsed = await decryptJsonPayload(raw, passphrase);
       } catch(e) {
         toast('🔑 Entschlüsselung fehlgeschlagen — falsche Passphrase?');
+        setSyncStatus('failed', 'Pull blockiert: Entschlüsselung fehlgeschlagen');
         return false;
       }
     } else {
@@ -5385,6 +5801,8 @@ async function gistPull(silent, forceOverwrite) {
 
     if (!forceOverwrite && !gistNewer && !localIsEmpty && !silent) {
       toast('Lokale Daten sind aktuell — kein Pull nötig.');
+      setSyncStatus('skipped', 'Pull übersprungen: Lokal aktueller/gleich', gistTime);
+      recordSyncLog({ action: 'skip', remoteTime: gistTime, shortMessage: 'Pull nicht nötig' });
       return false;
     }
     if (!forceOverwrite && !gistNewer && !localIsEmpty && silent) return false;
@@ -5395,15 +5813,39 @@ async function gistPull(silent, forceOverwrite) {
       if (parsed.S) S = parsed.S;
       if (parsed.TODAY) TODAY = parsed.TODAY;
     } else {
-      // Safe merge
-      if (parsed.S) S = mergeS(S, parsed.S);
+      // Safe merge with conflict protection (same flow as gistSync)
+      var localSnapshot = JSON.parse(JSON.stringify({ S: S, TODAY: TODAY }));
+      var remoteSnapshot = { S: parsed.S || {}, TODAY: parsed.TODAY || {} };
+      var conflicts = detectSyncConflicts(localSnapshot, remoteSnapshot);
+      if (conflicts.length) {
+        setSyncStatus('conflict', 'Konflikte im manuellen Pull erkannt', gistTime, conflicts.length);
+        recordSyncLog({ action: 'conflict', remoteTime: gistTime, conflictCount: conflicts.length, shortMessage: conflicts.length + ' Konflikte beim Pull erkannt' });
+        var decision = await openSyncConflictModal(conflicts);
+        if (!decision || decision.cancelled) {
+          setSyncStatus('skipped', 'Pull abgebrochen wegen Konflikten', gistTime, conflicts.length);
+          recordSyncLog({ action: 'skip', remoteTime: gistTime, conflictCount: conflicts.length, shortMessage: 'Pull-Konfliktdialog abgebrochen' });
+          toast('⚠ Pull abgebrochen wegen Konflikten');
+          return false;
+        }
+      }
+
+      var mergedS = parsed.S ? mergeS(S, parsed.S) : S;
+      var mergedToday = TODAY;
       if (parsed.TODAY && parsed.TODAY.date === today()) {
         var localObjs  = (TODAY.objects||[]).length + (TODAY.cards||[]).length;
         var remoteObjs = ((parsed.TODAY||{}).objects||[]).length + ((parsed.TODAY||{}).cards||[]).length;
-        TODAY = localObjs >= remoteObjs
+        mergedToday = localObjs >= remoteObjs
           ? mergeToday(TODAY, parsed.TODAY)
           : mergeToday(parsed.TODAY, TODAY);
       }
+      if (conflicts && conflicts.length) {
+        applyConflictResolutions(mergedS, mergedToday, conflicts, decision.resolutions || {});
+        pullHadConflictResolution = true;
+        setSyncStatus('merged', 'Konflikte im Pull manuell aufgelöst', gistTime, conflicts.length);
+        recordSyncLog({ action: 'merge', remoteTime: gistTime, conflictCount: conflicts.length, shortMessage: 'Pull-Konflikte manuell aufgelöst' });
+      }
+      S = mergedS;
+      TODAY = mergedToday;
     }
 
     // Apply tombstones to TODAY after any pull/merge
@@ -5427,6 +5869,9 @@ async function gistPull(silent, forceOverwrite) {
     if (!TODAY.feedItems) TODAY.feedItems = [];
     if (!TODAY.plan) TODAY.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
 
+    // Keep local freshness marker in sync with the successfully loaded remote snapshot.
+    S._lastExported = gistTime || new Date().toISOString();
+    cleanOrphanCollectionRefs();
     save();
     renderCardList();
     updateBadges();
@@ -5434,13 +5879,18 @@ async function gistPull(silent, forceOverwrite) {
     updateFLBadge();
     updateFeedBadge();
     updateZettelBadge();
-    cleanOrphanCollectionRefs();
     if (!silent) toast('✓ Daten vom Gist geladen (' + gistTime.slice(0,10) + ')');
     else toast('☁ Sync: neuere Daten geladen');
+    if (forceOverwrite || !pullHadConflictResolution) {
+      setSyncStatus(forceOverwrite ? 'pulled' : 'merged', forceOverwrite ? 'Gist hat lokal überschrieben' : 'Pull/Merge erfolgreich', gistTime);
+      recordSyncLog({ action: forceOverwrite ? 'pull' : 'merge', remoteTime: gistTime, shortMessage: forceOverwrite ? 'Force overwrite durchgeführt' : 'Pull zusammengeführt' });
+    }
     renderCalendarDots();
     return true;
   } catch(e) {
     if (!silent) toast('Pull-Fehler: ' + e.message);
+    setSyncStatus('failed', 'Pull-Fehler: ' + e.message);
+    recordSyncLog({ action: 'fail', shortMessage: 'Pull-Fehler: ' + e.message });
     return false;
   } finally {
     if (btn && !silent) btn.textContent = '↓ Von Gist laden';
@@ -5644,6 +6094,8 @@ async function gistSync() {
   if (!token || !gid) return;
   if (_syncInProgress) return; // prevent re-entrant sync
   _syncInProgress = true;
+  setSyncStatus('sync', 'Sync gestartet');
+  recordSyncLog({ action: 'sync', shortMessage: 'Sync gestartet' });
 
   // Always archive stale TODAY before any network operation
   archiveTodayIfStale();
@@ -5652,12 +6104,18 @@ async function gistSync() {
     var r = await fetch('https://api.github.com/gists/' + gid, {
       headers: { 'Authorization': 'token ' + token }
     });
-    if (!r.ok) return; // silent fail on startup
+    if (!r.ok) {
+      setSyncStatus('failed', 'Sync HTTP-Fehler: ' + r.status);
+      recordSyncLog({ action: 'fail', shortMessage: 'Sync HTTP ' + r.status });
+      return; // silent fail on startup
+    }
 
     var data   = await r.json();
     var file   = data.files && data.files[GIST_FILE];
     if (!file) {
       // Gist is empty — push local data (only if passphrase set)
+      setSyncStatus('skipped', 'Remote leer, lokaler Stand wird gepusht');
+      recordSyncLog({ action: 'skip', shortMessage: 'Remote leer -> Push' });
       await gistPush(true);
       return;
     }
@@ -5671,12 +6129,16 @@ async function gistSync() {
       if (!passphrase) {
         // Encrypted gist but no passphrase — show notice, do NOT overwrite
         toast('🔒 Gist verschlüsselt — Sync übersprungen. Bitte Passphrase in Einstellungen setzen.');
+        setSyncStatus('failed', 'Sync blockiert: Passphrase fehlt');
+        recordSyncLog({ action: 'fail', shortMessage: 'Sync abgebrochen: Passphrase fehlt' });
         return;
       }
       try {
         remote = await decryptJsonPayload(rawGistObj, passphrase);
       } catch(e) {
         toast('🔑 Gist-Entschlüsselung fehlgeschlagen — falsches Passwort? Sync abgebrochen.');
+        setSyncStatus('failed', 'Sync blockiert: Entschlüsselung fehlgeschlagen');
+        recordSyncLog({ action: 'fail', shortMessage: 'Sync abgebrochen: Entschlüsselung fehlgeschlagen' });
         return;
       }
     } else {
@@ -5698,7 +6160,11 @@ async function gistSync() {
                        (S.zettels||[]).length > 0;
     var localIsEmpty = !localTime && !localHasData;
 
-    if (gistTime === localTime && !localIsEmpty) return; // identical, nothing to do
+    if (gistTime === localTime && !localIsEmpty) {
+      setSyncStatus('skipped', 'Sync übersprungen: Zeitstempel identisch', gistTime);
+      recordSyncLog({ action: 'skip', remoteTime: gistTime, shortMessage: 'Identischer Stand' });
+      return; // identical, nothing to do
+    }
 
     // Archive local TODAY into S before merge if it's from a past day
     if (TODAY && TODAY.date && TODAY.date !== today()) {
@@ -5717,6 +6183,14 @@ async function gistSync() {
 
     // ── Snapshot BEFORE merge (before mergeS mutates S.deletedIds as side-effect) ─
     var beforeSnapshot = JSON.stringify({ S: S, TODAY: TODAY });
+    var localSnapshot = JSON.parse(beforeSnapshot);
+    var remoteSnapshot = { S: remote.S || {}, TODAY: remote.TODAY || {} };
+
+    var conflicts = detectSyncConflicts(localSnapshot, remoteSnapshot);
+    if (conflicts.length) {
+      setSyncStatus('conflict', 'Konflikte erkannt', gistTime, conflicts.length);
+      recordSyncLog({ action: 'conflict', remoteTime: gistTime, conflictCount: conflicts.length, shortMessage: conflicts.length + ' Konflikte erkannt' });
+    }
 
     // Merge both sides
     var mergedS = mergeS(S, remote.S || {});
@@ -5737,6 +6211,21 @@ async function gistSync() {
     var afterSnapshot  = JSON.stringify({ S: mergedS, TODAY: mergedToday });
     var didChange = (beforeSnapshot !== afterSnapshot);
     // ─────────────────────────────────────────────────────────────────────
+
+    if (conflicts.length) {
+      var decision = await openSyncConflictModal(conflicts);
+      if (!decision || decision.cancelled) {
+        setSyncStatus('skipped', 'Sync abgebrochen wegen Konflikten', gistTime, conflicts.length);
+        recordSyncLog({ action: 'skip', remoteTime: gistTime, conflictCount: conflicts.length, shortMessage: 'Konflikt-Dialog abgebrochen' });
+        toast('⚠ Sync abgebrochen wegen Konflikten');
+        return;
+      }
+      applyConflictResolutions(mergedS, mergedToday, conflicts, decision.resolutions || {});
+      afterSnapshot = JSON.stringify({ S: mergedS, TODAY: mergedToday });
+      didChange = (beforeSnapshot !== afterSnapshot);
+      setSyncStatus('merged', 'Konflikte manuell aufgelöst', gistTime, conflicts.length);
+      recordSyncLog({ action: 'merge', remoteTime: gistTime, conflictCount: conflicts.length, shortMessage: 'Konflikte manuell aufgelöst' });
+    }
 
     S     = mergedS;
     TODAY = mergedToday;
@@ -5762,11 +6251,20 @@ async function gistSync() {
 
       var diff = gistTime > localTime ? '☁ Sync: neuere Daten geladen' : '☁ Sync: Daten zusammengeführt';
       toast(diff);
+      if (!conflicts.length) {
+        setSyncStatus('merged', diff, gistTime);
+        recordSyncLog({ action: 'merge', remoteTime: gistTime, shortMessage: diff });
+      }
+    } else {
+      setSyncStatus('skipped', 'Sync ohne Änderungen', gistTime);
+      recordSyncLog({ action: 'skip', remoteTime: gistTime, shortMessage: 'Kein inhaltlicher Unterschied nach Merge' });
     }
 
   } catch(e) {
     // Silent fail on startup
     console.warn('gistSync error:', e.message);
+    setSyncStatus('failed', 'Sync-Fehler: ' + e.message);
+    recordSyncLog({ action: 'fail', shortMessage: 'Sync-Fehler: ' + e.message });
   } finally {
     _syncInProgress = false;
   }
@@ -6100,7 +6598,7 @@ function importSelectedRawCards() {
     if (rawCardExistsLocally(card)) { skipped++; return; }
     var target = ensureDayExists(card.date);
     var targetCards = (card.date === TODAY.date) ? TODAY.cards : target.cards;
-    targetCards.unshift({ id: card.id || uid(), time: card.time || '', type: card.type || 'free', text: card.text || '', processed: false, restoredFromRaw: true, createdAt: new Date().toISOString() });
+    targetCards.unshift(stampItemEditMeta({ id: card.id || uid(), time: card.time || '', type: card.type || 'free', text: card.text || '', processed: false, restoredFromRaw: true, createdAt: new Date().toISOString() }));
     imported++;
   });
   save();
@@ -6448,6 +6946,7 @@ function findObjGlobal(objId) {
 // Call this whenever a field other than text/creation is mutated.
 function touchObj(obj) {
   obj.updatedAt = new Date().toISOString();
+  stampItemEditMeta(obj);
 }
 
 function setObjStatus(objId, status) {
@@ -6707,6 +7206,7 @@ function importCopilotReport() {
     text: '# Co-Pilot-Bericht · ' + nowTime() + '\n\n' + text,
     processed: false
   };
+  stampItemEditMeta(card);
   getViewData().cards.unshift(card);
   saveViewData();
   document.getElementById('copilotImportText').value = '';
@@ -6773,7 +7273,7 @@ function acceptPuffer(id) {
   var item = (S.migrationPuffer||[]).find(function(p){ return p.id === id; });
   if (!item) return;
   // Add as aufgabe object to today
-  getViewData().objects.push({
+  getViewData().objects.push(stampItemEditMeta({
     id: uid(),
     cardId: null,
     parentId: null,
@@ -6787,7 +7287,7 @@ function acceptPuffer(id) {
     dismissed: false,
     createdAt: new Date().toISOString(),
     source: { kind: 'manual', createdManually: true, from: 'migrationPuffer' }
-  });
+  }));
   S.migrationPuffer = S.migrationPuffer.filter(function(p){ return p.id !== id; });
   save();
   renderPuffer();
@@ -6929,7 +7429,7 @@ function renderFLList() {
 function pullFLToday(id) {
   var entry = (S.futurelog||[]).find(function(e){ return e.id === id; });
   if (!entry) return;
-  getViewData().objects.push({
+  getViewData().objects.push(stampItemEditMeta({
     id: uid(),
     cardId: null,
     parentId: null,
@@ -6943,7 +7443,7 @@ function pullFLToday(id) {
     dismissed: false,
     createdAt: new Date().toISOString(),
     source: { kind: 'manual', createdManually: true, from: 'futurelog' }
-  });
+  }));
   entry.done = true;
   save();
   renderFLList();
@@ -7476,6 +7976,7 @@ function confirmFeedAdopt(id) {
     createdAt: new Date().toISOString(),
     source: { kind: 'manual', createdManually: true, from: 'feed' }
   };
+  stampItemEditMeta(newObj);
   getViewData().objects.push(newObj);
   item.status = 'adopted';
   item.objId = newObj.id;
@@ -7799,14 +8300,14 @@ function saveHighlightAsObj() {
   var text  = title || body || (item ? item.body : '') || '';
   if (!text) { toast('Kein Text vorhanden.'); return; }
 
-  getViewData().objects.push({
+  getViewData().objects.push(stampItemEditMeta({
     id: uid(), cardId: null, parentId: null,
     typ: 'notiz', text: text.slice(0,200),
     zeit: nowTime(), kontext: 'readwise highlight',
     contexts: ['readwise'], signifiers: [], status: 'open',
     dismissed: false, createdAt: new Date().toISOString(),
     source: { kind: 'manual', createdManually: true, from: 'highlight' }
-  });
+  }));
   if (item) item.status = 'adopted';
   save();
   updateBadges();
