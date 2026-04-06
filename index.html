@@ -2540,6 +2540,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
         <button class="btn btn-sm btn-ghost" onclick="openRawRestoreModal()">♻ Rohkarten wiederherstellen</button>
         <button class="btn btn-sm btn-ghost" onclick="openTrashModal()">🗑 Papierkorb</button>
         <button class="btn btn-sm btn-ghost" onclick="exportData()" title="Exportiert alle Daten">↓ Vollständiger Export</button>
+        <button class="btn btn-sm btn-ghost" onclick="exportZipBackup()" title="Exportiert ein strukturiertes ZIP-Backup">↓ ZIP-Backup exportieren</button>
         <label class="btn btn-sm btn-ghost" style="cursor:pointer" title="JSON-Datei laden und mit lokalem Stand mergen">
           ↑ Datei mergen
           <input type="file" accept=".json" style="display:none" onchange="importFileAndMerge(this)">
@@ -2547,6 +2548,10 @@ select:focus { outline: none; border-color: var(--border-mid); }
         <label class="btn btn-sm btn-ghost" style="cursor:pointer;color:var(--orange)" title="JSON-Datei laden und lokalen Stand vollständig ersetzen">
           ⚠ Datei überschreiben
           <input type="file" accept=".json" style="display:none" onchange="importFileAndOverwrite(this)">
+        </label>
+        <label class="btn btn-sm btn-ghost" style="cursor:pointer" title="ZIP-Backup analysieren und bei Bedarf komplett überschreiben">
+          ↑ ZIP-Backup importieren
+          <input type="file" accept=".zip,application/zip" style="display:none" onchange="startZipBackupImport(this)">
         </label>
       </div>
       <div id="compactInfo" style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim);margin-top:6px"></div>
@@ -4830,6 +4835,262 @@ function exportData() {
   var a = document.createElement('a'); a.href = url; a.download = 'daily-log-export-' + today() + '.json';
   a.click(); URL.revokeObjectURL(url);
   toast('JSON exportiert');
+}
+
+var ZIP_BACKUP_FORMAT = 'dailylog-zip-v1';
+var ZIP_BACKUP_GLOBAL_FILES = ['collections.json', 'config.json', 'deletedIds.json', 'trash.json', 'futurelog.json', 'migrationPuffer.json', 'zettels.json', 'feedMeta.json'];
+var _jsZipLoaderPromise = null;
+var _zipImportDraft = null;
+
+function ensureJSZipLoaded() {
+  if (window.JSZip) return Promise.resolve(window.JSZip);
+  if (_jsZipLoaderPromise) return _jsZipLoaderPromise;
+  _jsZipLoaderPromise = new Promise(function(resolve, reject) {
+    var script = document.createElement('script');
+    script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    script.onload = function() {
+      if (window.JSZip) resolve(window.JSZip);
+      else reject(new Error('JSZip ist geladen, aber nicht verfügbar.'));
+    };
+    script.onerror = function() {
+      reject(new Error('JSZip konnte nicht geladen werden.'));
+    };
+    document.head.appendChild(script);
+  }).catch(function(err) {
+    _jsZipLoaderPromise = null;
+    throw err;
+  });
+  return _jsZipLoaderPromise;
+}
+
+function readFileAsArrayBuffer(file) {
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function(e) { resolve(e.target.result); };
+    reader.onerror = function() { reject(new Error('Datei konnte nicht gelesen werden.')); };
+    reader.readAsArrayBuffer(file);
+  });
+}
+
+function parseZipJson(text, path) {
+  try {
+    return JSON.parse(text);
+  } catch (e) {
+    throw new Error('Beschädigte JSON-Datei im ZIP: ' + path);
+  }
+}
+
+function getCardObjectCount(dayLike) {
+  var cards = (dayLike && Array.isArray(dayLike.cards)) ? dayLike.cards.length : 0;
+  var objects = (dayLike && Array.isArray(dayLike.objects)) ? dayLike.objects.length : 0;
+  return cards + objects;
+}
+
+function buildZipManifest(dayCount, todayObjCount, todayCardCount, sectionSummary) {
+  var m = {
+    exportFormat: ZIP_BACKUP_FORMAT,
+    exportedAt: new Date().toISOString(),
+    dayCount: dayCount,
+    todayCardCount: todayCardCount,
+    todayObjectCount: todayObjCount,
+    collectionCount: (S.collections || []).length,
+    deletedIdCount: Object.keys(S.deletedIds || {}).length,
+    sectionSummary: sectionSummary
+  };
+  return m;
+}
+
+async function exportZipBackup() {
+  try {
+    var JSZip = await ensureJSZipLoaded();
+    var zip = new JSZip();
+    var days = Array.isArray(S.days) ? S.days : [];
+    var todayState = TODAY || {};
+    var sectionSummary = {
+      hasConfig: !!S.config,
+      hasTrash: !!S.trash,
+      hasFuturelog: !!S.futurelog,
+      hasMigrationPuffer: !!S.migrationPuffer,
+      hasZettels: !!S.zettels
+    };
+    var manifest = buildZipManifest(days.length, (todayState.objects || []).length, (todayState.cards || []).length, sectionSummary);
+
+    zip.file('manifest.json', JSON.stringify(manifest, null, 2));
+    zip.file('today.json', JSON.stringify(todayState, null, 2));
+    zip.file('collections.json', JSON.stringify(S.collections || [], null, 2));
+    zip.file('config.json', JSON.stringify(S.config || { name: '', context: '' }, null, 2));
+    zip.file('deletedIds.json', JSON.stringify(S.deletedIds || {}, null, 2));
+    zip.file('trash.json', JSON.stringify(S.trash || { cards: [], objects: [] }, null, 2));
+    zip.file('futurelog.json', JSON.stringify(S.futurelog || [], null, 2));
+    zip.file('migrationPuffer.json', JSON.stringify(S.migrationPuffer || [], null, 2));
+    zip.file('zettels.json', JSON.stringify(S.zettels || [], null, 2));
+    zip.file('feedMeta.json', JSON.stringify({
+      feedLastReadwise: S.feedLastReadwise || '',
+      feedLastRaindrop: S.feedLastRaindrop || '',
+      feedLastHighlights: S.feedLastHighlights || ''
+    }, null, 2));
+
+    days.forEach(function(day) {
+      if (!day || !day.date) return;
+      zip.file('days/' + day.date + '.json', JSON.stringify(day, null, 2));
+    });
+
+    var blob = await zip.generateAsync({ type: 'blob' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'dailylog-export-' + today() + '.zip';
+    a.click();
+    URL.revokeObjectURL(url);
+    toast('✓ ZIP-Backup exportiert');
+  } catch (e) {
+    toast('✗ ZIP-Export fehlgeschlagen: ' + e.message);
+  }
+}
+
+async function analyzeZipBackupFile(file) {
+  var JSZip = await ensureJSZipLoaded();
+  var buffer = await readFileAsArrayBuffer(file);
+  var zip;
+  try {
+    zip = await JSZip.loadAsync(buffer);
+  } catch (e) {
+    throw new Error('Ungültiges ZIP-Archiv.');
+  }
+
+  var manifestFile = zip.file('manifest.json');
+  if (!manifestFile) throw new Error('Fehlende Pflichtdatei: manifest.json');
+  var manifest = parseZipJson(await manifestFile.async('string'), 'manifest.json');
+  if (!manifest || manifest.exportFormat !== ZIP_BACKUP_FORMAT) {
+    throw new Error('Unbekanntes ZIP-Backup-Format.');
+  }
+
+  var todayFile = zip.file('today.json');
+  if (!todayFile) throw new Error('Fehlende Pflichtdatei: today.json');
+  var importedToday = parseZipJson(await todayFile.async('string'), 'today.json');
+
+  var dayFiles = zip.file(/^days\/.+\.json$/);
+  if (manifest.dayCount > 0 && !dayFiles.length) {
+    throw new Error('manifest.dayCount > 0, aber keine days/*.json-Dateien gefunden.');
+  }
+
+  var importedDays = [];
+  for (var i = 0; i < dayFiles.length; i++) {
+    var p = dayFiles[i].name;
+    var txt = await dayFiles[i].async('string');
+    var dayObj = parseZipJson(txt, p);
+    if (!dayObj || !dayObj.date) throw new Error('Ungültiges Day-Objekt in ' + p);
+    importedDays.push(dayObj);
+  }
+  if (typeof manifest.dayCount === 'number' && manifest.dayCount !== importedDays.length) {
+    throw new Error('Manifest dayCount (' + manifest.dayCount + ') passt nicht zu days/*.json (' + importedDays.length + ').');
+  }
+
+  var globals = {};
+  var globalPresence = {};
+  for (var g = 0; g < ZIP_BACKUP_GLOBAL_FILES.length; g++) {
+    var fname = ZIP_BACKUP_GLOBAL_FILES[g];
+    var f = zip.file(fname);
+    globalPresence[fname] = !!f;
+    if (f) globals[fname] = parseZipJson(await f.async('string'), fname);
+  }
+
+  var importedCollections = Array.isArray(globals['collections.json']) ? globals['collections.json'] : [];
+  var preview = {
+    valid: true,
+    manifestFound: true,
+    dayFileCount: importedDays.length,
+    hasToday: true,
+    globalsPresent: globalPresence,
+    importedDayCount: importedDays.length,
+    importedTodayObjectCount: getCardObjectCount(importedToday),
+    importedTodayCardCount: (importedToday.cards || []).length || 0,
+    importedCollectionCount: importedCollections.length,
+    localDayCount: (S.days || []).length,
+    localTodayObjectCount: getCardObjectCount(TODAY),
+    importFormat: manifest.exportFormat
+  };
+
+  var reconstructedS = {
+    days: importedDays,
+    collections: Array.isArray(globals['collections.json']) ? globals['collections.json'] : [],
+    config: globals['config.json'] || { name: '', context: '' },
+    deletedIds: globals['deletedIds.json'] || {},
+    trash: globals['trash.json'] || { cards: [], objects: [] },
+    futurelog: Array.isArray(globals['futurelog.json']) ? globals['futurelog.json'] : [],
+    migrationPuffer: Array.isArray(globals['migrationPuffer.json']) ? globals['migrationPuffer.json'] : [],
+    zettels: Array.isArray(globals['zettels.json']) ? globals['zettels.json'] : [],
+    feedLastReadwise: (globals['feedMeta.json'] && globals['feedMeta.json'].feedLastReadwise) || '',
+    feedLastRaindrop: (globals['feedMeta.json'] && globals['feedMeta.json'].feedLastRaindrop) || '',
+    feedLastHighlights: (globals['feedMeta.json'] && globals['feedMeta.json'].feedLastHighlights) || ''
+  };
+  reconstructedS.days.sort(function(a, b) { return b.date > a.date ? 1 : -1; });
+
+  return {
+    manifest: manifest,
+    preview: preview,
+    reconstructedS: reconstructedS,
+    reconstructedTODAY: importedToday
+  };
+}
+
+function renderZipImportPreview(preview) {
+  var el = document.getElementById('zipImportPreviewText');
+  if (!el) return;
+  var globalKeys = Object.keys(preview.globalsPresent || {}).filter(function(k) { return preview.globalsPresent[k]; });
+  var lines = [
+    'ZIP gültig: ' + (preview.valid ? 'ja' : 'nein'),
+    'Manifest gefunden: ' + (preview.manifestFound ? 'ja' : 'nein'),
+    'Format: ' + (preview.importFormat || '-'),
+    'Day-Dateien gefunden: ' + preview.dayFileCount,
+    'today.json vorhanden: ' + (preview.hasToday ? 'ja' : 'nein'),
+    'Globale Dateien vorhanden: ' + (globalKeys.length ? globalKeys.join(', ') : 'keine'),
+    'Tage im Import: ' + preview.importedDayCount,
+    'TODAY Karten+Objekte (Import): ' + preview.importedTodayObjectCount + ' (Karten: ' + preview.importedTodayCardCount + ')',
+    'Collections im Import: ' + preview.importedCollectionCount,
+    '',
+    'Lokaler Stand:',
+    ' - Tage: ' + preview.localDayCount,
+    ' - TODAY Karten+Objekte: ' + preview.localTodayObjectCount
+  ];
+  el.textContent = lines.join('\n');
+}
+
+async function startZipBackupImport(input) {
+  var file = input.files && input.files[0];
+  if (!file) return;
+  try {
+    var analyzed = await analyzeZipBackupFile(file);
+    _zipImportDraft = analyzed;
+    renderZipImportPreview(analyzed.preview);
+    openModal('zipImportPreviewModal');
+    toast('ZIP geprüft — Vorschau geöffnet');
+  } catch (e) {
+    _zipImportDraft = null;
+    toast('✗ ZIP-Import abgebrochen: ' + e.message);
+  }
+  input.value = '';
+}
+
+function confirmZipBackupImport() {
+  if (!_zipImportDraft) {
+    toast('Kein ZIP-Dry-Run vorhanden.');
+    return;
+  }
+  if (!confirm('Dieser ZIP-Import überschreibt den kompletten lokalen Stand. Fortfahren?')) return;
+  try {
+    S = _zipImportDraft.reconstructedS || {};
+    TODAY = _zipImportDraft.reconstructedTODAY || { date: today(), cards: [], objects: [], feedItems: [], reviewDone: false, plan: { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] } };
+    viewDate = today();
+    ensureImportDefaults();
+    save();
+    refreshAfterImport();
+    closeModal('zipImportPreviewModal');
+    _zipImportDraft = null;
+    toast('✓ ZIP-Backup importiert (lokaler Stand überschrieben)');
+  } catch (e) {
+    toast('✗ ZIP-Import fehlgeschlagen: ' + e.message);
+  }
 }
 
 // ════════════════════════════════════════════════
@@ -9108,6 +9369,23 @@ if ('serviceWorker' in navigator) {
   </div>
 </div>
 
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- ZIP Import Preview Modal                       -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="modal-bg hidden" id="zipImportPreviewModal">
+  <div class="modal-box" style="max-width:720px">
+    <div class="modal-title">↑ ZIP-Backup Vorschau</div>
+    <div style="font-family:var(--mono);font-size:0.68rem;color:var(--ink-dim);margin-bottom:8px">
+      Dry-Run: Es werden noch keine Daten geschrieben.
+    </div>
+    <pre id="zipImportPreviewText" style="white-space:pre-wrap;background:var(--surface-soft);border:1px solid var(--border);border-radius:10px;padding:10px;max-height:380px;overflow:auto;font-family:var(--mono);font-size:0.68rem;line-height:1.5;margin:0"></pre>
+    <div class="btn-row" style="margin-top:12px">
+      <button class="btn btn-ghost" onclick="closeModal('zipImportPreviewModal')">Abbrechen</button>
+      <button class="btn btn-primary" onclick="confirmZipBackupImport()">Komplett überschreiben</button>
+    </div>
+  </div>
+</div>
 
 <!-- ══════════════════════════════════════════════ -->
 <!-- Day Import Modal                               -->
