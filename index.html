@@ -2761,27 +2761,76 @@ function stampItemEditMeta(item) {
   item.lastEditedByDeviceName = getDeviceName();
   return item;
 }
+function sanitizeSyncLogEntry(entry) {
+  var e = (entry && typeof entry === 'object') ? entry : {};
+  var shortMessage = String(e.shortMessage || e.message || '').replace(/\s+/g, ' ').trim();
+  if (shortMessage.length > 100) shortMessage = shortMessage.slice(0, 100) + '…';
+  var action = String(e.action || 'sync').trim() || 'sync';
+  if (action.length > 24) action = action.slice(0, 24);
+  var deviceName = String(e.deviceName || '').trim();
+  if (deviceName.length > 24) deviceName = deviceName.slice(0, 24) + '…';
+  var conflictCount = Number(e.conflictCount || 0);
+  if (!isFinite(conflictCount) || conflictCount < 0) conflictCount = 0;
+  conflictCount = Math.floor(conflictCount);
+  var clean = {
+    time: String(e.time || new Date().toISOString()),
+    action: action,
+    shortMessage: shortMessage,
+    remoteTime: String(e.remoteTime || ''),
+    conflictCount: conflictCount
+  };
+  if (deviceName) clean.deviceName = deviceName;
+  return clean;
+}
+var _syncLogStorageTrimmed = false;
+function safeWriteSyncLog(entries) {
+  var list = Array.isArray(entries) ? entries.map(sanitizeSyncLogEntry) : [];
+  if (list.length > 5) list = list.slice(0, 5);
+  _syncLogStorageTrimmed = false;
+  function tryWrite(candidate) {
+    try {
+      localStorage.setItem(SYNC_LOG_KEY, JSON.stringify(candidate));
+      return true;
+    } catch(e) { return false; }
+  }
+  if (tryWrite(list)) return list;
+  _syncLogStorageTrimmed = true;
+  while (list.length > 1) {
+    list.pop();
+    if (tryWrite(list)) return list;
+  }
+  if (tryWrite([sanitizeSyncLogEntry(list[0] || { action: 'fail', shortMessage: 'Sync-Log reduziert' })])) {
+    return [sanitizeSyncLogEntry(list[0] || { action: 'fail', shortMessage: 'Sync-Log reduziert' })];
+  }
+  try { localStorage.removeItem(SYNC_LOG_KEY); } catch(e) {}
+  return [];
+}
 function getSyncLog() {
   try {
     var raw = localStorage.getItem(SYNC_LOG_KEY);
-    var arr = raw ? JSON.parse(raw) : [];
-    return Array.isArray(arr) ? arr : [];
-  } catch(e) { return []; }
+    if (!raw) return [];
+    var arr = JSON.parse(raw);
+    if (!Array.isArray(arr)) return safeWriteSyncLog([]);
+    var sanitized = arr.map(sanitizeSyncLogEntry).slice(0, 5);
+    var changed = arr.length !== sanitized.length || JSON.stringify(arr.slice(0, 5)) !== JSON.stringify(sanitized);
+    if (changed) return safeWriteSyncLog(sanitized);
+    return sanitized;
+  } catch(e) {
+    try { localStorage.removeItem(SYNC_LOG_KEY); } catch(ignore) {}
+    return [];
+  }
 }
 function recordSyncLog(entry) {
   var current = getSyncLog();
-  current.unshift(Object.assign({
+  current.unshift(sanitizeSyncLogEntry(Object.assign({
     time: new Date().toISOString(),
-    deviceId: getDeviceId(),
     deviceName: getDeviceName(),
     action: 'sync',
-    localLastExported: (S && S._lastExported) || '',
     remoteTime: _syncState.lastRemoteTime || '',
-    todayCardCount: (TODAY.cards || []).length,
-    todayObjectCount: (TODAY.objects || []).length
-  }, entry || {}));
-  current = current.slice(0, 20);
-  localStorage.setItem(SYNC_LOG_KEY, JSON.stringify(current));
+    conflictCount: 0,
+    shortMessage: ''
+  }, entry || {})));
+  current = safeWriteSyncLog(current);
   renderSyncLogList();
 }
 function loadSyncState() {
@@ -2820,7 +2869,8 @@ function renderSyncDiagnostics() {
     'Letzter Versuch: ' + esc(lastAttempt),
     'TODAY: Karten ' + (TODAY.cards || []).length + ' · Objekte ' + (TODAY.objects || []).length,
     'Kurzinfo: ' + esc(lastMsg),
-    last ? ('Letzter Log: ' + esc((last.action || '-') + ' · ' + (last.shortMessage || ''))) : 'Letzter Log: -'
+    last ? ('Letzter Log: ' + esc((last.action || '-') + ' · ' + (last.shortMessage || ''))) : 'Letzter Log: -',
+    _syncLogStorageTrimmed ? 'Hinweis: Sync-Log wurde aus Speichergründen gekürzt.' : ''
   ].join('<br>');
 }
 function renderSyncLogList() {
@@ -2835,9 +2885,8 @@ function renderSyncLogList() {
     return '<div style="padding:6px 0;border-bottom:1px solid var(--border)">' +
       esc((item.time || '').replace('T', ' ').slice(0, 19)) + ' · ' + esc(item.action || '-') +
       ' · ' + esc(item.shortMessage || '') +
-      '<br><span style="color:var(--ink-dim)">lokal=' + esc((item.localLastExported || '-').slice(0, 19)) +
-      ' · remote=' + esc((item.remoteTime || '-').slice(0, 19)) +
-      ' · Karten=' + (item.todayCardCount || 0) + ' · Objekte=' + (item.todayObjectCount || 0) +
+      '<br><span style="color:var(--ink-dim)">remote=' + esc((item.remoteTime || '-').slice(0, 19)) +
+      (item.deviceName ? (' · Gerät=' + esc(item.deviceName)) : '') +
       (item.conflictCount ? (' · Konflikte=' + item.conflictCount) : '') + '</span></div>';
   }).join('');
 }
