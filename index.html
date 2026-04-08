@@ -2661,6 +2661,11 @@ select:focus { outline: none; border-color: var(--border-mid); }
 // State
 // ════════════════════════════════════════════════
 var LKEY           = 'dailylog_v2';
+var LKEY_FALLBACK_MARKER = 'dailylog_v2_fallback_authoritative';
+var IDB_NAME       = 'dailylog_db';
+var IDB_VERSION    = 1;
+var IDB_STORE      = 'appState';
+var IDB_STATE_KEY  = 'main';
 var GIST_TOKEN_KEY = 'dailylog_gist_token';
 var GIST_ID_KEY    = 'dailylog_gist_id';
 var GIST_FILE      = 'dailylog_v2_data.json';
@@ -2937,6 +2942,13 @@ function renderSyncLogList() {
 // Persistence
 // ════════════════════════════════════════════════
 var _syncInProgress = false; // true while gistSync/gistPull/gistPush is running
+var _db = null;
+var _dbInitPromise = null;
+var _dbWriteQueue = Promise.resolve();
+var _dbAvailable = typeof indexedDB !== 'undefined';
+var _dbUsable = false;
+var _dbFallbackLogged = false;
+var _localFallbackWrittenThisSession = false;
 var _syncConflictResolver = null;
 var _syncConflictState = { conflicts: [] };
 var _syncState = {
@@ -2947,9 +2959,151 @@ var _syncState = {
   lastConflictCount: 0
 };
 
+function dbInit() {
+  if (!_dbAvailable) return Promise.resolve(null);
+  if (_db) return Promise.resolve(_db);
+  if (_dbInitPromise) return _dbInitPromise;
+  _dbInitPromise = new Promise(function(resolve, reject) {
+    var req;
+    try {
+      req = indexedDB.open(IDB_NAME, IDB_VERSION);
+    } catch (openErr) {
+      reject(openErr);
+      return;
+    }
+    req.onupgradeneeded = function(e) {
+      var db = e.target.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) db.createObjectStore(IDB_STORE);
+    };
+    req.onsuccess = function(e) {
+      _db = e.target.result;
+      _db.onclose = function() { _db = null; };
+      _db.onerror = function(err) { console.warn('IndexedDB error:', err); };
+      _dbUsable = true;
+      console.info('Persistence: IndexedDB init ok');
+      resolve(_db);
+    };
+    req.onerror = function() {
+      console.warn('Persistence: IndexedDB open failed');
+      reject(req.error || new Error('IndexedDB open failed'));
+    };
+    req.onblocked = function() {
+      console.warn('Persistence: IndexedDB blocked');
+      reject(new Error('IndexedDB blocked'));
+    };
+  }).catch(function(err) {
+    _dbInitPromise = null;
+    _db = null;
+    _dbUsable = false;
+    if (err && (err.name === 'ReferenceError' || err.name === 'NotSupportedError')) {
+      _dbAvailable = false;
+      console.warn('Persistence: IndexedDB unsupported, fallback to localStorage');
+    } else {
+      console.warn('Persistence: IndexedDB init failed, retry later');
+    }
+    throw err;
+  });
+  return _dbInitPromise;
+}
+
+function dbLoadState() {
+  return dbInit().then(function(db) {
+    if (!db) return null;
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction(IDB_STORE, 'readonly');
+      var store = tx.objectStore(IDB_STORE);
+      var req = store.get(IDB_STATE_KEY);
+      req.onsuccess = function() { _dbUsable = true; resolve(req.result || null); };
+      req.onerror = function() { reject(req.error || new Error('IndexedDB read failed')); };
+    });
+  });
+}
+
+function dbSaveState(state) {
+  return dbInit().then(function(db) {
+    if (!db) throw new Error('IndexedDB unavailable');
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.oncomplete = function() { resolve(); };
+      tx.onerror = function() { reject(tx.error || new Error('IndexedDB write failed')); };
+      tx.onabort = function() { reject(tx.error || new Error('IndexedDB write aborted')); };
+      _dbUsable = true;
+      tx.objectStore(IDB_STORE).put(state, IDB_STATE_KEY);
+    });
+  });
+}
+
+function dbHasState() {
+  return dbLoadState().then(function(payload) {
+    return !!(payload && payload.S && payload.TODAY);
+  }).catch(function() { return false; });
+}
+
+function dbClearState() {
+  return dbInit().then(function(db) {
+    if (!db) return;
+    return new Promise(function(resolve, reject) {
+      var tx = db.transaction(IDB_STORE, 'readwrite');
+      tx.oncomplete = function() { resolve(); };
+      tx.onerror = function() { reject(tx.error || new Error('IndexedDB clear failed')); };
+      tx.objectStore(IDB_STORE).delete(IDB_STATE_KEY);
+    });
+  });
+}
+
+function getCurrentState() {
+  return { S: S, TODAY: TODAY };
+}
+function isLocalFallbackAuthoritative() {
+  try { return localStorage.getItem(LKEY_FALLBACK_MARKER) === '1'; } catch(e) { return false; }
+}
+function setLocalFallbackAuthoritative(on) {
+  try {
+    if (on) localStorage.setItem(LKEY_FALLBACK_MARKER, '1');
+    else localStorage.removeItem(LKEY_FALLBACK_MARKER);
+  } catch(e) {}
+}
+function getStorageBackendLabel() {
+  return _dbUsable ? 'IndexedDB' : 'localStorage (Fallback)';
+}
+function flushPersistence() {
+  return _dbWriteQueue;
+}
+
+function setCurrentState(state) {
+  if (!state) return;
+  if (state.S) S = state.S;
+  if (state.TODAY) TODAY = state.TODAY;
+}
+
 function persistLocalOnly() {
-  var payload = { S: S, TODAY: TODAY };
+  var payload = getCurrentState();
+  if (_dbAvailable) {
+    _dbWriteQueue = _dbWriteQueue.then(function() {
+      return dbSaveState(payload).then(function() {
+        try { localStorage.removeItem(LKEY); } catch(ignore) {}
+        setLocalFallbackAuthoritative(false);
+        _localFallbackWrittenThisSession = false;
+        _dbUsable = true;
+        _dbFallbackLogged = false;
+      });
+    }).catch(function(e) {
+      _dbUsable = false;
+      if (!_dbFallbackLogged) {
+        console.warn('Persistence: using localStorage fallback');
+        _dbFallbackLogged = true;
+      }
+      console.warn('IndexedDB save failed, fallback to localStorage:', e.message || e);
+      try { localStorage.setItem(LKEY, JSON.stringify(payload)); } catch(storageErr) { toast('⚠ Speicherfehler'); }
+      setLocalFallbackAuthoritative(true);
+      _localFallbackWrittenThisSession = true;
+    });
+    return;
+  }
+  _dbUsable = false;
   try { localStorage.setItem(LKEY, JSON.stringify(payload)); } catch(e) { toast('⚠ Speicherfehler'); }
+  setLocalFallbackAuthoritative(true);
+  _localFallbackWrittenThisSession = true;
 }
 
 function save() {
@@ -2975,13 +3129,51 @@ function saveDebounced() {
   }, 600);
 }
 
-function load() {
+async function load() {
+  var loadedFromIndexedDb = false;
   try {
-    var d = localStorage.getItem(LKEY);
-    if (d) {
-      var p = JSON.parse(d);
-      if (p.S) S = p.S;
-      if (p.TODAY) TODAY = p.TODAY;
+    if (_dbAvailable) {
+      try {
+        if (await dbHasState()) {
+          var dbPayload = await dbLoadState();
+          if (dbPayload && dbPayload.S && dbPayload.TODAY) {
+            setCurrentState(dbPayload);
+            loadedFromIndexedDb = true;
+          } else {
+            console.warn('Persistence: IndexedDB reported data but payload invalid, using fallback');
+          }
+        } else {
+          var legacy = localStorage.getItem(LKEY);
+          if (legacy) {
+            console.info('Persistence: migrating localStorage -> IndexedDB');
+            var legacyParsed = JSON.parse(legacy);
+            if (legacyParsed && legacyParsed.S && legacyParsed.TODAY) {
+              await dbSaveState(legacyParsed);
+              setCurrentState(legacyParsed);
+              loadedFromIndexedDb = true;
+              try { localStorage.removeItem(LKEY); } catch(ignore) {}
+              setLocalFallbackAuthoritative(false);
+              console.info('Persistence: migration complete');
+              toast('✓ Lokale Daten nach IndexedDB migriert');
+            }
+          }
+        }
+      } catch (dbErr) {
+        console.error('IndexedDB load/migration failed:', dbErr);
+        console.warn('Persistence: using localStorage fallback after load error');
+        toast('⚠ IndexedDB-Fehler — nutze lokalen Fallback');
+      }
+    }
+    if (!loadedFromIndexedDb) {
+      var canUseLocalFallback = (!_dbAvailable) || _localFallbackWrittenThisSession || isLocalFallbackAuthoritative();
+      var d = localStorage.getItem(LKEY);
+      if (d && canUseLocalFallback) {
+        var p = JSON.parse(d);
+        setCurrentState(p);
+        _dbUsable = false;
+      } else if (d && !canUseLocalFallback) {
+        console.warn('Persistence: ignoring stale legacy localStorage state');
+      }
     }
   } catch(e) {}
   // Defaults
@@ -9197,8 +9389,7 @@ document.addEventListener('keydown', function(e) {
 // ════════════════════════════════════════════════
 function getStorageSize() {
   try {
-    var data = localStorage.getItem(LKEY) || '';
-    return new Blob([data]).size;
+    return new Blob([JSON.stringify(getCurrentState())]).size;
   } catch(e) { return 0; }
 }
 
@@ -9220,7 +9411,7 @@ function updateStorageDisplay() {
   var objCount = (S.days||[]).reduce(function(n, d){ return n + (d.objects ? d.objects.length : 0); }, 0);
   var zettelCount = (S.zettels||[]).length;
 
-  info.textContent = mb + ' MB von ~5 MB (' + pct + '%) · ' + dayCount + ' Tage · ' + objCount + ' Objekte · ' + zettelCount + ' Zettel';
+  info.textContent = mb + ' MB (State-Größe) · ' + dayCount + ' Tage · ' + objCount + ' Objekte · ' + zettelCount + ' Zettel · Speicher: ' + getStorageBackendLabel();
 
   if (pct > 80) {
     info.style.color = 'var(--red)';
@@ -9907,7 +10098,7 @@ function loadTheme() {
 
 async function init() {
   loadTheme();
-  load();
+  await load();
   var hd = document.getElementById('headerDate'); if (hd) hd.textContent = todayDE();
   await gistSync(); // auto two-way sync on startup (before first visible render)
   loadSettingsUI();
