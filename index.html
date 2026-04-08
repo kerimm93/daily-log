@@ -2507,7 +2507,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
     <input type="text" id="cfgDeviceName" placeholder="Dieses Gerät">
 
     <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
-      <input type="checkbox" id="cfgAutoSyncEnabled" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer">
+      <input type="checkbox" id="cfgAutoSyncEnabled" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" onchange="var mirror=document.getElementById('cfgAutoSyncEnabledData'); if(mirror) mirror.checked=this.checked;">
       <label for="cfgAutoSyncEnabled" style="display:inline;text-transform:none;letter-spacing:0;font-size:0.74rem;cursor:pointer;color:var(--ink-mid)">Auto-Sync aktiv</label>
     </div>
 
@@ -2535,42 +2535,68 @@ select:focus { outline: none; border-color: var(--border-mid); }
 
     <div style="margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
       <div style="font-family:var(--mono);font-size:0.64rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:10px">Speicher & Daten</div>
-      <div id="storageBar" style="height:6px;background:var(--border);border-radius:3px;margin-bottom:6px;overflow:hidden">
-        <div id="storageBarFill" style="height:100%;background:var(--green);border-radius:3px;transition:width .3s"></div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+        <button type="button" class="btn btn-sm btn-primary" data-settings-tab="sync" onclick="setSettingsDataTab('sync')">Sync</button>
+        <button type="button" class="btn btn-sm btn-ghost" data-settings-tab="backups" onclick="setSettingsDataTab('backups')">Backups</button>
+        <button type="button" class="btn btn-sm btn-ghost" data-settings-tab="recovery" onclick="setSettingsDataTab('recovery')">Recovery</button>
+        <button type="button" class="btn btn-sm btn-ghost" data-settings-tab="maintenance" onclick="setSettingsDataTab('maintenance')">Wartung</button>
       </div>
-      <div style="font-family:var(--mono);font-size:0.64rem;color:var(--ink-dim);margin-bottom:10px" id="storageInfo">Berechne…</div>
-      <div style="display:flex;gap:6px;flex-wrap:wrap">
-        <button class="btn btn-sm btn-ghost" onclick="compactOldDays(30)" title="Rohkarten aus Tagen älter als 30 Tage entfernen">🗜 Alte Tage komprimieren</button>
-        <button class="btn btn-sm" id="btnGistPush" onclick="gistPush(false)">☁ Jetzt speichern</button>
-        <button class="btn btn-sm btn-ghost" id="btnGistPull" onclick="gistPull(false)">↔ Merge vom Gist</button>
-        <button class="btn btn-sm btn-ghost" id="btnGistPullForce" onclick="gistPullOverwrite()" style="color:var(--orange)">⚠ Gist überschreibt lokal</button>
-        <button class="btn btn-sm btn-ghost" id="btnRawPush" onclick="rawGistPush(false)">🗃 Rohkarten sichern</button>
-        <button class="btn btn-sm btn-ghost" onclick="openRawRestoreModal()">♻ Rohkarten wiederherstellen</button>
-        <button class="btn btn-sm btn-ghost" onclick="openTrashModal()">🗑 Papierkorb</button>
-        <button class="btn btn-sm btn-ghost" onclick="exportData()" title="Exportiert alle Daten">↓ Vollständiger Export</button>
-        <button class="btn btn-sm btn-ghost" onclick="exportZipBackup()" title="Exportiert ein strukturiertes ZIP-Backup">↓ ZIP-Backup exportieren</button>
-        <label class="btn btn-sm btn-ghost" style="cursor:pointer" title="JSON-Datei laden und mit lokalem Stand mergen">
-          ↑ Datei mergen
-          <input type="file" accept=".json" style="display:none" onchange="importFileAndMerge(this)">
-        </label>
-        <label class="btn btn-sm btn-ghost" style="cursor:pointer;color:var(--orange)" title="JSON-Datei laden und lokalen Stand vollständig ersetzen">
-          ⚠ Datei überschreiben
-          <input type="file" accept=".json" style="display:none" onchange="importFileAndOverwrite(this)">
-        </label>
-        <label class="btn btn-sm btn-ghost" style="cursor:pointer" title="ZIP-Backup analysieren und bei Bedarf komplett überschreiben">
-          ↑ ZIP-Backup importieren
-          <input type="file" accept=".zip,application/zip" style="display:none" onchange="startZipBackupImport(this)">
-        </label>
-      </div>
-      <div id="compactInfo" style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim);margin-top:6px"></div>
 
-      <div style="margin-top:12px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-soft)">
-        <div style="font-family:var(--mono);font-size:0.62rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:6px">Sync-Diagnostik</div>
-        <div id="syncDiag" style="font-family:var(--mono);font-size:0.64rem;line-height:1.6;color:var(--ink-mid)">Noch keine Sync-Information.</div>
-        <details style="margin-top:8px">
-          <summary style="cursor:pointer;font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim)">Letzte 20 Sync-Events</summary>
-          <div id="syncLogList" style="margin-top:6px;max-height:180px;overflow-y:auto;font-family:var(--mono);font-size:0.62rem;line-height:1.55;color:var(--ink-mid)"></div>
-        </details>
+      <div data-settings-panel="sync">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm" id="btnGistPull" onclick="gistSync()">↔ Jetzt synchronisieren</button>
+          <button class="btn btn-sm btn-ghost" id="btnGistPush" onclick="gistPush(false)">☁ In Gist schreiben</button>
+          <button class="btn btn-sm btn-ghost" id="btnGistPullForce" onclick="gistPullOverwrite()" style="color:var(--orange)">⚠ Gist überschreibt lokal</button>
+          <button class="btn btn-sm btn-ghost" id="btnGistPullManual" onclick="gistPull(false)" title="Spezialfall: nur vom Gist laden/mergen">↓ Nur von Gist laden</button>
+        </div>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+          <input type="checkbox" id="cfgAutoSyncEnabledData" style="width:15px;height:15px;accent-color:var(--accent);cursor:pointer" onchange="var master=document.getElementById('cfgAutoSyncEnabled'); if(master) master.checked=this.checked;">
+          <label for="cfgAutoSyncEnabledData" style="display:inline;text-transform:none;letter-spacing:0;font-size:0.74rem;cursor:pointer;color:var(--ink-mid)">Auto-Sync aktiv</label>
+        </div>
+        <div style="margin-top:12px;padding:10px;border:1px solid var(--border);border-radius:8px;background:var(--bg-soft)">
+          <div style="font-family:var(--mono);font-size:0.62rem;letter-spacing:0.08em;text-transform:uppercase;color:var(--ink-dim);margin-bottom:6px">Sync-Diagnostik</div>
+          <div id="syncDiag" style="font-family:var(--mono);font-size:0.64rem;line-height:1.6;color:var(--ink-mid)">Noch keine Sync-Information.</div>
+          <details style="margin-top:8px">
+            <summary style="cursor:pointer;font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim)">Letzte Sync-Events</summary>
+            <div id="syncLogList" style="margin-top:6px;max-height:180px;overflow-y:auto;font-family:var(--mono);font-size:0.62rem;line-height:1.55;color:var(--ink-mid)"></div>
+          </details>
+        </div>
+      </div>
+
+      <div data-settings-panel="backups" style="display:none">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-ghost" onclick="exportData()" title="Exportiert alle Daten">↓ Vollständiger Export</button>
+          <button class="btn btn-sm btn-ghost" onclick="exportZipBackup()" title="Exportiert ein strukturiertes ZIP-Backup">↓ ZIP-Backup exportieren</button>
+          <label class="btn btn-sm btn-ghost" style="cursor:pointer" title="JSON-Datei laden und mit lokalem Stand mergen">
+            ↑ Datei mergen
+            <input type="file" accept=".json" style="display:none" onchange="importFileAndMerge(this)">
+          </label>
+          <label class="btn btn-sm btn-ghost" style="cursor:pointer;color:var(--orange)" title="JSON-Datei laden und lokalen Stand vollständig ersetzen">
+            ⚠ Datei überschreiben
+            <input type="file" accept=".json" style="display:none" onchange="importFileAndOverwrite(this)">
+          </label>
+          <label class="btn btn-sm btn-ghost" style="cursor:pointer" title="ZIP-Backup analysieren und bei Bedarf komplett überschreiben">
+            ↑ ZIP-Backup importieren
+            <input type="file" accept=".zip,application/zip" style="display:none" onchange="startZipBackupImport(this)">
+          </label>
+        </div>
+      </div>
+
+      <div data-settings-panel="recovery" style="display:none">
+        <div style="display:flex;gap:6px;flex-wrap:wrap">
+          <button class="btn btn-sm btn-ghost" id="btnRawPush" onclick="rawGistPush(false)">🗃 Rohkarten sichern</button>
+          <button class="btn btn-sm btn-ghost" onclick="openRawRestoreModal()">♻ Rohkarten wiederherstellen</button>
+          <button class="btn btn-sm btn-ghost" onclick="openTrashModal()">🗑 Papierkorb</button>
+        </div>
+      </div>
+
+      <div data-settings-panel="maintenance" style="display:none">
+        <div id="storageBar" style="height:6px;background:var(--border);border-radius:3px;margin-bottom:6px;overflow:hidden">
+          <div id="storageBarFill" style="height:100%;background:var(--green);border-radius:3px;transition:width .3s"></div>
+        </div>
+        <div style="font-family:var(--mono);font-size:0.64rem;color:var(--ink-dim);margin-bottom:10px" id="storageInfo">Berechne…</div>
+        <button class="btn btn-sm btn-ghost" onclick="compactOldDays(30)" title="Rohkarten aus Tagen älter als 30 Tage entfernen">🗜 Alte Tage komprimieren</button>
+        <div id="compactInfo" style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim);margin-top:6px"></div>
       </div>
     </div>
     <!-- Theme Switcher -->
@@ -2714,12 +2740,28 @@ function openModal(id)  {
       updateStorageDisplay();
       renderSyncDiagnostics();
       renderSyncLogList();
+      setSettingsDataTab('sync');
     }, 50);
   }
   if (id === 'rawRestoreModal') setTimeout(renderRawRestoreList, 50);
   if (id === 'trashModal') setTimeout(renderTrashModal, 20);
 }
 function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+function setSettingsDataTab(tab) {
+  var target = tab || 'sync';
+  var tabs = document.querySelectorAll('[data-settings-tab]');
+  for (var i = 0; i < tabs.length; i++) {
+    var t = tabs[i];
+    var active = t.getAttribute('data-settings-tab') === target;
+    t.classList.toggle('btn-primary', active);
+    t.classList.toggle('btn-ghost', !active);
+  }
+  var panels = document.querySelectorAll('[data-settings-panel]');
+  for (var p = 0; p < panels.length; p++) {
+    var panel = panels[p];
+    panel.style.display = panel.getAttribute('data-settings-panel') === target ? '' : 'none';
+  }
+}
 function inferDefaultDeviceName() {
   var ua = navigator.userAgent || '';
   if (/mobile|android|iphone|ipad/i.test(ua)) return 'Mobilgerät';
@@ -5030,6 +5072,7 @@ function loadSettingsUI() {
   }
   if (document.getElementById('cfgDeviceName')) document.getElementById('cfgDeviceName').value = getDeviceName();
   if (document.getElementById('cfgAutoSyncEnabled')) document.getElementById('cfgAutoSyncEnabled').checked = isAutoSyncEnabled();
+  if (document.getElementById('cfgAutoSyncEnabledData')) document.getElementById('cfgAutoSyncEnabledData').checked = isAutoSyncEnabled();
   renderSyncDiagnostics();
   renderSyncLogList();
 }
@@ -5739,7 +5782,7 @@ async function gistPush(silent) {
     return;
   }
   var btn = document.getElementById('btnGistPush');
-  if (btn) btn.textContent = '⏳ Speichern…';
+  if (btn) btn.textContent = '⏳ Schreibe…';
   // Save previous timestamp so we can revert if push fails
   var prevLastExported = S._lastExported || '';
   try {
@@ -5774,7 +5817,7 @@ async function gistPush(silent) {
     setSyncStatus('failed', 'Push Exception: ' + e.message);
     recordSyncLog({ action: 'fail', shortMessage: 'Push Exception: ' + e.message });
   } finally {
-    if (btn) btn.textContent = '☁ Jetzt speichern';
+    if (btn) btn.textContent = '☁ In Gist schreiben';
   }
 }
 
@@ -5786,7 +5829,7 @@ async function gistPull(silent, forceOverwrite) {
     setSyncStatus('failed', 'Pull abgebrochen: keine Gist-Konfiguration');
     return false;
   }
-  var btn = document.getElementById('btnGistPull');
+  var btn = document.getElementById('btnGistPullManual');
   if (btn && !silent) btn.textContent = '⏳ Laden…';
   var wasSyncing = _syncInProgress;
   var pullHadConflictResolution = false;
@@ -5942,7 +5985,7 @@ async function gistPull(silent, forceOverwrite) {
     recordSyncLog({ action: 'fail', shortMessage: 'Pull-Fehler: ' + e.message });
     return false;
   } finally {
-    if (btn && !silent) btn.textContent = '↓ Von Gist laden';
+    if (btn && !silent) btn.textContent = '↓ Nur von Gist laden';
     _syncInProgress = wasSyncing; // restore — don't clear if caller already set it
   }
 }
