@@ -6494,6 +6494,15 @@ async function gistSync() {
     // and prevents the "save while nothing changed" Speicherfehler on reload.
     var afterSnapshot  = JSON.stringify({ S: mergedS, TODAY: mergedToday });
     var didChange = (beforeSnapshot !== afterSnapshot);
+    var remoteSnapshotComparable = JSON.stringify({
+      S: Object.assign({}, remote.S || {}, { _lastExported: '' }),
+      TODAY: remote.TODAY || {}
+    });
+    var mergedSnapshotComparable = JSON.stringify({
+      S: Object.assign({}, mergedS || {}, { _lastExported: '' }),
+      TODAY: mergedToday || {}
+    });
+    var needsPush = (mergedSnapshotComparable !== remoteSnapshotComparable);
     // ─────────────────────────────────────────────────────────────────────
 
     if (conflicts.length) {
@@ -6507,6 +6516,11 @@ async function gistSync() {
       applyConflictResolutions(mergedS, mergedToday, conflicts, decision.resolutions || {});
       afterSnapshot = JSON.stringify({ S: mergedS, TODAY: mergedToday });
       didChange = (beforeSnapshot !== afterSnapshot);
+      mergedSnapshotComparable = JSON.stringify({
+        S: Object.assign({}, mergedS || {}, { _lastExported: '' }),
+        TODAY: mergedToday || {}
+      });
+      needsPush = (mergedSnapshotComparable !== remoteSnapshotComparable);
       setSyncStatus('merged', 'Konflikte manuell aufgelöst', gistTime, conflicts.length);
       recordSyncLog({ action: 'merge', remoteTime: gistTime, conflictCount: conflicts.length, shortMessage: 'Konflikte manuell aufgelöst' });
     }
@@ -6526,11 +6540,12 @@ async function gistSync() {
     if (!TODAY.feedItems) TODAY.feedItems = [];
     if (!TODAY.plan) TODAY.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
 
-    if (didChange) {
-      // Something actually changed — persist and push
-      S._lastExported = new Date().toISOString();
-      cleanOrphanCollectionRefs();
-      save();
+    if (didChange || needsPush) {
+      // Local changes require save; remote delta requires push.
+      if (didChange) {
+        cleanOrphanCollectionRefs();
+        save();
+      }
       await gistPush(true);
 
       var diff = gistTime > localTime ? '☁ Sync: neuere Daten geladen' : '☁ Sync: Daten zusammengeführt';
