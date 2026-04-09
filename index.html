@@ -2625,6 +2625,10 @@ select:focus { outline: none; border-color: var(--border-mid); }
     <div style="font-family:var(--mono);font-size:0.64rem;color:var(--ink-dim);margin-bottom:10px">
       Für jede Einheit bitte entscheiden, ob lokal oder remote übernommen werden soll.
     </div>
+    <div class="btn-row" style="margin-bottom:10px">
+      <button class="btn btn-sm btn-ghost" onclick="presetSyncConflicts('local')">Alle auf lokal</button>
+      <button class="btn btn-sm btn-ghost" onclick="presetSyncConflicts('remote')">Alle auf remote</button>
+    </div>
     <div id="syncConflictList" style="max-height:420px;overflow-y:auto;margin-bottom:10px"></div>
     <div class="btn-row">
       <button class="btn btn-primary" onclick="confirmSyncConflicts()">Auswahl anwenden</button>
@@ -5919,6 +5923,13 @@ function openSyncConflictModal(conflicts) {
     _syncConflictResolver = resolve;
     renderSyncConflictModal(_syncConflictState.conflicts);
     openModal('syncConflictModal');
+  });
+}
+function presetSyncConflicts(choice) {
+  if (choice !== 'local' && choice !== 'remote') return;
+  (_syncConflictState.conflicts || []).forEach(function(c, idx) {
+    var input = document.querySelector('input[name="sync-res-' + idx + '"][value="' + choice + '"]');
+    if (input) input.checked = true;
   });
 }
 function confirmSyncConflicts() {
