@@ -1,43 +1,104 @@
 # Daily Log
 
-Ein persönliches Bullet-Journal als Single-File-HTML-App — lokal, offline-fähig, optional mit verschlüsseltem GitHub-Gist-Sync.
+Ein persönliches Bullet-Journal als Single-File-HTML-App — lokal, offline-fähig, optional mit verschlüsseltem GitHub-Gist-Sync, Rohkarten-Backup und strukturiertem ZIP-Backup.
 
 ---
 
 ## Features
 
 ### Tagesablauf
-- **Sammeln** — Karten erfassen (Log, Voice-Memo-Transkript, E-Mail, Freitext)
-- **Objekte** — strukturierte Einträge: Aufgaben, Ereignisse, Notizen, Ideen, Zitate, SOPs, Beobachtungen
-- **Plan** — Tagesplan mit Intentionen, Stundenplan und Aufgabenliste
-- **Review** — Abend-Migration: offene Aufgaben entscheiden (`erledigt / migrieren / terminieren / canceln`)
-- **Abschluss** — Pipeline für Tagesabschluss inkl. Co-Pilot-Prompt, Morning-Briefing, Zettelkasten-Export
-- **Future Log** — Aufgaben und Termine auf spätere Tage / Monate legen
-- **Verlauf** — alle archivierten Tage mit Tagesstatus (`offen / reviewt / abgeschlossen`)
+
+* **Sammeln** — Karten erfassen (`Log`, `Voice-Memo-Transkript`, `E-Mail`, `Freitext`)
+* **Objekte** — strukturierte Einträge: Aufgaben, Ereignisse, Notizen, Ideen, Zitate, SOPs, Beobachtungen
+* **Plan** — Tagesplanung mit Intentionen, Stundenplan, Ort, Aufstehzeit und Aufgabenliste
+* **Review** — Morgen-Review + Abend-Migration offener Aufgaben
+* **Abschluss** — mehrstufige Tagesabschluss-Pipeline:
+
+  * Aufgaben-Extraktion
+  * forensischer Scanner
+  * Daily Note
+  * BuJo-Fassung
+  * Zettelkasten-Export
+* **Future Log** — Aufgaben und Termine auf spätere Tage / Monate legen
+* **Verlauf** — archivierte Tage mit Status (`offen / reviewt / abgeschlossen`)
 
 ### Wissensarbeit
-- **Kontexte** — alle Objekte nach `@kontext` gefiltert, über alle Tage hinweg
-- **Zettel** — Zettelkasten-Notizen aus Highlights erstellen, behalten oder verwerfen
-- **Feed** — Readwise-Highlights und Raindrop-Bookmarks laden und verarbeiten
-- **Suche** — Volltextsuche über Karten, Objekte und Zettel (`Cmd/Ctrl+K`)
 
-### Extraktion
-- KI-gestützter Extraktionsprompt (Bullet-Journal-Regeln, klare Typ-Trennung)
-- Direktextraktion über OpenAI API (GPT-4o-mini)
-- Quellenanzeige pro Objekt (`sourceQuote`, `confidence`, `needsReview`)
-- Globaler Rückstand: alle unextrahierten Karten aller Tage auf einen Blick
+* **Kontexte** — Objekte nach `@kontext` gefiltert, über alle Tage hinweg
+* **Zettel** — Zettelkasten-Notizen erstellen, behalten, exportieren oder verwerfen
+* **Kollektionen** — thematische Sammelräume für Objekte
 
-### Sync & Backup
-- Verschlüsselter GitHub-Gist-Sync (AES-GCM, PBKDF2)
-- Separates Raw-Backup-Gist für Rohkarten
-- Lokaler JSON-Export (Klartext) und Datei-Merge/-Overwrite
-- Papierkorb mit Wiederherstellung
-- Tombstone-basierte Lösch-Synchronisation (kein Resurrection-Bug)
+  * Objekte können direkt aus dem Objekt-Flow Kollektionen zugeordnet werden
+  * Kollektion-Zuweisung mit Suche
+  * neue Kollektionen direkt aus dem Zuweisungs-Modal anlegbar
+* **Feed** — Readwise-Highlights, Reader-Inhalte und Raindrop-Bookmarks laden und verarbeiten
+* **Suche** — Volltextsuche über Karten, Objekte und Zettel
+
+### Extraktion & Verarbeitung
+
+* KI-gestützter Extraktionsprompt mit Typregeln für:
+
+  * `aufgabe`
+  * `ereignis`
+  * `notiz`
+  * `idee`
+  * `zitat`
+  * `sop`
+  * `beobachtung`
+* Direktextraktion über OpenAI API (`gpt-4o-mini`)
+* Quellenanzeige pro Objekt (`sourceQuote`, `confidence`, `needsReview`)
+* Globaler Rückstand: alle unextrahierten Karten vergangener Tage auf einen Blick
+* Objektauswahl für zusätzliche Prompt-Exports / Spezialauswertungen
+
+### Sync, Recovery & Backup
+
+* Verschlüsselter GitHub-Gist-Sync (AES-GCM + PBKDF2)
+* Konfliktbewusster bidirektionaler Sync statt blindem Überschreiben
+* Sync-Diagnostik mit:
+
+  * Gerätekennung
+  * letztem Remote-Zeitstempel
+  * lokalem `_lastExported`
+  * Event-Log
+* Konflikt-Modal mit Bulk-Vorauswahl:
+
+  * **Alle auf lokal**
+  * **Alle auf remote**
+* Separates Raw-Backup-Gist für Rohkarten
+* ZIP-Backup-Export mit strukturierter Archivform
+* ZIP-Import mit Dry-Run / Vorschau vor destruktivem Overwrite
+* Papierkorb mit Wiederherstellung
+* Tombstone-basierte Lösch-Synchronisation (kein Resurrection-Bug)
 
 ### UI
-- Dark / Light / E-Ink Theme
-- Mobile-first, PWA-fähig (installierbar)
-- Hamburger-Navigation auf kleinen Bildschirmen
+
+* Dark / Light / E-Ink Theme
+* Mobile-first
+* installierbar als PWA
+* Hamburger-Navigation auf kleinen Bildschirmen
+* Datumsnavigation mit vergangenheitsfähiger Tagesansicht
+
+---
+
+## Roadmap
+
+### Zuletzt umgesetzt
+
+* [x] Bidirektionalen, konfliktbewussten Gist-Sync stabilisiert und im Alltag getestet
+* [x] Bulk-Vorauswahl im Sync-Konflikt-Modal ergänzt (`Alle auf lokal` / `Alle auf remote`)
+* [x] Kollektion-Zuweisung aus dem Objekt-Flow verbessert: Suche + neue Kollektion direkt im Assign-Modal
+
+### Als Nächstes geplant
+
+* [ ] Filter, um Objekte auszublenden, die bereits einer Kollektion zugeordnet sind
+* [ ] Custom Prompts in den Einstellungen mit Defaults + Reset-Möglichkeit
+* [ ] Prompt-Input-Scope steuerbar machen (z. B. nur Objekte vs. vollständiger Tag inkl. Rohkarten)
+
+### Später / Backlog
+
+* [ ] Forensischen Scanner standardmäßig mit vollständigem Tageskontext inklusive Rohkarten speisen
+* [ ] Zeitraum / mehrere vollständige Tage in Prompt-Exports einbetten können
+* [ ] Weitere Verarbeitungs- und Auswertungs-Prompts als gezielte Berichtsfunktionen ergänzen
 
 ---
 
@@ -45,160 +106,244 @@ Ein persönliches Bullet-Journal als Single-File-HTML-App — lokal, offline-fä
 
 ```bash
 # Keine Installation nötig. Datei einfach im Browser öffnen:
-open daily-log.html
+open index.html
 ```
 
-Die App läuft vollständig lokal. Alle Daten bleiben im `localStorage` des Browsers.
+Die App läuft vollständig lokal im Browser.
 
 ---
 
-## Optionaler Gist-Sync einrichten
+## Lokale Datenhaltung
+
+Die App speichert lokal primär in **IndexedDB**.
+Falls IndexedDB nicht verfügbar ist oder fehlschlägt, wird auf **localStorage als Fallback** zurückgegriffen.
+
+Das bedeutet:
+
+* normale Nutzung ist offline möglich
+* lokale Daten bleiben auch ohne Gist-Sync erhalten
+* ältere `localStorage`-Stände werden bei Bedarf nach IndexedDB migriert
+
+---
+
+## Optionaler Gist-Sync
 
 ### 1. GitHub Personal Access Token erstellen
 
-1. GitHub → Settings → Developer settings → Personal access tokens → Fine-grained tokens
-2. Berechtigungen: **Gist** (read + write)
+1. GitHub → Settings → Developer settings → Personal access tokens
+2. Berechtigung: **Gist** (`read + write`)
 3. Token kopieren
 
-### 2. Gist-IDs anlegen
+### 2. Gists anlegen
 
-Zwei separate Gists anlegen (können leer sein):
+Du kannst zwei getrennte Gists nutzen:
 
-| Gist | Inhalt |
-|---|---|
-| Haupt-Gist | Gesamter App-State (`dailylog_v2_data.json`) |
-| Raw-Backup-Gist | Rohkarten-Backup (`dailylog_raw_cards.json`) |
-
-Jeweils die Gist-ID aus der URL kopieren (z.B. `https://gist.github.com/user/abc123def456` → `abc123def456`).
+| Gist            | Zweck                                          |
+| --------------- | ---------------------------------------------- |
+| Haupt-Gist      | kompletter App-State (`dailylog_v2_data.json`) |
+| Raw-Backup-Gist | Rohkarten-Backup (`dailylog_raw_cards.json`)   |
 
 ### 3. In der App konfigurieren
 
-Einstellungen öffnen (⚙-Button) und eintragen:
+In **Einstellungen** eintragen:
 
-- **GitHub Gist Token** — dein Personal Access Token
-- **Gist ID** — ID des Haupt-Gists
-- **Raw Backup Gist Token** — gleicher oder separater Token
-- **Raw Backup Gist ID** — ID des Raw-Backup-Gists
-- **Sync-Passphrase** — beliebige Passphrase (verschlüsselt alle Daten auf GitHub)
-  - Optional: „Passphrase auf diesem Gerät merken" aktivieren
+* **GitHub Gist Token**
+* **Gist ID**
+* **Raw Backup Gist Token** (optional)
+* **Raw Backup Gist ID** (optional)
+* **Sync-Passphrase**
 
-### 4. Erster Sync
+  * optional mit „Passphrase auf diesem Gerät merken“
 
-„☁ Jetzt speichern" klicken. Danach synchronisiert die App automatisch alle 30 Sekunden nach Änderungen.
+### 4. Sync verwenden
 
-> **Hinweis:** Ohne Passphrase wird nichts ins Gist geschrieben. Die Passphrase verlässt das Gerät nie — GitHub speichert nur den verschlüsselten Ciphertext.
+Verfügbare Sync-Aktionen in den Einstellungen:
+
+* `↔ Jetzt synchronisieren`
+* `☁ In Gist schreiben`
+* `↓ Nur von Gist laden`
+* `⚠ Gist überschreibt lokal`
+
+> Ohne gesetzte Passphrase wird der verschlüsselte Haupt-Gist nicht beschrieben.
 
 ---
 
 ## Verschlüsselung
 
-Alle Daten auf GitHub sind clientseitig verschlüsselt:
+Alle Daten im Haupt-Gist werden clientseitig verschlüsselt:
 
-- **Algorithmus:** AES-GCM 256-Bit
-- **Key Derivation:** PBKDF2 mit SHA-256, 250.000 Iterationen
-- **Salt + IV:** zufällig neu pro Schreibvorgang
-- **Format im Gist:** JSON-Envelope mit `format: "dailylog-encrypted-v1"`
+* **Algorithmus:** AES-GCM 256 Bit
+* **Key Derivation:** PBKDF2 mit SHA-256
+* **Iterationen:** 250.000
+* **pro Schreibvorgang neuer Salt + neue IV**
+* **Format:** JSON-Envelope (`dailylog-encrypted-v1`)
 
-Lokale `localStorage`-Daten und manuell heruntergeladene JSON-Exporte sind **nicht** verschlüsselt.
+Nicht verschlüsselt sind:
+
+* lokale Browser-Daten
+* manuelle JSON-Exporte
+* ZIP-Backups
 
 ---
 
 ## Objekt-Typen
 
-| Typ | Symbol | Bedeutung |
-|---|---|---|
-| `aufgabe` | ☐ | Aktiv zu erledigende Aufgabe — immer mit Aktionsverb |
-| `ereignis` | ◯ | Zeitgebundenes Ereignis / Termin |
-| `notiz` | − | Information, Gedanke, Beobachtung |
-| `idee` | ! | Neuer Einfall oder Proto-Gedanke |
-| `zitat` | " | Zitierbarer Satz (eigen oder fremd) |
-| `sop` | ⟳ | Wiederholbarer Prozess |
-| `beobachtung` | ~ | Systembeobachtung zu Energie, Verhalten, Mustern |
+| Typ           | Symbol | Bedeutung                                               |
+| ------------- | ------ | ------------------------------------------------------- |
+| `aufgabe`     | ☐      | aktiv zu erledigende Aufgabe, möglichst mit Aktionsverb |
+| `ereignis`    | ◯      | zeitgebundenes Ereignis / Termin                        |
+| `notiz`       | −      | Information, Gedanke, Beobachtung                       |
+| `idee`        | !      | neuer Einfall / Proto-Gedanke                           |
+| `zitat`       | "      | zitierbarer Satz                                        |
+| `sop`         | ⟳      | wiederholbarer Prozess                                  |
+| `beobachtung` | ~      | Muster-, Energie- oder Verhaltensbeobachtung            |
 
 ### Aufgaben-Status
 
-| Status | Bedeutung |
-|---|---|
-| `open` | offen |
-| `x` | erledigt |
-| `>` | migriert (nächster Tag / Migration Puffer) |
-| `<` | terminiert (Future Log) |
-| `xx` | gestrichen / gecancelt |
+| Status | Bedeutung                          |
+| ------ | ---------------------------------- |
+| `open` | offen                              |
+| `x`    | erledigt                           |
+| `>`    | migriert                           |
+| `<`    | terminiert / ins Future Log gelegt |
+| `xx`   | gestrichen / gecancelt             |
 
 ---
 
 ## Integrationen
 
-| Integration | Zweck | Token |
-|---|---|---|
-| OpenAI API | Direktextraktion (GPT-4o-mini) | `sk-...` |
-| Readwise | Highlights und Reader-Artikel laden | Token aus readwise.io/access-token |
-| Raindrop.io | Bookmarks laden | Token aus app.raindrop.io → Integrations |
+| Integration | Zweck                             |
+| ----------- | --------------------------------- |
+| OpenAI API  | Direktextraktion                  |
+| Readwise    | Highlights / Reader-Inhalte laden |
+| Raindrop.io | Bookmarks laden                   |
 
-Alle Tokens werden nur im `localStorage` des Browsers gespeichert.
+Alle Tokens werden nur lokal im Browser gespeichert und nicht in App-Exports oder Gists abgelegt.
 
 ---
 
 ## Tagesstatus
 
-| Status | Feld | Gesetzt durch |
-|---|---|---|
-| offen | *(kein Flag)* | automatischer Tageswechsel |
-| reviewt | `reviewDone: true` | „Migration abschließen" im Review-Tab |
-| abgeschlossen | `closedAt: ISO-Timestamp` | „Tag abschließen & speichern" im Abschluss-Tab |
-
-Im Verlauf und in der Datumsnavigation wird der Status als Badge angezeigt.
-
----
-
-## Datenstruktur (localStorage)
-
-```
-localStorage["dailylog_v2"] = {
-  S: {
-    days: [{ date, cards, objects, reviewDone, closedAt, plan, feedItems }],
-    futurelog: [...],
-    migrationPuffer: [...],
-    zettels: [...],
-    trash: { cards: [...], objects: [...] },
-    deletedIds: { id: ISO-Timestamp },   // Tombstones
-    config: { name, context, contexts },
-    _lastExported: ISO-Timestamp
-  },
-  TODAY: { date, cards, objects, feedItems, reviewDone, plan }
-}
-```
-
-Alle Daten liegen lokal vor. Gist-Sync ist optional und addiert nur einen verschlüsselten Cloud-Spiegel.
+| Status        | Feld                      | Gesetzt durch                                   |
+| ------------- | ------------------------- | ----------------------------------------------- |
+| offen         | *(kein Flag)*             | automatischer Tageswechsel / noch nicht reviewt |
+| reviewt       | `reviewDone: true`        | Review abgeschlossen                            |
+| abgeschlossen | `closedAt: ISO-Timestamp` | expliziter Tagesabschluss                       |
 
 ---
 
 ## Export / Import
 
-| Aktion | Format | Verschlüsselt |
-|---|---|---|
-| ↓ Vollständiger Export | `.json` (Klartext) | ❌ |
-| ↑ Datei mergen | `.json` (Klartext lesen) | ❌ |
-| ⚠ Datei überschreiben | `.json` (Klartext lesen) | ❌ |
-| ☁ Gist Push | Encrypted Envelope | ✅ |
-| 🗃 Rohkarten sichern | Encrypted Envelope | ✅ |
+| Aktion                 | Format                          | Verschlüsselt |
+| ---------------------- | ------------------------------- | ------------- |
+| Vollständiger Export   | `.json`                         | ❌             |
+| Datei mergen           | `.json` lesen                   | ❌             |
+| Datei überschreiben    | `.json` lesen                   | ❌             |
+| ZIP-Backup exportieren | `.zip`                          | ❌             |
+| ZIP-Backup importieren | `.zip` mit Dry-Run              | ❌             |
+| Gist Push              | verschlüsselter JSON-Envelope   | ✅             |
+| Rohkarten sichern      | verschlüsselter Raw-Backup-Gist | ✅             |
+
+---
+
+## ZIP-Backup
+
+Das ZIP-Backup ist ein strukturiertes Mehrdateien-Archiv.
+
+Typische Inhalte:
+
+```text
+manifest.json
+today.json
+collections.json
+config.json
+deletedIds.json
+trash.json
+futurelog.json
+migrationPuffer.json
+zettels.json
+feedMeta.json
+days/YYYY-MM-DD.json
+```
+
+Der ZIP-Import läuft nicht blind:
+
+* zuerst Analyse / Dry-Run
+* dann Vorschau
+* erst danach optional vollständiges lokales Überschreiben
+
+---
+
+## Datenmodell (vereinfacht)
+
+```js
+S = {
+  days: [],
+  futurelog: [],
+  migrationPuffer: [],
+  feedLastReadwise: '',
+  feedLastRaindrop: '',
+  feedLastHighlights: '',
+  trash: { cards: [], objects: [] },
+  zettels: [],
+  collections: [],
+  config: { name: '', context: '', contexts: [] },
+  deletedIds: {},
+  _lastExported: ''
+};
+
+TODAY = {
+  date: '',
+  cards: [],
+  objects: [],
+  feedItems: [],
+  reviewDone: false,
+  plan: {
+    intentionen: '',
+    vermeiden: '',
+    aufstehzeit: '05:00',
+    ort: '',
+    stundenplan: '',
+    tasks: []
+  }
+};
+```
 
 ---
 
 ## Architektur
 
-```
-daily-log.html          — komplette App in einer Datei
-manifest.json           — PWA-Manifest (optional)
-sw.js                   — Service Worker für Offline-Support (optional)
+```text
+index.html      — komplette App
+manifest.json   — PWA-Manifest
+sw.js           — Service Worker
 ```
 
-Die App hat kein Backend, keinen Build-Step, keine npm-Abhängigkeiten. Sie läuft in jedem modernen Browser direkt als `file://`.
+Grundprinzipien:
+
+* Single-File-App
+* kein Build-Step
+* kein Framework
+* kein Backend
+* lokal zuerst, Gist nur als optionaler Cloud-Spiegel
 
 ---
 
-## Bekannte Limitierungen
+## Bekannte Grenzen
 
-- **localStorage-Limit:** ~5 MB. Bei großen Datenmengen empfiehlt sich das regelmäßige Komprimieren alter Tage (Einstellungen → „Alte Tage komprimieren").
-- **Passphrase nach Reload:** Ohne aktiviertes „Passphrase merken" muss die Sync-Passphrase nach jedem Reload erneut eingegeben werden.
-- **Kein Multiuser:** Die App ist für eine einzelne Person ausgelegt.
+* Sehr große Datenmengen können lokale Browser-Speichergrenzen erreichen.
+* Ohne gespeicherte Passphrase muss die Sync-Passphrase nach Reload erneut eingegeben werden.
+* Die App ist auf persönliche Einzelbenutzung ausgelegt, nicht auf Multiuser-Kollaboration.
+* Reihenfolgen von Karten/Objekten können nach Merge in Randfällen variieren, ohne dass Datenverlust vorliegt.
+
+---
+
+## Projektphilosophie
+
+Die App priorisiert:
+
+* lokale Kontrolle
+* nachvollziehbare Datenhaltung
+* konfliktbewussten Sync
+* minimale externe Abhängigkeiten
+* schnelle Iteration in einer einzigen HTML-Datei
