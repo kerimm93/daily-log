@@ -1623,6 +1623,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
         <button class="sort-btn" id="btnHideDone" onclick="toggleHideDone()" title="Erledigte ausblenden">☐ erledigte</button>
         <button class="sort-btn" id="btnHideMigrated" onclick="toggleHideMigrated()" title="Migrierte (>) ausblenden">☐ migrierte</button>
         <button class="sort-btn" id="btnHideScheduled" onclick="toggleHideScheduled()" title="Terminierte (<) ausblenden">☐ terminierte</button>
+        <button class="sort-btn" id="btnHideCollected" onclick="toggleHideCollected()" title="Bereits in Kollektionen eingeordnete Objekte ausblenden">☐ eingeordnete</button>
         <button class="sort-btn" id="btnToggleSources" onclick="toggleAllSources()" title="Alle Quellen ein-/ausblenden">¶ Quellen</button>
       </div>
       <div id="objectList" class="obj-list">
@@ -4025,6 +4026,11 @@ var objSortDir    = 'asc';  // 'asc' | 'desc'
 var hideDone      = false;
 var hideMigrated  = false;  // hide status='>' aufgaben
 var hideScheduled = false;  // hide status='<' aufgaben
+var hideCollected = false;
+
+function objHasCollections(obj) {
+  return !!(obj && obj.collectionIds && obj.collectionIds.length);
+}
 
 function setObjSort(dir) {
   objSortDir = dir;
@@ -4063,6 +4069,16 @@ function toggleHideScheduled() {
   renderObjectList();
 }
 
+function toggleHideCollected() {
+  hideCollected = !hideCollected;
+  var btn = document.getElementById('btnHideCollected');
+  if (btn) {
+    btn.textContent = hideCollected ? '✓ eingeordnete' : '☐ eingeordnete';
+    btn.classList.toggle('active', hideCollected);
+  }
+  renderObjectList();
+}
+
 function renderObjectList() { renderObjectListForDate(); }
 function renderObjectListForDate() {
   var container = document.getElementById('objectList');
@@ -4087,6 +4103,9 @@ function renderObjectListForDate() {
     pool = pool.filter(function(o){
       return !(o.typ === 'aufgabe' && o.status === '<');
     });
+  }
+  if (hideCollected) {
+    pool = pool.filter(function(o){ return !objHasCollections(o); });
   }
 
   // Filter by type
