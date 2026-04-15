@@ -1677,10 +1677,10 @@ select:focus { outline: none; border-color: var(--border-mid); }
 
     <!-- Pipeline Nav -->
     <div class="pipeline-nav">
-      <div class="pipe-step active" id="pnav-1" onclick="goPipeStep(1)">
-        <span class="pipe-icon">✓</span>Aufgaben
+      <div class="pipe-step" id="pnav-1" onclick="goPipeStep(1)">
+        <span class="pipe-icon">✓</span>Aufgaben (alt)
       </div>
-      <div class="pipe-step" id="pnav-2" onclick="goPipeStep(2)">
+      <div class="pipe-step active" id="pnav-2" onclick="goPipeStep(2)">
         <span class="pipe-icon">📎</span>Scanner
       </div>
       <div class="pipe-step" id="pnav-3" onclick="goPipeStep(3)">
@@ -1695,11 +1695,11 @@ select:focus { outline: none; border-color: var(--border-mid); }
     </div>
 
     <!-- Schritt 1 -->
-    <div id="pipe-1" class="pipe-panel">
+    <div id="pipe-1" class="pipe-panel" style="display:none">
       <div class="section">
-        <div class="section-title">Schritt 1 · Aufgaben-Extraktion</div>
+        <div class="section-title">Schritt 1 · Aufgaben-Extraktion (Legacy / optional)</div>
         <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
-          Extrahiert alle Aufgaben, To-dos und Next-Steps – explizite und implizite. Nutzt strukturierte Objekte + rohe Karten als Input.
+          Optionaler Alt-Schritt: Kann weiterhin zur separaten Aufgaben-Sichtung genutzt werden, ist aber für den Einstieg in die Abschluss-Pipeline nicht mehr zwingend nötig.
         </p>
         <button class="btn btn-primary" onclick="generatePipePrompt(1)">Prompt generieren</button>
         <div id="pipe-out-1" style="display:none">
@@ -1716,7 +1716,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
     </div>
 
     <!-- Schritt 2 -->
-    <div id="pipe-2" class="pipe-panel" style="display:none">
+    <div id="pipe-2" class="pipe-panel">
       <div class="section">
         <div class="section-title">Schritt 2 · 📎 Forensischer Scanner</div>
         <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
@@ -2711,7 +2711,7 @@ var TODAY = {
 
 var currentExtractCardId = null;
 var currentExtractViewDate = null;
-var currentPipeStep = 1;
+var currentPipeStep = 2;
 var pipeStepsDone = {};
 var activeObjFilter = null; // null = alle anzeigen
 var showDismissed = false;
@@ -3327,6 +3327,7 @@ function switchTab(name) {
   if (name === 'kollektionen')  renderKollektionenTab();
   if (name === 'objekte')    renderObjectsTab();
   if (name === 'review')     renderReviewTab();
+  if (name === 'abschluss')  goPipeStep(2);
   if (name === 'futurelog')  renderFutureLog();
   if (name === 'verlauf')    renderHistory();
 }
