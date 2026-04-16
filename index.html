@@ -1869,7 +1869,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
         <button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="reloadMigratedTasks()">↻ Migration neu laden</button>
       </div>
       <p style="font-family:var(--serif);font-size:0.85rem;color:var(--ink-mid);line-height:1.65;margin-bottom:10px">
-        Migrierte Aufgaben sind vorausgewählt. Abwählen was nicht passt, manuelle Ergänzungen unten.
+        Nichts ist vorausgewählt. Wähle nur die Aufgaben aus, die du morgen wirklich angehen willst.
       </p>
       <div id="planTaskList" style="margin-bottom:10px"></div>
       <!-- Manuelle Aufgabe hinzufügen -->
@@ -9702,7 +9702,7 @@ function reloadMigratedTasks() {
   var added = 0;
   (S.migrationPuffer||[]).forEach(function(p) {
     if (existing.indexOf(p.text) === -1) {
-      getViewData().plan.tasks.push({ text: p.text, selected: true, source: 'von ' + p.fromDate });
+      getViewData().plan.tasks.push({ text: p.text, selected: false, source: 'von ' + p.fromDate });
       added++;
     }
   });
@@ -9711,7 +9711,7 @@ function reloadMigratedTasks() {
   TODAY.objects.forEach(function(o) {
     if (o.typ !== 'aufgabe' || o.parentId || o.dismissed) return;
     if (o.status === '>' && existing.indexOf(o.text) === -1) {
-      getViewData().plan.tasks.push({ text: o.text, selected: true, source: 'migriert' });
+      getViewData().plan.tasks.push({ text: o.text, selected: false, source: 'migriert' });
       added++;
     }
   });
