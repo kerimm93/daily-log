@@ -4751,8 +4751,45 @@ function getInputSummary() {
   return lines.join('\n');
 }
 
+function getForensicScannerInput() {
+  var view = getViewData();
+  var lines = [];
+  var activeObjs = (view.objects||[]).filter(function(o){ return !o.dismissed; });
+
+  lines.push('=== OBJEKTE ===');
+  if (activeObjs.length) {
+    activeObjs.forEach(function(o) {
+      var line = '[' + o.typ.toUpperCase() + ']';
+      if (o.zeit) line += ' ' + o.zeit;
+      if (o.status && o.status !== 'open') line += ' [' + o.status + ']';
+      if (o.signifiers && o.signifiers.includes('*')) line += ' [PRIORITÄT]';
+      line += ' ' + o.text;
+      if (o.contexts && o.contexts.length) line += ' ' + o.contexts.map(function(c){ return '@'+c; }).join(' ');
+      if (o.kontext) line += ' (' + o.kontext + ')';
+      lines.push(line);
+    });
+  } else {
+    lines.push('(keine)');
+  }
+
+  lines.push('');
+  lines.push('=== ROHKARTEN ===');
+  var cards = view.cards || [];
+  if (cards.length) {
+    cards.forEach(function(card) {
+      var prefix = card.time ? '[' + card.time + '] ' : '';
+      lines.push(prefix + (card.text || ''));
+    });
+  } else {
+    lines.push('(keine)');
+  }
+
+  return lines.join('\n');
+}
+
 function buildPipePrompt(n) {
   var input = getInputSummary();
+  var scannerInput = getForensicScannerInput();
   var cfg = S.config.context || '';
   var dateStr = viewDate + ' \u00b7 ' + (viewDate === today() ? todayDE() : new Date(viewDate+'T00:00:00').toLocaleDateString('de-DE',{weekday:'long',day:'numeric',month:'long'}));
 
@@ -4814,7 +4851,7 @@ function buildPipePrompt(n) {
     '',
     'Z\u00e4hle: X Kandidaten (Y sicher, Z unsicher).',
     '',
-    '## Tages-Input', input
+    '## Tages-Input', scannerInput
   ].filter(function(l){ return l !== null; }).join('\n');
 
   if (n === 3) return [
