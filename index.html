@@ -9688,7 +9688,12 @@ function renderPlanTaskList() {
         ' onchange="togglePlanTask(' + i + ',this.checked)" style="width:15px;height:15px;accent-color:var(--accent);flex-shrink:0">' +
       '<span style="font-family:var(--serif);font-size:0.88rem;color:' + (t.selected ? 'var(--ink)' : 'var(--ink-dim)') + ';flex:1;line-height:1.5">' + esc(t.text) + '</span>' +
       (t.source ? '<span style="font-family:var(--mono);font-size:0.58rem;color:var(--ink-dim)">' + esc(t.source) + '</span>' : '') +
-      '<button class="btn btn-sm btn-ghost" data-idx="' + i + '" onclick="removePlanTask(' + i + ')" style="padding:2px 6px;font-size:0.7rem">×</button>' +
+      (t.objectId
+        ? '<div style="display:flex;gap:4px">' +
+            '<button class="btn btn-sm btn-ghost" onclick="setPlanTaskStatus(' + i + ',\'x\')" style="padding:2px 6px;font-size:0.7rem">X</button>' +
+            '<button class="btn btn-sm btn-ghost" onclick="setPlanTaskStatus(' + i + ',\'xx\')" style="padding:2px 6px;font-size:0.7rem">—</button>' +
+          '</div>'
+        : '') +
     '</div>';
   }).join('');
 }
@@ -9702,7 +9707,7 @@ function reloadMigratedTasks() {
   var added = 0;
   (S.migrationPuffer||[]).forEach(function(p) {
     if (existing.indexOf(p.text) === -1) {
-      getViewData().plan.tasks.push({ text: p.text, selected: false, source: 'von ' + p.fromDate });
+      getViewData().plan.tasks.push({ text: p.text, selected: false, source: 'von ' + p.fromDate, objectId: p.objId || '' });
       added++;
     }
   });
@@ -9711,7 +9716,7 @@ function reloadMigratedTasks() {
   TODAY.objects.forEach(function(o) {
     if (o.typ !== 'aufgabe' || o.parentId || o.dismissed) return;
     if (o.status === '>' && existing.indexOf(o.text) === -1) {
-      getViewData().plan.tasks.push({ text: o.text, selected: false, source: 'migriert' });
+      getViewData().plan.tasks.push({ text: o.text, selected: false, source: 'migriert', objectId: o.id });
       added++;
     }
   });
@@ -9729,6 +9734,16 @@ function togglePlanTask(idx, checked) {
     save();
     renderPlanTaskList();
   }
+}
+
+function setPlanTaskStatus(idx, status) {
+  ensurePlanState();
+  var pt = getViewData().plan;
+  if (!pt || !pt.tasks || !pt.tasks[idx] || !pt.tasks[idx].objectId) return;
+  setObjStatus(pt.tasks[idx].objectId, status);
+  pt.tasks[idx].selected = false;
+  save();
+  renderPlanTaskList();
 }
 
 function removePlanTask(idx) {
