@@ -2694,7 +2694,7 @@ var S = {
   trash: { cards: [], objects: [] },
   zettels: [],   // {id, title, body, tags, source, date, kept}
   collections: [], // {id, name, description, summary, createdAt, updatedAt}
-  config: { name: '', context: '', contexts: [] },
+  config: { name: '', context: '', contexts: [], promptOverrides: {} },
   deletedIds: {}, // { id: deletedAt-ISO } — deletion tombstones for sync
   _lastExported: ''
 };
@@ -3060,6 +3060,20 @@ function dbClearState() {
 function getCurrentState() {
   return { S: S, TODAY: TODAY };
 }
+function ensureConfigState() {
+  if (!S.config || typeof S.config !== 'object') {
+    S.config = { name: '', context: '', contexts: [], promptOverrides: {} };
+  }
+  if (typeof S.config.name !== 'string') S.config.name = '';
+  if (typeof S.config.context !== 'string') S.config.context = '';
+  if (!Array.isArray(S.config.contexts)) S.config.contexts = [];
+}
+function ensurePromptOverrideState() {
+  ensureConfigState();
+  if (!S.config.promptOverrides || typeof S.config.promptOverrides !== 'object' || Array.isArray(S.config.promptOverrides)) {
+    S.config.promptOverrides = {};
+  }
+}
 function isLocalFallbackAuthoritative() {
   try { return localStorage.getItem(LKEY_FALLBACK_MARKER) === '1'; } catch(e) { return false; }
 }
@@ -3184,7 +3198,7 @@ async function load() {
   } catch(e) {}
   // Defaults
   if (!S.days) S.days = [];
-  if (!S.config) S.config = { name: '', context: '' };
+  ensurePromptOverrideState();
   if (!TODAY.date) TODAY.date = today();
   if (!TODAY.cards) TODAY.cards = [];
   if (!TODAY.objects) TODAY.objects = [];
@@ -3844,7 +3858,30 @@ PROMPT_DEFAULTS[PROMPT_KEYS.DAY_IMPORT] = [
   '## Rohdaten'
 ].join('\n');
 
+function getPromptOverride(key) {
+  ensurePromptOverrideState();
+  return S.config.promptOverrides[key] || '';
+}
+
+function hasPromptOverride(key) {
+  var v = getPromptOverride(key);
+  return !!String(v || '').trim();
+}
+
+function setPromptOverride(key, text) {
+  ensurePromptOverrideState();
+  var clean = String(text || '');
+  if (clean.trim()) S.config.promptOverrides[key] = clean;
+  else delete S.config.promptOverrides[key];
+}
+
+function resetPromptOverride(key) {
+  ensurePromptOverrideState();
+  delete S.config.promptOverrides[key];
+}
+
 function getPromptTemplate(key) {
+  if (hasPromptOverride(key)) return getPromptOverride(key);
   return PROMPT_DEFAULTS[key] || '';
 }
 
@@ -5397,6 +5434,7 @@ function runDayImport(mode) {
 // Settings
 // ════════════════════════════════════════════════
 function loadSettingsUI() {
+  ensurePromptOverrideState();
   loadTheme(); // refresh theme button states
   document.getElementById('cfgName').value = S.config.name || '';
   document.getElementById('cfgContext').value = S.config.context || '';
@@ -5422,6 +5460,7 @@ function loadSettingsUI() {
 }
 
 function saveSettings() {
+  ensurePromptOverrideState();
   S.config.name    = document.getElementById('cfgName').value.trim();
   S.config.context = document.getElementById('cfgContext').value.trim();
   var token   = document.getElementById('cfgGistToken').value.trim();
@@ -5549,7 +5588,7 @@ async function exportZipBackup() {
     zip.file('manifest.json', JSON.stringify(manifest, null, 2));
     zip.file('today.json', JSON.stringify(todayState, null, 2));
     zip.file('collections.json', JSON.stringify(S.collections || [], null, 2));
-    zip.file('config.json', JSON.stringify(S.config || { name: '', context: '' }, null, 2));
+    zip.file('config.json', JSON.stringify(S.config || { name: '', context: '', contexts: [], promptOverrides: {} }, null, 2));
     zip.file('deletedIds.json', JSON.stringify(S.deletedIds || {}, null, 2));
     zip.file('trash.json', JSON.stringify(S.trash || { cards: [], objects: [] }, null, 2));
     zip.file('futurelog.json', JSON.stringify(S.futurelog || [], null, 2));
@@ -5645,7 +5684,7 @@ async function analyzeZipBackupFile(file) {
   var reconstructedS = {
     days: importedDays,
     collections: Array.isArray(globals['collections.json']) ? globals['collections.json'] : [],
-    config: globals['config.json'] || { name: '', context: '' },
+    config: globals['config.json'] || { name: '', context: '', contexts: [], promptOverrides: {} },
     deletedIds: globals['deletedIds.json'] || {},
     trash: globals['trash.json'] || { cards: [], objects: [] },
     futurelog: Array.isArray(globals['futurelog.json']) ? globals['futurelog.json'] : [],
@@ -6302,7 +6341,7 @@ async function gistPull(silent, forceOverwrite) {
     if (!S.migrationPuffer) S.migrationPuffer = [];
     if (!S.zettels) S.zettels = [];
     if (!S.collections) S.collections = [];
-    if (!S.config) S.config = { name: '', context: '' };
+    ensurePromptOverrideState();
     if (!S.feedLastReadwise) S.feedLastReadwise = '';
     if (!S.feedLastRaindrop) S.feedLastRaindrop = '';
     if (!S.feedLastHighlights) S.feedLastHighlights = '';
@@ -6692,7 +6731,7 @@ async function gistSync() {
     TODAY.objects = (TODAY.objects||[]).filter(function(o){ return !isDeleted(o.id); });
 
     // Ensure defaults
-    if (!S.config) S.config = { name: '', context: '' };
+    ensurePromptOverrideState();
     if (!S.collections) S.collections = [];
     if (!TODAY.cards) TODAY.cards = [];
     if (!TODAY.objects) TODAY.objects = [];
@@ -10229,7 +10268,7 @@ function parseImportBackup(rawText) {
     feedLastReadwise: parsed.feedLastReadwise || '',
     feedLastRaindrop: parsed.feedLastRaindrop || '',
     feedLastHighlights: parsed.feedLastHighlights || '',
-    config: parsed.config || { name: '', context: '' },
+    config: parsed.config || { name: '', context: '', contexts: [], promptOverrides: {} },
     trash: parsed.trash || { cards: [], objects: [] },
     _lastExported: parsed.exported || ''
   };
@@ -10242,7 +10281,7 @@ function ensureImportDefaults() {
   if (!S.migrationPuffer) S.migrationPuffer = [];
   if (!S.zettels) S.zettels = [];
   if (!S.collections) S.collections = [];
-  if (!S.config) S.config = { name: '', context: '' };
+  ensurePromptOverrideState();
   if (!S.trash) S.trash = { cards: [], objects: [] };
   if (!Array.isArray(S.trash.cards)) S.trash.cards = [];
   if (!Array.isArray(S.trash.objects)) S.trash.objects = [];
