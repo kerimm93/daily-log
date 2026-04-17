@@ -1866,7 +1866,8 @@ select:focus { outline: none; border-color: var(--border-mid); }
     <div class="section">
       <div class="section-title">
         Aufgaben für morgen
-        <button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="reloadMigratedTasks()">↻ Migration neu laden</button>
+        <button id="planToggleSelected" class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="togglePlanShowSelectedOnly()">☐ nur ausgewählte</button>
+        <button class="btn btn-sm btn-ghost" style="margin-left:6px" onclick="reloadMigratedTasks()">↻ Migration neu laden</button>
       </div>
       <p style="font-family:var(--serif);font-size:0.85rem;color:var(--ink-mid);line-height:1.65;margin-bottom:10px">
         Nichts ist vorausgewählt. Wähle nur die Aufgaben aus, die du morgen wirklich angehen willst.
@@ -9637,6 +9638,8 @@ function compactOldDays(keepDays) {
 // Plan Tab — Tagesplan-Builder
 // ════════════════════════════════════════════════
 
+var planShowSelectedOnly = false;
+
 function ensurePlanState() {
   var vdp = getViewData();
   if (!vdp.plan) vdp.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
@@ -9654,6 +9657,11 @@ function renderPlanTab() {
   el = document.getElementById('planAufstehzeit');   if (el) el.value = f.aufstehzeit || '05:00';
   el = document.getElementById('planOrt');           if (el) el.value = f.ort || '';
   el = document.getElementById('planStundenplan');   if (el) el.value = f.stundenplan || '';
+  el = document.getElementById('planToggleSelected');
+  if (el) {
+    el.textContent = planShowSelectedOnly ? '✓ nur ausgewählte' : '☐ nur ausgewählte';
+    el.classList.toggle('active', planShowSelectedOnly);
+  }
   renderPlanTaskList();
 }
 
@@ -9677,6 +9685,18 @@ function isPlanTaskClosed(task) {
   return found.obj.status === 'x' || found.obj.status === 'xx';
 }
 
+function togglePlanShowSelectedOnly() {
+  planShowSelectedOnly = !planShowSelectedOnly;
+
+  var btn = document.getElementById('planToggleSelected');
+  if (btn) {
+    btn.textContent = planShowSelectedOnly ? '✓ nur ausgewählte' : '☐ nur ausgewählte';
+    btn.classList.toggle('active', planShowSelectedOnly);
+  }
+
+  renderPlanTaskList();
+}
+
 function renderPlanTaskList() {
   ensurePlanState();
   var container = document.getElementById('planTaskList');
@@ -9695,8 +9715,16 @@ function renderPlanTaskList() {
     return !isPlanTaskClosed(entry.task);
   });
 
+  if (planShowSelectedOnly) {
+    visibleTasks = visibleTasks.filter(function(entry) {
+      return entry.task.selected;
+    });
+  }
+
   if (!visibleTasks.length) {
-    container.innerHTML = '<div style="font-family:var(--mono);font-size:0.7rem;color:var(--ink-dim);padding:8px 0">Keine offenen Aufgaben für morgen.</div>';
+    container.innerHTML = '<div style="font-family:var(--mono);font-size:0.7rem;color:var(--ink-dim);padding:8px 0">' +
+      (planShowSelectedOnly ? 'Keine ausgewählten Aufgaben.' : 'Keine offenen Aufgaben für morgen.') +
+    '</div>';
     return;
   }
 
