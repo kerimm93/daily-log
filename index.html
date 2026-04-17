@@ -9670,6 +9670,13 @@ function savePlanField() {
   save();
 }
 
+function isPlanTaskClosed(task) {
+  if (!task || !task.objectId) return false;
+  var found = findObjGlobal(task.objectId);
+  if (!found || !found.obj) return false;
+  return found.obj.status === 'x' || found.obj.status === 'xx';
+}
+
 function renderPlanTaskList() {
   ensurePlanState();
   var container = document.getElementById('planTaskList');
@@ -9682,7 +9689,20 @@ function renderPlanTaskList() {
     return;
   }
 
-  container.innerHTML = tasks.map(function(t, i) {
+  var visibleTasks = tasks.map(function(t, i) {
+    return { task: t, idx: i };
+  }).filter(function(entry) {
+    return !isPlanTaskClosed(entry.task);
+  });
+
+  if (!visibleTasks.length) {
+    container.innerHTML = '<div style="font-family:var(--mono);font-size:0.7rem;color:var(--ink-dim);padding:8px 0">Keine offenen Aufgaben für morgen.</div>';
+    return;
+  }
+
+  container.innerHTML = visibleTasks.map(function(entry) {
+    var t = entry.task;
+    var i = entry.idx;
     return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--border)">' +
       '<input type="checkbox" data-idx="' + i + '" ' + (t.selected ? 'checked' : '') +
         ' onchange="togglePlanTask(' + i + ',this.checked)" style="width:15px;height:15px;accent-color:var(--accent);flex-shrink:0">' +
@@ -9775,7 +9795,9 @@ function generatePlanPrompt() {
   var stundenplan = (f.stundenplan || '').trim();
   var intentionen = (f.intentionen || '').trim();
   var vermeiden   = (f.vermeiden || '').trim();
-  var tasks = (f.tasks || []).filter(function(t){ return t.selected; });
+  var tasks = (f.tasks || []).filter(function(t){
+    return t.selected && !isPlanTaskClosed(t);
+  });
 
   // Tomorrow's date
   var d = new Date(); d.setDate(d.getDate() + 1);
