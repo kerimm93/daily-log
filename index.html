@@ -6108,12 +6108,83 @@ function getDayMap(days) {
   (days || []).forEach(function(day) { if (day && day.date) map[day.date] = day; });
   return map;
 }
+var SYNC_CONFIG_FIELDS = [
+  { key: 'context', label: 'Aktiver Kontext', order: 0 },
+  { key: 'contexts', label: 'Kontextliste', order: 1 },
+  { key: 'promptOverrides', label: 'Prompt-Overrides', order: 2 },
+  { key: 'promptScopes', label: 'Prompt-Scopes', order: 3 }
+];
+function cloneForSync(value) {
+  if (value === undefined) return undefined;
+  return JSON.parse(JSON.stringify(value));
+}
+function normalizeConfigFieldForCompare(key, value) {
+  if (key === 'context') return typeof value === 'string' ? value : '';
+  if (key === 'contexts') {
+    return (Array.isArray(value) ? value : []).map(function(v){ return String(v || ''); }).sort();
+  }
+  if (key === 'promptOverrides' || key === 'promptScopes') {
+    var obj = (value && typeof value === 'object' && !Array.isArray(value)) ? value : {};
+    var normalized = {};
+    Object.keys(obj).sort().forEach(function(k) { normalized[k] = obj[k]; });
+    return normalized;
+  }
+  return value;
+}
+function configFieldDifferent(key, localValue, remoteValue) {
+  return JSON.stringify(normalizeConfigFieldForCompare(key, localValue)) !== JSON.stringify(normalizeConfigFieldForCompare(key, remoteValue));
+}
+function getConfigFieldMeta(key) {
+  return SYNC_CONFIG_FIELDS.find(function(f){ return f.key === key; }) || { key: key, label: key, order: 999 };
+}
+function mergeSyncConfig(localConfig, remoteConfig) {
+  var localCfg = (localConfig && typeof localConfig === 'object') ? localConfig : {};
+  var remoteCfg = (remoteConfig && typeof remoteConfig === 'object') ? remoteConfig : {};
+  var merged = Object.assign({}, cloneForSync(localCfg) || {}, cloneForSync(remoteCfg) || {});
+
+  SYNC_CONFIG_FIELDS.forEach(function(field) {
+    var key = field.key;
+    var localHas = Object.prototype.hasOwnProperty.call(localCfg, key);
+    var remoteHas = Object.prototype.hasOwnProperty.call(remoteCfg, key);
+    if (localHas && remoteHas) {
+      // Pre-selection only. Final decision for differing values is handled in applyConflictResolutions.
+      merged[key] = configFieldDifferent(key, localCfg[key], remoteCfg[key]) ? cloneForSync(remoteCfg[key]) : cloneForSync(localCfg[key]);
+    } else if (localHas) {
+      merged[key] = cloneForSync(localCfg[key]);
+    } else if (remoteHas) {
+      merged[key] = cloneForSync(remoteCfg[key]);
+    }
+  });
+
+  return merged;
+}
 function detectSyncConflicts(localState, remoteState) {
   var conflicts = [];
   var localS = (localState && localState.S) || {};
   var remoteS = (remoteState && remoteState.S) || {};
   var localToday = (localState && localState.TODAY) || {};
   var remoteToday = (remoteState && remoteState.TODAY) || {};
+  var localConfig = (localS && localS.config && typeof localS.config === 'object') ? localS.config : {};
+  var remoteConfig = (remoteS && remoteS.config && typeof remoteS.config === 'object') ? remoteS.config : {};
+
+  SYNC_CONFIG_FIELDS.forEach(function(field) {
+    var key = field.key;
+    var localHas = Object.prototype.hasOwnProperty.call(localConfig, key);
+    var remoteHas = Object.prototype.hasOwnProperty.call(remoteConfig, key);
+    if (!localHas || !remoteHas) return;
+    if (!configFieldDifferent(key, localConfig[key], remoteConfig[key])) return;
+    conflicts.push({
+      type: 'config',
+      id: key,
+      key: key,
+      label: field.label,
+      scope: 'config',
+      date: '-',
+      summary: 'Unterschiedliche Konfiguration für "' + field.label + '"',
+      localValue: cloneForSync(localConfig[key]),
+      remoteValue: cloneForSync(remoteConfig[key])
+    });
+  });
 
   function collectFromBuckets(localBucket, remoteBucket, dateLabel, scope) {
     var localCards = (localBucket.cards || []).reduce(function(m, c){ if (c && c.id) m[c.id] = c; return m; }, {});
@@ -6166,6 +6237,18 @@ function detectSyncConflicts(localState, remoteState) {
   Object.keys(localDayMap).forEach(function(date) {
     if (remoteDayMap[date]) collectFromBuckets(localDayMap[date], remoteDayMap[date], date, 'day');
   });
+  conflicts.sort(function(a, b) {
+    var aConfig = a.type === 'config' ? 0 : 1;
+    var bConfig = b.type === 'config' ? 0 : 1;
+    if (aConfig !== bConfig) return aConfig - bConfig;
+    if (a.type === 'config' && b.type === 'config') {
+      var aMeta = getConfigFieldMeta(a.key || a.id);
+      var bMeta = getConfigFieldMeta(b.key || b.id);
+      if (aMeta.order !== bMeta.order) return aMeta.order - bMeta.order;
+      return String(aMeta.key).localeCompare(String(bMeta.key));
+    }
+    return 0;
+  });
   return conflicts;
 }
 function renderSyncConflictModal(conflicts) {
@@ -6176,6 +6259,26 @@ function renderSyncConflictModal(conflicts) {
     return;
   }
   listEl.innerHTML = conflicts.map(function(c, idx) {
+    if (c.type === 'config') {
+      var localCfgText = esc(JSON.stringify(c.localValue, null, 2));
+      var remoteCfgText = esc(JSON.stringify(c.remoteValue, null, 2));
+      return '<div style="border:2px solid #f59e0b;border-radius:8px;padding:10px;margin-bottom:8px;background:#fffbeb">' +
+        '<div style="display:flex;justify-content:space-between;gap:8px;align-items:center">' +
+          '<div style="font-size:0.8rem;font-weight:700;color:#92400e">Config-Konflikt</div>' +
+          '<span style="font-family:var(--mono);font-size:0.62rem;padding:2px 6px;border-radius:999px;background:#f59e0b;color:#111">Priorität</span>' +
+        '</div>' +
+        '<div style="font-family:var(--mono);font-size:0.66rem;color:#92400e;margin-top:3px">Feld: ' + esc(c.label || c.key || 'config') + ' (' + esc(c.key || c.id || '-') + ')</div>' +
+        '<div style="font-size:0.78rem;margin-top:6px">' + esc(c.summary || '') + '</div>' +
+        '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:6px">' +
+          '<div style="padding:6px;border:1px solid #f59e0b;border-radius:6px;background:#fff7e6"><b>Lokal</b><pre style="margin:6px 0 0;font-size:0.64rem;white-space:pre-wrap;word-break:break-word">' + localCfgText + '</pre></div>' +
+          '<div style="padding:6px;border:1px solid #f59e0b;border-radius:6px;background:#fff7e6"><b>Remote</b><pre style="margin:6px 0 0;font-size:0.64rem;white-space:pre-wrap;word-break:break-word">' + remoteCfgText + '</pre></div>' +
+        '</div>' +
+        '<div style="margin-top:8px;display:flex;gap:12px">' +
+          '<label style="font-size:0.75rem"><input type="radio" name="sync-res-' + idx + '" value="local" checked> Lokal übernehmen</label>' +
+          '<label style="font-size:0.75rem"><input type="radio" name="sync-res-' + idx + '" value="remote"> Remote übernehmen</label>' +
+        '</div>' +
+      '</div>';
+    }
     var localBy = c.localItem.lastEditedByDeviceName || c.localItem.lastEditedByDeviceId || 'Unbekannt';
     var remoteBy = c.remoteItem.lastEditedByDeviceName || c.remoteItem.lastEditedByDeviceId || 'Unbekannt';
     var localText = (c.localItem.text || '').slice(0, 120);
@@ -6239,6 +6342,12 @@ function applyConflictResolutions(mergedS, mergedToday, conflicts, resolutions) 
   (conflicts || []).forEach(function(c) {
     var key = c.type + '|' + c.scope + '|' + c.date + '|' + c.id;
     var choice = resolutions[key] || 'local';
+    if (c.type === 'config') {
+      if (!mergedS.config || typeof mergedS.config !== 'object') mergedS.config = {};
+      var selectedValue = choice === 'remote' ? c.remoteValue : c.localValue;
+      mergedS.config[c.key || c.id] = cloneForSync(selectedValue);
+      return;
+    }
     var selected = choice === 'remote' ? c.remoteItem : c.localItem;
     if (!selected) return;
     var bucket;
@@ -6647,7 +6756,7 @@ function mergeS(local, remote) {
     feedLastReadwise:  (local.feedLastReadwise||'') > (remote.feedLastReadwise||'')  ? local.feedLastReadwise  : remote.feedLastReadwise,
     feedLastRaindrop:  (local.feedLastRaindrop||'') > (remote.feedLastRaindrop||'')  ? local.feedLastRaindrop  : remote.feedLastRaindrop,
     feedLastHighlights:(local.feedLastHighlights||'') > (remote.feedLastHighlights||'') ? local.feedLastHighlights : remote.feedLastHighlights,
-    config:            local.config || remote.config,
+    config:            mergeSyncConfig(local.config || {}, remote.config || {}),
     deletedIds:        mergedDeletedIds,
     trash:             { cards: mergedTrashCards, objects: mergedTrashObjs },
     _lastExported:     local._lastExported || remote._lastExported
