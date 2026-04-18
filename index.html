@@ -754,6 +754,28 @@ textarea { min-height: 120px; }
 }
 .sort-btn.active { border-color: var(--accent-dim); color: var(--accent); }
 
+.obj-facet-filters {
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.obj-facet-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.obj-facet-label {
+  font-family: var(--mono);
+  font-size: 0.6rem;
+  color: var(--ink-dim);
+  min-width: 64px;
+}
+.obj-facet-clear {
+  margin-left: auto;
+}
+
 .obj-children {
   margin-left: 26px;
   margin-top: 6px;
@@ -1626,6 +1648,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
         <button class="sort-btn" id="btnHideCollected" onclick="toggleHideCollected()" title="Bereits in Kollektionen eingeordnete Objekte ausblenden">☐ eingeordnete</button>
         <button class="sort-btn" id="btnToggleSources" onclick="toggleAllSources()" title="Alle Quellen ein-/ausblenden">¶ Quellen</button>
       </div>
+      <div class="obj-facet-filters" id="objFacetFilters"></div>
       <div id="objectList" class="obj-list">
         <div class="empty-state">Noch keine Objekte extrahiert.<br>Gehe zu einer Karte und generiere einen Extraktions-Prompt.</div>
       </div>
@@ -2726,6 +2749,8 @@ var currentExtractViewDate = null;
 var currentPipeStep = 2;
 var pipeStepsDone = {};
 var activeObjFilter = null; // null = alle anzeigen
+var activeObjCtxFilter = null;
+var activeObjCollectionFilter = null;
 var showDismissed = false;
 
 function toggleDismissed() {
@@ -4376,6 +4401,65 @@ function setObjFilter(typ) {
   renderObjectList();
 }
 
+function normalizeObjContextValue(value) {
+  if (value === null || value === undefined) return '';
+  var txt = String(value).trim().toLowerCase().replace(/^@+/, '');
+  txt = txt.replace(/\s+/g, ' ').trim();
+  return txt;
+}
+
+function getObjContextsForFilter(obj) {
+  var out = [];
+  var seen = {};
+  ((obj && Array.isArray(obj.contexts)) ? obj.contexts : []).forEach(function(c) {
+    var n = normalizeObjContextValue(c);
+    if (!n || seen[n]) return;
+    seen[n] = true;
+    out.push(n);
+  });
+  if (!out.length && obj && obj.kontext) {
+    var parsed = parseContexts(String(obj.kontext));
+    parsed.forEach(function(c) {
+      var n = normalizeObjContextValue(c);
+      if (!n || seen[n]) return;
+      seen[n] = true;
+      out.push(n);
+    });
+    if (!out.length) {
+      var raw = normalizeObjContextValue(obj.kontext);
+      if (raw && raw.indexOf(' ') === -1) out.push(raw);
+    }
+  }
+  return out;
+}
+
+function getObjCollectionIdsForFilter(obj) {
+  if (!obj || !Array.isArray(obj.collectionIds)) return [];
+  return obj.collectionIds.filter(function(cid){ return !!cid; });
+}
+
+function getCollectionLabelById(colId) {
+  var col = (S.collections||[]).find(function(c){ return c.id === colId; });
+  if (col && col.name) return col.name;
+  return String(colId || '').slice(0, 8);
+}
+
+function setObjContextFilter(ctx) {
+  activeObjCtxFilter = (activeObjCtxFilter === ctx) ? null : ctx;
+  renderObjectList();
+}
+
+function setObjCollectionFilter(colId) {
+  activeObjCollectionFilter = (activeObjCollectionFilter === colId) ? null : colId;
+  renderObjectList();
+}
+
+function clearObjFacetFilters() {
+  activeObjCtxFilter = null;
+  activeObjCollectionFilter = null;
+  renderObjectList();
+}
+
 var objSortDir    = 'asc';  // 'asc' | 'desc'
 var hideDone      = false;
 var hideMigrated  = false;  // hide status='>' aufgaben
@@ -4436,6 +4520,7 @@ function toggleHideCollected() {
 function renderObjectList() { renderObjectListForDate(); }
 function renderObjectListForDate() {
   var container = document.getElementById('objectList');
+  var facetsEl = document.getElementById('objFacetFilters');
   var viewObjs = getViewData().objects || [];
   var rootObjs = viewObjs.filter(function(o){ return !o.parentId; });
   var active   = rootObjs.filter(function(o){ return !o.dismissed; });
@@ -4463,7 +4548,61 @@ function renderObjectListForDate() {
   }
 
   // Filter by type
-  var visible = activeObjFilter ? pool.filter(function(o){ return o.typ === activeObjFilter; }) : pool;
+  var typeScopedPool = activeObjFilter ? pool.filter(function(o){ return o.typ === activeObjFilter; }) : pool;
+
+  // Build context/collection facets from the currently visible (day + status + type) object pool
+  var ctxCounts = {};
+  var colCounts = {};
+  typeScopedPool.forEach(function(o) {
+    getObjContextsForFilter(o).forEach(function(ctx) { ctxCounts[ctx] = (ctxCounts[ctx] || 0) + 1; });
+    getObjCollectionIdsForFilter(o).forEach(function(cid) { colCounts[cid] = (colCounts[cid] || 0) + 1; });
+  });
+  var ctxList = Object.keys(ctxCounts).sort();
+  var colList = Object.keys(colCounts).sort(function(a, b) {
+    return getCollectionLabelById(a).localeCompare(getCollectionLabelById(b), 'de');
+  });
+
+  if (activeObjCtxFilter && ctxList.indexOf(activeObjCtxFilter) === -1) activeObjCtxFilter = null;
+  if (activeObjCollectionFilter && colList.indexOf(activeObjCollectionFilter) === -1) activeObjCollectionFilter = null;
+
+  var visible = typeScopedPool;
+  if (activeObjCtxFilter) {
+    visible = visible.filter(function(o) { return getObjContextsForFilter(o).indexOf(activeObjCtxFilter) !== -1; });
+  }
+  if (activeObjCollectionFilter) {
+    visible = visible.filter(function(o) { return getObjCollectionIdsForFilter(o).indexOf(activeObjCollectionFilter) !== -1; });
+  }
+
+  if (facetsEl) {
+    var showFacets = !!(ctxList.length || colList.length || activeObjCtxFilter || activeObjCollectionFilter);
+    if (!showFacets) {
+      facetsEl.style.display = 'none';
+      facetsEl.innerHTML = '';
+    } else {
+      facetsEl.style.display = 'flex';
+      var ctxPills = ctxList.map(function(ctx) {
+        var isActive = activeObjCtxFilter === ctx;
+        return '<span class="ctx-pill' + (isActive ? ' active' : '') + '" onclick="setObjContextFilter(decodeURIComponent(\'' + encodeURIComponent(ctx) + '\'))">' +
+          '@' + esc(ctx) + ' · ' + ctxCounts[ctx] + '</span>';
+      }).join('');
+      var colPills = colList.map(function(cid) {
+        var isActive = activeObjCollectionFilter === cid;
+        return '<span class="ctx-pill' + (isActive ? ' active' : '') + '" onclick="setObjCollectionFilter(decodeURIComponent(\'' + encodeURIComponent(cid) + '\'))">' +
+          '↳ ' + esc(getCollectionLabelById(cid)) + ' · ' + colCounts[cid] + '</span>';
+      }).join('');
+      var clearBtn = (activeObjCtxFilter || activeObjCollectionFilter)
+        ? '<button class="sort-btn obj-facet-clear" onclick="clearObjFacetFilters()">Filter löschen</button>'
+        : '';
+      facetsEl.innerHTML =
+        '<div class="obj-facet-row"><span class="obj-facet-label">Kontexte</span>' +
+          (ctxPills || '<span class="obj-meta">—</span>') +
+        '</div>' +
+        '<div class="obj-facet-row"><span class="obj-facet-label">Kollektionen</span>' +
+          (colPills || '<span class="obj-meta">—</span>') +
+          clearBtn +
+        '</div>';
+    }
+  }
 
   // Filter pills
   var counts = {};
