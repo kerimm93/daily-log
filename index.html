@@ -4090,6 +4090,24 @@ function sanitizeObjText(text) {
   return text.trim().replace(/^[\-\.\*\s]+/, '').replace(/[\s]+$/, '');
 }
 
+function mapImportedTaskStatus(status) {
+  var raw = String(status == null ? '' : status).trim().toLowerCase();
+  if (!raw) return 'open';
+  var normalized = raw.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
+  var map = {
+    open: 'open',
+    offen: 'open',
+    x: 'x',
+    erledigt: 'x',
+    '>': '>',
+    migriert: '>',
+    '<': '<',
+    xx: 'xx',
+    irrelevant: 'xx'
+  };
+  return map[normalized] || 'open';
+}
+
 function importObjects() {
   var raw = document.getElementById('extractResult').value.trim();
   if (!raw) { showExtractNotice('Kein Inhalt eingefügt.', 'warn'); return; }
@@ -4132,6 +4150,7 @@ function importObjects() {
     if (VALID_TYPES.indexOf(typ) === -1) typ = 'notiz'; // fallback
     var text = sanitizeObjText(obj.text);
     if (!text) { skipped++; return; }
+    var mappedTaskStatus = typ === 'aufgabe' ? mapImportedTaskStatus(obj.status) : 'open';
     valid.push({
       typ: typ,
       text: text,
@@ -4141,7 +4160,9 @@ function importObjects() {
       dauer: obj.dauer || '',
       sourceQuote: obj.sourceQuote ? String(obj.sourceQuote).slice(0, 120) : '',
       confidence: obj.confidence || 'hoch',
-      needsReview: !!obj.needsReview
+      needsReview: !!obj.needsReview,
+      status: mappedTaskStatus,
+      completedOnImport: typ === 'aufgabe' && mappedTaskStatus === 'x'
     });
   });
 
@@ -4173,6 +4194,8 @@ function importObjects() {
     if (seenFingerprints[fingerprint]) return;
     seenFingerprints[fingerprint] = true;
     var newId = uid();
+    var sourceMeta = { kind: 'extract', extractionSessionId: extractionSessionId, extractedAt: extractedAt };
+    if (obj.completedOnImport) sourceMeta.completionOrigin = 'import';
     vd.objects.push(stampItemEditMeta({
       id: newId,
       cardId: currentExtractCardId,
@@ -4187,11 +4210,11 @@ function importObjects() {
       sourceQuote: obj.sourceQuote,   // wörtlicher Originalausschnitt (neu)
       confidence: obj.confidence,     // hoch | mittel | niedrig (neu)
       needsReview: obj.needsReview,   // true = KI war unsicher (neu)
-      status: 'open',
+      status: obj.status || 'open',
       signifiers: [],
       dismissed: false,
       createdAt: extractedAt,
-      source: { kind: 'extract', extractionSessionId: extractionSessionId, extractedAt: extractedAt }
+      source: sourceMeta
     }));
     insertedIds.push(newId);
     added++;
@@ -4533,6 +4556,9 @@ function renderObjItem(obj, depth) {
   var reviewBadge = obj.needsReview
     ? '<span style="font-family:var(--mono);font-size:0.58rem;color:var(--orange);border:1px solid var(--orange);border-radius:3px;padding:1px 5px">pr\u00fcfen</span>'
     : '';
+  var importedDoneBadge = (obj.typ === 'aufgabe' && obj.source && obj.source.completionOrigin === 'import')
+    ? '<span style="font-family:var(--mono);font-size:0.58rem;color:var(--ink-dim);border:1px solid var(--border-mid);border-radius:3px;padding:1px 5px">Import</span>'
+    : '';
 
   var selClass = selMode ? ' selectable' + (selectedObjIds[obj.id] ? ' selected-for-prompt' : '') : '';
   var selCb = selMode ? '<div class="sel-checkbox">' + (selectedObjIds[obj.id] ? '✓' : '') + '</div>' : '';
@@ -4560,6 +4586,7 @@ function renderObjItem(obj, depth) {
         ((obj.signifiers && obj.signifiers.includes('*')) ? '<span style="color:var(--orange);font-family:var(--mono);font-size:0.7rem">★</span>' : '') +
         ((obj.signifiers && obj.signifiers.includes('!')) ? '<span style="color:var(--purple);font-family:var(--mono);font-size:0.7rem">!</span>' : '') +
         reviewBadge +
+        importedDoneBadge +
         srcToggle +
         '<button class="btn btn-sm btn-ghost" style="font-size:0.58rem;padding:2px 6px;min-height:20px;opacity:0.5" onclick="openKolAssignModal(\'' + obj.id + '\')" title="Kollektion zuweisen">⬡</button>' +
         '<button class="btn btn-sm btn-ghost" style="font-size:0.58rem;padding:2px 6px;min-height:20px;opacity:0.5" onclick="toggleExpand(\'' + obj.id + '\')" title="Ergänzung hinzufügen">+ Ergänzung</button>' +
