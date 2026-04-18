@@ -2490,6 +2490,17 @@ select:focus { outline: none; border-color: var(--border-mid); }
     <label style="margin-top:14px">System-Kontext (CONFIG)</label>
     <textarea id="cfgContext" style="min-height:110px; font-family:var(--mono); font-size:0.76rem" placeholder="Maxime, Systemregeln, Zettelkasten-Tags – wird in alle Prompts eingebettet."></textarea>
 
+    <div style="margin-top:16px;padding-top:12px;border-top:1px solid var(--border)">
+      <label style="margin-top:0">Custom Prompts</label>
+      <select id="cfgPromptKey" style="margin-top:6px"></select>
+      <div id="cfgPromptMeta" style="margin-top:6px;font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim)">Default aktiv</div>
+      <textarea id="cfgPromptEditor" style="margin-top:8px;min-height:170px;font-family:var(--mono);font-size:0.72rem" placeholder="Prompt-Text für den ausgewählten Typ bearbeiten..."></textarea>
+      <div class="btn-row" style="margin-top:8px">
+        <button type="button" class="btn btn-sm btn-primary" onclick="saveSelectedPromptOverride()">Prompt speichern</button>
+        <button type="button" class="btn btn-sm btn-ghost" onclick="resetSelectedPromptOverride()">Auf Default zurücksetzen</button>
+      </div>
+    </div>
+
     <label style="margin-top:14px">OpenAI API Key (optional · nur für Extraktion)</label>
     <input type="password" id="cfgOpenAI" placeholder="sk-...">
 
@@ -3592,6 +3603,20 @@ var PROMPT_KEYS = {
   DAY_IMPORT: 'day_import'
 };
 
+var PROMPT_EDITOR_LAST_KEY = 'dailylog_prompt_editor_last_key';
+var PROMPT_OPTIONS = [
+  { key: PROMPT_KEYS.EXTRACTION,      label: 'Objekt-Extraktion' },
+  { key: PROMPT_KEYS.PIPE_TASKS,      label: 'Abschluss · Aufgaben (alt)' },
+  { key: PROMPT_KEYS.PIPE_SCANNER,    label: 'Abschluss · Scanner' },
+  { key: PROMPT_KEYS.PIPE_DAILY_NOTE, label: 'Abschluss · Daily Note' },
+  { key: PROMPT_KEYS.PIPE_BUJO,       label: 'Abschluss · BuJo' },
+  { key: PROMPT_KEYS.PIPE_ZETTEL,     label: 'Abschluss · Zettelkasten' },
+  { key: PROMPT_KEYS.MORNING_BRIEFING,label: 'Morning Briefing' },
+  { key: PROMPT_KEYS.COPILOT,         label: 'Co-Pilot' },
+  { key: PROMPT_KEYS.SELECTION_FREE,  label: 'Objekt-Auswahl · freie Verarbeitung' },
+  { key: PROMPT_KEYS.DAY_IMPORT,      label: 'Tage-Import' }
+];
+
 var PROMPT_DEFAULTS = {};
 
 PROMPT_DEFAULTS[PROMPT_KEYS.EXTRACTION] = [
@@ -3883,6 +3908,65 @@ function resetPromptOverride(key) {
 function getPromptTemplate(key) {
   if (hasPromptOverride(key)) return getPromptOverride(key);
   return PROMPT_DEFAULTS[key] || '';
+}
+
+function getPromptOptions() {
+  return PROMPT_OPTIONS.slice();
+}
+
+function getSelectedPromptKey() {
+  var sel = document.getElementById('cfgPromptKey');
+  var options = getPromptOptions();
+  if (!sel || !options.length) return '';
+  var selected = String(sel.value || '');
+  if (options.some(function(opt){ return opt.key === selected; })) return selected;
+  return options[0].key;
+}
+
+function renderPromptKeySelect() {
+  var sel = document.getElementById('cfgPromptKey');
+  if (!sel) return;
+  var options = getPromptOptions();
+  var selected = localStorage.getItem(PROMPT_EDITOR_LAST_KEY) || '';
+  if (!options.some(function(opt){ return opt.key === selected; })) selected = options[0] ? options[0].key : '';
+  sel.innerHTML = options.map(function(opt){
+    return '<option value="' + opt.key + '">' + esc(opt.label) + '</option>';
+  }).join('');
+  sel.value = selected;
+}
+
+function loadPromptEditorUI() {
+  ensurePromptOverrideState();
+  var sel = document.getElementById('cfgPromptKey');
+  var ta  = document.getElementById('cfgPromptEditor');
+  var meta = document.getElementById('cfgPromptMeta');
+  if (!sel || !ta || !meta) return;
+  var key = getSelectedPromptKey();
+  if (!key) return;
+  localStorage.setItem(PROMPT_EDITOR_LAST_KEY, key);
+  ta.value = getPromptTemplate(key);
+  meta.textContent = hasPromptOverride(key) ? 'Custom Override aktiv' : 'Default aktiv';
+}
+
+function saveSelectedPromptOverride() {
+  ensurePromptOverrideState();
+  var key = getSelectedPromptKey();
+  var ta  = document.getElementById('cfgPromptEditor');
+  if (!key || !ta) return;
+  setPromptOverride(key, ta.value);
+  save();
+  loadPromptEditorUI();
+  toast(hasPromptOverride(key) ? 'Prompt-Override gespeichert' : 'Prompt auf Default zurückgesetzt');
+}
+
+function resetSelectedPromptOverride() {
+  ensurePromptOverrideState();
+  var key = getSelectedPromptKey();
+  if (!key) return;
+  resetPromptOverride(key);
+  save();
+  loadPromptEditorUI();
+  toast('Prompt auf Default zurückgesetzt');
 }
 
 function buildExtractionPrompt(card) {
@@ -5455,6 +5539,12 @@ function loadSettingsUI() {
   if (document.getElementById('cfgDeviceName')) document.getElementById('cfgDeviceName').value = getDeviceName();
   if (document.getElementById('cfgAutoSyncEnabled')) document.getElementById('cfgAutoSyncEnabled').checked = isAutoSyncEnabled();
   if (document.getElementById('cfgAutoSyncEnabledData')) document.getElementById('cfgAutoSyncEnabledData').checked = isAutoSyncEnabled();
+  var promptSel = document.getElementById('cfgPromptKey');
+  if (promptSel) {
+    renderPromptKeySelect();
+    promptSel.onchange = loadPromptEditorUI;
+    loadPromptEditorUI();
+  }
   renderSyncDiagnostics();
   renderSyncLogList();
 }
