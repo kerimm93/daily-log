@@ -2154,6 +2154,18 @@ select:focus { outline: none; border-color: var(--border-mid); }
       </div>
     </div>
 
+    <div class="section">
+      <div class="section-title">Ausgewählte Tage → Prompt</div>
+      <p style="font-family:var(--serif);font-size:0.85rem;color:var(--ink-mid);line-height:1.65;margin-bottom:12px">
+        Wähle unten mehrere Tage aus und generiere daraus einen Prompt für Review, Musteranalyse, Projektarbeit oder freie Verarbeitung.
+      </p>
+      <div class="btn-row">
+        <button class="btn btn-primary btn-sm" onclick="openMultiDayPromptModal()">Auswahl als Prompt</button>
+        <button class="btn btn-sm btn-ghost" onclick="selectVisiblePromptDays()">Alle sichtbaren mit Daten</button>
+        <button class="btn btn-sm btn-ghost" onclick="clearSelectedExportDays()">Auswahl leeren</button>
+      </div>
+    </div>
+
     <!-- History list -->
     <div class="section">
       <div class="section-title">Gespeicherte Tage</div>
@@ -2311,6 +2323,78 @@ select:focus { outline: none; border-color: var(--border-mid); }
       <button class="btn" onclick="closeModal('extractModal')">Abbrechen</button>
     </div>
     <div id="extractNotice" style="margin-top:10px"></div>
+  </div>
+</div>
+
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- Multi-Day Prompt Modal                         -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="modal-bg hidden" id="multiDayPromptModal">
+  <div class="modal-box" style="max-width:760px">
+    <div class="modal-title">Ausgewählte Tage → Prompt</div>
+
+    <div style="margin-bottom:12px">
+      <label>Intention / Aufgabe für die KI</label>
+      <textarea id="multiDayIntention" style="min-height:76px;font-family:var(--serif);font-size:0.9rem"
+        placeholder="Analysiere die ausgewählten Tage und erkenne wiederkehrende Muster, offene Projekte, wichtige Entscheidungen und nächste Schritte."></textarea>
+    </div>
+
+    <div style="margin-bottom:12px">
+      <label>Prompt-Typ</label>
+      <select id="multiDayPromptType" style="font-size:0.72rem;padding:5px 8px">
+        <option value="free">Freie Analyse</option>
+        <option value="review">Wochen-/Zeitraum-Review</option>
+        <option value="patterns">Muster erkennen</option>
+        <option value="project">Projekt-/Kontextanalyse</option>
+        <option value="forensic">Forensischer Scanner</option>
+        <option value="daily">Daily-Note-Zusammenfassung</option>
+        <option value="zettel">Zettelkasten / Atomic Notes</option>
+      </select>
+    </div>
+
+    <div style="margin-bottom:12px">
+      <label>Einzubettende Daten</label>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:8px">
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-family:var(--mono);font-size:0.68rem;color:var(--ink-mid);margin:0">
+          <input type="checkbox" id="multiInclObjects" checked style="width:14px;height:14px;accent-color:var(--accent)">
+          Strukturierte Objekte
+        </label>
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-family:var(--mono);font-size:0.68rem;color:var(--ink-mid);margin:0">
+          <input type="checkbox" id="multiInclCards" checked style="width:14px;height:14px;accent-color:var(--accent)">
+          Rohkarten
+        </label>
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-family:var(--mono);font-size:0.68rem;color:var(--ink-mid);margin:0">
+          <input type="checkbox" id="multiInclFeed" style="width:14px;height:14px;accent-color:var(--accent)">
+          Feed-Items
+        </label>
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-family:var(--mono);font-size:0.68rem;color:var(--ink-mid);margin:0">
+          <input type="checkbox" id="multiInclPlan" style="width:14px;height:14px;accent-color:var(--accent)">
+          Plan / Review
+        </label>
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-family:var(--mono);font-size:0.68rem;color:var(--ink-mid);margin:0">
+          <input type="checkbox" id="multiInclZettels" style="width:14px;height:14px;accent-color:var(--accent)">
+          Zettel
+        </label>
+        <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-family:var(--mono);font-size:0.68rem;color:var(--ink-mid);margin:0">
+          <input type="checkbox" id="multiInclFuture" style="width:14px;height:14px;accent-color:var(--accent)">
+          Future-Log-Bezüge
+        </label>
+      </div>
+    </div>
+
+    <div class="prompt-block">
+      <div class="prompt-block-header">
+        <span class="prompt-block-label">Mehrtages-Prompt</span>
+        <button class="btn btn-sm" onclick="copyMultiDayPrompt()">Kopieren</button>
+      </div>
+      <pre id="multiDayPromptText" style="max-height:300px"></pre>
+    </div>
+
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-primary" onclick="generateMultiDayPrompt()">Prompt generieren</button>
+      <button class="btn" onclick="closeModal('multiDayPromptModal')">Schließen</button>
+    </div>
   </div>
 </div>
 
@@ -5540,6 +5624,33 @@ function finishDay() {
 // ════════════════════════════════════════════════
 var selectedExportDays = {};
 
+function dayHasPromptData(day) {
+  if (!day) return false;
+  var hasCards   = !!(day.cards && day.cards.length);
+  var hasObjects = !!(day.objects && day.objects.filter(function(o){ return !o.dismissed; }).length);
+  var hasFeed    = !!(day.feedItems && day.feedItems.length);
+  var hasZettels = !!(S.zettels || []).some(function(z){ return z && z.date === day.date; });
+  var p = day.plan || {};
+  var hasPlan = !!(
+    (p.intentionen && p.intentionen.trim()) ||
+    (p.vermeiden && p.vermeiden.trim()) ||
+    (p.ort && p.ort.trim()) ||
+    (p.stundenplan && p.stundenplan.trim()) ||
+    (p.tasks && p.tasks.length)
+  );
+  return hasCards || hasObjects || hasFeed || hasZettels || hasPlan;
+}
+
+function getSelectedHistoryDays() {
+  return Object.keys(selectedExportDays)
+    .filter(function(date){ return selectedExportDays[date]; })
+    .map(function(date){
+      return (S.days||[]).find(function(d){ return d.date === date; });
+    })
+    .filter(Boolean)
+    .sort(function(a,b){ return a.date > b.date ? 1 : -1; });
+}
+
 function renderHistory() {
   var container = document.getElementById('historyList');
   if (!S.days || !S.days.length) {
@@ -5549,7 +5660,7 @@ function renderHistory() {
   container.innerHTML = S.days.slice(0, 60).map(function(day) {
     var objCount  = day.objects ? day.objects.filter(function(o){ return !o.dismissed; }).length : 0;
     var cardCount = day.cards ? day.cards.length : 0;
-    var hasCards  = cardCount > 0;
+    var hasPromptData = dayHasPromptData(day);
     var checked   = selectedExportDays[day.date] ? 'checked' : '';
     var d = new Date(day.date + 'T00:00:00');
     var label = d.toLocaleDateString('de-DE', { weekday: 'short', day: 'numeric', month: 'short' });
@@ -5581,7 +5692,7 @@ function renderHistory() {
     // ──────────────────────────────────────────────────────────────────────
 
     return '<div style="padding:10px 0;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px">' +
-      '<input type="checkbox" ' + checked + (hasCards ? '' : ' disabled title="Keine Rohdaten"') +
+      '<input type="checkbox" ' + checked + (hasPromptData ? '' : ' disabled title="Keine Prompt-Daten"') +
         ' style="width:15px;height:15px;accent-color:var(--accent);flex-shrink:0;cursor:pointer"' +
         ' onchange="toggleExportDay(\'' + day.date + '\',this.checked)">' +
       '<div style="flex:1;cursor:pointer;min-width:0" onclick="navToDate(\'' + day.date + '\');switchTab(\'sammeln\')">' +
@@ -5589,7 +5700,7 @@ function renderHistory() {
           ' <span style="color:var(--ink-dim);font-size:0.65rem">· ' + label + '</span></div>' +
         '<div style="font-family:var(--mono);font-size:0.63rem;color:var(--ink-dim);margin-top:2px">' +
           cardCount + ' Karten · ' + objCount + ' Objekte' +
-          (!hasCards ? ' <span style="color:var(--orange)">· keine Rohdaten</span>' : '') +
+          (!hasPromptData ? ' <span style="color:var(--orange)">· keine Prompt-Daten</span>' : '') +
         '</div>' +
       '</div>' +
       statusBadge +
@@ -5604,9 +5715,237 @@ function toggleExportDay(date, checked) {
 
 function selectAllDays() {
   (S.days||[]).forEach(function(day) {
-    if (day.cards && day.cards.length) selectedExportDays[day.date] = true;
+    if (dayHasPromptData(day)) selectedExportDays[day.date] = true;
   });
   renderHistory();
+}
+
+function clearSelectedExportDays() {
+  selectedExportDays = {};
+  renderHistory();
+}
+
+function selectVisiblePromptDays() {
+  (S.days||[]).slice(0, 60).forEach(function(day) {
+    if (dayHasPromptData(day)) selectedExportDays[day.date] = true;
+  });
+  renderHistory();
+}
+
+function getPromptTypeInstruction(type) {
+  var map = {
+    free: 'Bearbeite die folgende Aufgabe anhand der ausgewählten Tage.',
+    review: 'Erstelle einen strukturierten Review: Kurzlage, wiederkehrende Themen, erledigte Dinge, offene Aufgaben, Entscheidungen, nächste Schritte.',
+    patterns: 'Erkenne wiederkehrende Muster in Energie, Verhalten, Arbeit, Tools, Projekten und Blockaden.',
+    project: 'Ordne Einträge nach Projekten/Kontexten und leite nächste Schritte ab.',
+    forensic: 'Durchsuche den Zeitraum nach Kandidaten für Weiterverarbeitung: Proto-Atomic Notes, SOP-Kandidaten, Systembeobachtungen, Heuristiken, Zitate, literarisches Rohmaterial.',
+    daily: 'Erstelle eine verlustarme, aber komprimierte Markdown-Zusammenfassung des Zeitraums.',
+    zettel: 'Extrahiere potenzielle Atomic Notes mit deklarativem Titel, Kernaussage, Kontext und Quelle.'
+  };
+  return map[type] || map.free;
+}
+
+function formatObjForPrompt(obj) {
+  if (!obj) return '';
+  var line = '[' + String(obj.typ || 'notiz').toUpperCase() + ']';
+  if (obj.zeit) line += ' ' + obj.zeit;
+  if (obj.status && obj.status !== 'open') line += ' [' + obj.status + ']';
+  if (obj.signifiers && obj.signifiers.includes('*')) line += ' [PRIORITÄT]';
+  line += ' ' + (obj.text || '');
+  var ctxSet = {};
+  function normalizeCtx(raw) {
+    if (!raw) return '';
+    return String(raw).trim().replace(/^@+/, '');
+  }
+  (obj.contexts || []).forEach(function(c){
+    var cc = normalizeCtx(c);
+    if (!cc) return;
+    ctxSet[cc.toLowerCase()] = cc;
+  });
+  var kx = normalizeCtx(obj.kontext);
+  if (kx && !ctxSet[kx.toLowerCase()]) ctxSet[kx.toLowerCase()] = kx;
+  var ctxList = Object.keys(ctxSet).map(function(k){ return ctxSet[k]; });
+  if (ctxList.length) line += ' ' + ctxList.map(function(c){ return '@' + c; }).join(' ');
+  return line.trim();
+}
+
+function getDayWeekdayLabel(date) {
+  return new Date(date + 'T00:00:00').toLocaleDateString('de-DE', { weekday: 'long' });
+}
+
+function formatDayForPrompt(day, options) {
+  var lines = [];
+  lines.push('### ' + day.date + ' · ' + getDayWeekdayLabel(day.date));
+  lines.push('');
+
+  if (options.includeObjects) {
+    lines.push('#### Strukturierte Objekte');
+    var objs = (day.objects || []).filter(function(o){ return !o.dismissed; });
+    if (objs.length) objs.forEach(function(o){ lines.push(formatObjForPrompt(o)); });
+    else lines.push('(keine)');
+    lines.push('');
+  }
+
+  if (options.includeCards) {
+    lines.push('#### Rohkarten');
+    if ((day.cards || []).length) {
+      (day.cards || []).forEach(function(card) {
+        lines.push('--- Karte ' + (card.time || '--:--') + ' [' + (card.type || 'log') + '] ---');
+        lines.push(card.text || '');
+        lines.push('');
+      });
+      if (lines[lines.length - 1] === '') lines.pop();
+    } else lines.push('(keine)');
+    lines.push('');
+  }
+
+  if (options.includeFeed) {
+    lines.push('#### Feed-Items');
+    if ((day.feedItems || []).length) {
+      (day.feedItems || []).forEach(function(item) {
+        var src = item.source ? ('[' + item.source + '] ') : '';
+        var title = item.title || '';
+        var body = item.body || item.text || '';
+        lines.push('- ' + src + (title || body || '(leer)'));
+        if (title && body) lines.push('  ' + body);
+      });
+    } else lines.push('(keine)');
+    lines.push('');
+  }
+
+  if (options.includePlan) {
+    lines.push('#### Plan / Review');
+    var p = day.plan || {};
+    var hasPlan = (p.intentionen && p.intentionen.trim()) || (p.vermeiden && p.vermeiden.trim()) ||
+      (p.ort && p.ort.trim()) || (p.stundenplan && p.stundenplan.trim()) || (p.tasks && p.tasks.length);
+    if (hasPlan) {
+      if (p.intentionen) lines.push('Intentionen: ' + p.intentionen);
+      if (p.vermeiden) lines.push('Vermeiden: ' + p.vermeiden);
+      if (p.ort) lines.push('Ort: ' + p.ort);
+      if (p.aufstehzeit) lines.push('Aufstehzeit: ' + p.aufstehzeit);
+      if (p.stundenplan) lines.push('Stundenplan: ' + p.stundenplan);
+      if (p.tasks && p.tasks.length) {
+        lines.push('Plan-Tasks:');
+        p.tasks.forEach(function(t){ lines.push('- ' + (t.done ? '[x] ' : '[ ] ') + (t.text || '')); });
+      }
+      if (day.reviewDone) lines.push('Review: abgeschlossen');
+    } else if (day.reviewDone) {
+      lines.push('Review: abgeschlossen');
+    } else {
+      lines.push('(keine)');
+    }
+    lines.push('');
+  }
+
+  if (options.includeZettels) {
+    lines.push('#### Zettel');
+    var zettels = (S.zettels || []).filter(function(z){ return z && z.date === day.date; });
+    if (zettels.length) {
+      zettels.forEach(function(z) {
+        var header = '- ' + (z.title || '(ohne Titel)');
+        if (z.tags && z.tags.length) header += ' · #' + z.tags.join(' #');
+        lines.push(header);
+        if (z.body) lines.push('  ' + z.body);
+      });
+    } else lines.push('(keine)');
+    lines.push('');
+  }
+
+  return lines.join('\n').trim();
+}
+
+function buildMultiDayPrompt(options) {
+  var days = getSelectedHistoryDays();
+  if (!days.length) return '';
+  var first = days[0].date;
+  var last = days[days.length - 1].date;
+  var embedded = [
+    'Objekte ' + (options.includeObjects ? 'ja' : 'nein'),
+    'Rohkarten ' + (options.includeCards ? 'ja' : 'nein'),
+    'Feed ' + (options.includeFeed ? 'ja' : 'nein'),
+    'Plan/Review ' + (options.includePlan ? 'ja' : 'nein'),
+    'Zettel ' + (options.includeZettels ? 'ja' : 'nein'),
+    'Future-Log ' + (options.includeFuture ? 'ja' : 'nein')
+  ].join(' · ');
+
+  var lines = [];
+  lines.push('# Mehrtages-Prompt · Daily Log App');
+  lines.push('');
+  lines.push('## Aufgabe');
+  lines.push(options.intention || 'Analysiere die ausgewählten Tage und fasse die wichtigsten Entwicklungen zusammen.');
+  lines.push('');
+  lines.push(getPromptTypeInstruction(options.promptType));
+  lines.push('');
+  lines.push('## Prompt-Scope');
+  lines.push('- Zeitraum: ' + first + ' bis ' + last);
+  lines.push('- Ausgewählte Tage: ' + days.length);
+  lines.push('- Eingebettete Daten: ' + embedded);
+  lines.push('- Erwarteter Output: ' + getPromptTypeInstruction(options.promptType));
+  lines.push('- Hinweis: Analysiere nur die eingebetteten Daten. Nichts erfinden.');
+  lines.push('');
+  lines.push('## Zeitraum-Input');
+  lines.push('');
+  days.forEach(function(day) {
+    lines.push(formatDayForPrompt(day, options));
+    lines.push('');
+    if (options.includeFuture) {
+      var refs = (S.futurelog || []).filter(function(e){
+        if (!e || e.done) return false;
+        if (e.fromDate && e.fromDate === day.date) return true;
+        if (e.date && e.date === day.date) return true;
+        return false;
+      });
+      if (refs.length) {
+        lines.push('#### Future-Log-Bezüge');
+        refs.forEach(function(e) {
+          lines.push('- ' + (e.text || '(leer)') + (e.date ? ' (' + e.date + ')' : ''));
+        });
+        lines.push('');
+      }
+    }
+  });
+  return lines.join('\n').trim();
+}
+
+function openMultiDayPromptModal() {
+  var days = getSelectedHistoryDays();
+  if (!days.length) {
+    toast('Bitte zuerst Tage im Verlauf auswählen');
+    return;
+  }
+  var pre = document.getElementById('multiDayPromptText');
+  if (pre) pre.textContent = '';
+  openModal('multiDayPromptModal');
+}
+
+function generateMultiDayPrompt() {
+  var days = getSelectedHistoryDays();
+  if (!days.length) {
+    toast('Keine Tage ausgewählt');
+    return;
+  }
+  var options = {
+    intention: (document.getElementById('multiDayIntention') || {}).value || '',
+    promptType: (document.getElementById('multiDayPromptType') || {}).value || 'free',
+    includeObjects: !!(document.getElementById('multiInclObjects') || {}).checked,
+    includeCards: !!(document.getElementById('multiInclCards') || {}).checked,
+    includeFeed: !!(document.getElementById('multiInclFeed') || {}).checked,
+    includePlan: !!(document.getElementById('multiInclPlan') || {}).checked,
+    includeZettels: !!(document.getElementById('multiInclZettels') || {}).checked,
+    includeFuture: !!(document.getElementById('multiInclFuture') || {}).checked
+  };
+  var text = buildMultiDayPrompt(options);
+  var pre = document.getElementById('multiDayPromptText');
+  if (pre) pre.textContent = text;
+}
+
+function copyMultiDayPrompt() {
+  var pre = document.getElementById('multiDayPromptText');
+  if (!pre || !pre.textContent) {
+    toast('Bitte zuerst Prompt generieren');
+    return;
+  }
+  copyText(pre.textContent, '✓ Mehrtages-Prompt kopiert');
 }
 
 function generateDayExportPrompt() {
