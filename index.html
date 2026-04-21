@@ -1534,8 +1534,18 @@ select:focus { outline: none; border-color: var(--border-mid); }
 
       <div class="btn-row">
         <button class="btn btn-primary" onclick="addCard()">+ Karte speichern</button>
+        <button class="btn btn-sm btn-ghost" onclick="triggerMarkdownFileImport()">↥ Markdown-Dateien einfügen</button>
         <button class="btn btn-ghost btn-sm" onclick="clearNewCard()">Leeren</button>
       </div>
+      <input
+        id="mdFileImportInput"
+        type="file"
+        accept=".md,.markdown,.txt,text/markdown,text/plain"
+        multiple
+        style="display:none"
+        onchange="importMarkdownFilesToNewCard(this)"
+      >
+      <div style="margin-top:6px; font-family:var(--mono); font-size:0.62rem; color:var(--ink-dim)">Liest .md/.txt lokal ein und fügt sie in das Kartenfeld ein.</div>
     </div>
 
     <!-- Morning Briefing -->
@@ -3513,6 +3523,119 @@ function addCard() {
 function clearNewCard() {
   document.getElementById('newCardText').value = '';
   updateNewCardMeta();
+}
+
+function triggerMarkdownFileImport() {
+  var input = document.getElementById('mdFileImportInput');
+  if (!input) return;
+  input.click();
+}
+
+function readTextFile(file) {
+  return new Promise(function(resolve, reject) {
+    var reader = new FileReader();
+    reader.onload = function(e) { resolve(String(e.target.result || '')); };
+    reader.onerror = function() { reject(new Error('Datei konnte nicht gelesen werden: ' + (file && file.name ? file.name : 'unbekannt'))); };
+    reader.readAsText(file);
+  });
+}
+
+function inferDateTimeFromFilenameOrFile(file) {
+  var name = (file && file.name ? file.name : '');
+  var hit = null;
+
+  // a) YYYY-MM-DD HHMMSS
+  hit = name.match(/(\d{4})-(\d{2})-(\d{2})[ _]+(\d{2})(\d{2})(\d{2})/);
+  if (hit) return { date: hit[1] + '-' + hit[2] + '-' + hit[3], time: hit[4] + ':' + hit[5] };
+
+  // b) YYYY-MM-DD-HH-MM or YYYY_MM_DD_HH_MM (+ optional seconds)
+  hit = name.match(/(\d{4})[-_](\d{2})[-_](\d{2})[-_](\d{2})[-_](\d{2})(?:[-_](\d{2}))?/);
+  if (hit) return { date: hit[1] + '-' + hit[2] + '-' + hit[3], time: hit[4] + ':' + hit[5] };
+
+  // c) YYYYMMDD_HHMMSS
+  hit = name.match(/(\d{4})(\d{2})(\d{2})[_-](\d{2})(\d{2})(\d{2})/);
+  if (hit) return { date: hit[1] + '-' + hit[2] + '-' + hit[3], time: hit[4] + ':' + hit[5] };
+
+  // d) fallback: lastModified
+  var lm = file && file.lastModified ? new Date(file.lastModified) : null;
+  if (lm && !isNaN(lm.getTime())) {
+    var dd = lm.getFullYear() + '-' + String(lm.getMonth() + 1).padStart(2, '0') + '-' + String(lm.getDate()).padStart(2, '0');
+    var tt = String(lm.getHours()).padStart(2, '0') + ':' + String(lm.getMinutes()).padStart(2, '0');
+    return { date: dd, time: tt };
+  }
+  return { date: '', time: '' };
+}
+
+function formatImportedMarkdownFile(file, text) {
+  var info = inferDateTimeFromFilenameOrFile(file);
+  var fileName = (file && file.name) ? file.name : 'unbekannt';
+  return [
+    '---',
+    '## Importierte Markdown-Datei',
+    'Datei: ' + fileName,
+    'Datum: ' + (info.date || ''),
+    'Uhrzeit: ' + (info.time || ''),
+    '',
+    '<<<MARKDOWN',
+    String(text || ''),
+    'MARKDOWN',
+    '---'
+  ].join('\n');
+}
+
+function importMarkdownFilesToNewCard(input) {
+  var files = Array.prototype.slice.call((input && input.files) || []);
+  if (!files.length) return;
+
+  var parsed = files.map(function(file, idx) {
+    var info = inferDateTimeFromFilenameOrFile(file);
+    var sortKey = '';
+    if (info.date && info.time) sortKey = info.date + 'T' + info.time;
+    return { file: file, idx: idx, info: info, sortKey: sortKey };
+  });
+
+  parsed.sort(function(a, b) {
+    if (a.sortKey && b.sortKey && a.sortKey !== b.sortKey) return a.sortKey < b.sortKey ? -1 : 1;
+    if (a.sortKey && !b.sortKey) return -1;
+    if (!a.sortKey && b.sortKey) return 1;
+    var an = (a.file && a.file.name ? a.file.name : '').toLowerCase();
+    var bn = (b.file && b.file.name ? b.file.name : '').toLowerCase();
+    if (an !== bn) return an < bn ? -1 : 1;
+    return a.idx - b.idx;
+  });
+
+  Promise.allSettled(parsed.map(function(entry) {
+    return readTextFile(entry.file).then(function(text) {
+      return formatImportedMarkdownFile(entry.file, text);
+    });
+  })).then(function(results) {
+    var sections = [];
+    var failCount = 0;
+    results.forEach(function(r) {
+      if (r.status === 'fulfilled') sections.push(r.value);
+      else failCount += 1;
+    });
+    if (!sections.length) {
+      toast('✗ Keine Datei konnte gelesen werden');
+      return;
+    }
+
+    var ta = document.getElementById('newCardText');
+    if (!ta) return;
+    var previous = String(ta.value || '');
+    var importedText = sections.join('\n\n');
+    ta.value = previous.trim() ? (previous + '\n\n' + importedText) : importedText;
+    updateNewCardMeta();
+
+    var okCount = sections.length;
+    if (failCount > 0) {
+      toast('✓ ' + okCount + ' Datei(en) eingefügt · ⚠ ' + failCount + ' fehlgeschlagen');
+    } else {
+      toast('✓ ' + okCount + ' Datei(en) eingefügt');
+    }
+  }).finally(function() {
+    input.value = '';
+  });
 }
 
 function ensureTrash() {
