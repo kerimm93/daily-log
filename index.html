@@ -1670,6 +1670,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
         <button class="btn btn-sm btn-ghost" onclick="selectNoneObjs()">Keine</button>
         <div style="flex:1"></div>
         <button class="btn btn-primary btn-sm" onclick="openSelPromptModal()">→ In Prompt einbetten</button>
+        <button class="btn btn-sm btn-ghost" onclick="openCollectionReviewModal()">⇄ Mit Kollektionen abgleichen</button>
         <button class="btn btn-sm btn-ghost" onclick="exitSelMode()">Abbrechen</button>
       </div>
 
@@ -2454,6 +2455,52 @@ select:focus { outline: none; border-color: var(--border-mid); }
     <div class="btn-row" style="margin-top:14px">
       <button class="btn btn-primary" onclick="generateSelPrompt()">Prompt generieren</button>
       <button class="btn" onclick="closeModal('selPromptModal')">Schließen</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════════ -->
+<!-- Collection Review Modal                        -->
+<!-- ══════════════════════════════════════════════ -->
+<div class="modal-bg hidden" id="collectionReviewModal">
+  <div class="modal-box" style="max-width:860px">
+    <div class="modal-title">⇄ Ausgewählte Objekte mit Kollektionen abgleichen</div>
+
+    <div style="margin-bottom:12px">
+      <label>Intention / Aufgabe für die KI</label>
+      <textarea id="collectionReviewIntention" style="min-height:70px;font-family:var(--serif);font-size:0.9rem" oninput="generateCollectionReviewPrompt()"
+        placeholder="Ordne die ausgewählten Objekte passenden bestehenden Kollektionen zu. Wenn keine passt, schlage eine neue Kollektion mit kurzem Namen und Beschreibung vor. Wenn keine sinnvolle Zuordnung möglich ist, markiere das Objekt als skip."></textarea>
+    </div>
+    <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:12px">
+      <div style="font-family:var(--mono);font-size:0.68rem;color:var(--ink-mid)">Quelle: aktuell ausgewählte Objekte</div>
+      <label style="display:flex;gap:6px;align-items:center;cursor:pointer;font-family:var(--mono);font-size:0.68rem;color:var(--ink-mid);margin:0">
+        <input type="checkbox" id="collectionReviewOnlyExisting" style="width:14px;height:14px;accent-color:var(--accent)" onchange="generateCollectionReviewPrompt()">
+        Nur bestehende Kollektionen vorschlagen
+      </label>
+    </div>
+
+    <div class="prompt-block" style="margin-top:0">
+      <div class="prompt-block-header">
+        <span class="prompt-block-label">Review-Prompt</span>
+        <button class="btn btn-sm" onclick="copyCollectionReviewPrompt()">Kopieren</button>
+      </div>
+      <pre id="collectionReviewPromptText" style="max-height:240px"></pre>
+    </div>
+
+    <div style="margin-top:12px">
+      <label>KI-Ergebnis einfügen (JSON)</label>
+      <textarea id="collectionReviewResultInput" style="min-height:120px;font-family:var(--mono);font-size:0.73rem"
+        placeholder='[{"objectId":"obj_123","action":"assign_existing","collectionId":"col_abc","reason":"...","confidence":"hoch"}]'></textarea>
+      <div id="collectionReviewFeedback" style="font-family:var(--mono);font-size:0.68rem;color:var(--ink-dim);margin-top:6px;min-height:1.2em"></div>
+    </div>
+
+    <div id="collectionReviewPreview" style="display:none;margin-top:12px;max-height:300px;overflow-y:auto"></div>
+
+    <div class="btn-row" style="margin-top:14px">
+      <button class="btn btn-primary" onclick="generateCollectionReviewPrompt()">Prompt generieren</button>
+      <button class="btn btn-sm btn-ghost" onclick="previewCollectionReviewResult()">Vorschläge prüfen</button>
+      <button class="btn btn-sm btn-ghost" onclick="applyAllApprovedCollectionReviewDecisions()">Alle ausstehenden anwenden</button>
+      <button class="btn" onclick="closeModal('collectionReviewModal')">Schließen</button>
     </div>
   </div>
 </div>
@@ -8961,6 +9008,8 @@ function getSelectedObjs() {
   return getViewData().objects.filter(function(o){ return selectedObjIds[o.id]; });
 }
 
+var collectionReviewDraft = [];
+
 function openSelPromptModal() {
   var count = Object.keys(selectedObjIds).length;
   if (!count) { toast('Keine Objekte ausgewählt.'); return; }
@@ -9069,6 +9118,322 @@ function generateSelPrompt() {
 function copySelPrompt() {
   var text = document.getElementById('selPromptText').textContent;
   copyText(text, '✓ Prompt kopiert');
+}
+
+function openCollectionReviewModal() {
+  var objs = getSelectedObjs();
+  if (!objs.length) { toast('Keine Objekte ausgewählt.'); return; }
+  var intentionEl = document.getElementById('collectionReviewIntention');
+  if (intentionEl && !intentionEl.value.trim()) {
+    intentionEl.value = 'Ordne die ausgewählten Objekte passenden bestehenden Kollektionen zu. Wenn keine passt, schlage eine neue Kollektion mit kurzem Namen und Beschreibung vor. Wenn keine sinnvolle Zuordnung möglich ist, markiere das Objekt als skip.';
+  }
+  var promptEl = document.getElementById('collectionReviewPromptText');
+  if (promptEl) promptEl.textContent = '';
+  var reviewInputEl = document.getElementById('collectionReviewResultInput');
+  if (reviewInputEl) reviewInputEl.value = '';
+  var feedbackEl = document.getElementById('collectionReviewFeedback');
+  if (feedbackEl) feedbackEl.textContent = '';
+  collectionReviewDraft = [];
+  renderCollectionReviewPreview();
+  generateCollectionReviewPrompt();
+  openModal('collectionReviewModal');
+}
+
+function generateCollectionReviewPrompt() {
+  var objs = getSelectedObjs();
+  if (!objs.length) { toast('Keine Objekte ausgewählt.'); return; }
+
+  var intentionEl = document.getElementById('collectionReviewIntention');
+  var onlyExistingEl = document.getElementById('collectionReviewOnlyExisting');
+  var intention = intentionEl ? intentionEl.value.trim() : '';
+  var onlyExisting = !!(onlyExistingEl && onlyExistingEl.checked);
+  var dateStr = today();
+
+  var collectionBlock = ((S.collections || []).map(function(col) {
+    var count = getObjectsForCollection(col.id).length;
+    return [
+      '- id: ' + col.id,
+      '  name: ' + (col.name || ''),
+      '  description: ' + (col.description || ''),
+      '  summary: ' + (col.summary || ''),
+      '  objectCount: ' + count
+    ].join('\n');
+  }).join('\n'));
+  if (!collectionBlock) collectionBlock = '- (keine bestehenden Kollektionen)';
+
+  var objectBlock = objs.map(function(o) {
+    var children = getViewData().objects.filter(function(c){ return c.parentId === o.id; });
+    var collectionIds = Array.isArray(o.collectionIds) && o.collectionIds.length ? o.collectionIds.join(', ') : '-';
+    return [
+      '- id: ' + o.id,
+      '  typ: ' + (o.typ || ''),
+      '  zeit: ' + (o.zeit || ''),
+      '  text: ' + (o.text || ''),
+      '  contexts: ' + ((o.contexts && o.contexts.length) ? o.contexts.join(', ') : '-'),
+      '  status: ' + (o.status || '-'),
+      '  collectionIds: ' + collectionIds,
+      '  children: ' + (children.length
+        ? children.map(function(c){
+            return (c.zeit ? c.zeit + ' ' : '') + (c.typ ? '[' + c.typ + '] ' : '') + c.text;
+          }).join(' | ')
+        : '-')
+    ].join('\n');
+  }).join('\n');
+
+  var lines = [
+    '# Review · Objekte mit Kollektionen abgleichen',
+    '',
+    '## Aufgabe',
+    intention || 'Ordne die ausgewählten Objekte passenden bestehenden Kollektionen zu. Wenn keine passt, schlage eine neue Kollektion mit kurzem Namen und Beschreibung vor. Wenn keine sinnvolle Zuordnung möglich ist, markiere das Objekt als skip.',
+    '',
+    '## Regeln',
+    '- Ordne jedes Objekt GENAU einer von drei Aktionen zu: assign_existing, create_new, skip.',
+    '- Nutze bestehende Kollektionen bevorzugt, wenn sie thematisch wirklich passen.',
+    '- Schlage nur dann create_new vor, wenn keine bestehende Kollektion sinnvoll passt.',
+    '- Erfinde keine Inhalte, die nicht im Objekt stehen.',
+    '- Halte neue Kollektionsnamen kurz, konkret und wiederverwendbar.',
+    '- Neue Kollektionsbeschreibungen in 1–2 Sätzen.',
+    '- Wenn unsicher oder zu vage: skip.',
+    '- Lieber skip als schlechte Kollektion.',
+    onlyExisting ? '- Nur bestehende Kollektionen aktiv: create_new ist verboten. Erlaubt sind nur assign_existing oder skip.' : null,
+    '',
+    '## Ausgabeformat',
+    'NUR gültiges JSON-Array, kein Prosatext.',
+    '',
+    '[{"objectId":"obj_123","action":"assign_existing","collectionId":"col_abc","reason":"...","confidence":"hoch"},{"objectId":"obj_124","action":"create_new","newCollectionName":"Kurzname","newCollectionDescription":"1-2 Sätze.","reason":"...","confidence":"mittel"},{"objectId":"obj_125","action":"skip","reason":"...","confidence":"mittel"}]',
+    '',
+    '## Bestehende Kollektionen (' + (S.collections || []).length + ')',
+    collectionBlock,
+    '',
+    '## Ausgewählte Objekte (' + objs.length + ') · ' + dateStr,
+    objectBlock
+  ];
+
+  var prompt = lines.filter(function(line){ return line !== null; }).join('\n');
+  var promptEl = document.getElementById('collectionReviewPromptText');
+  if (promptEl) promptEl.textContent = prompt;
+}
+
+function copyCollectionReviewPrompt() {
+  var textEl = document.getElementById('collectionReviewPromptText');
+  var text = textEl ? textEl.textContent : '';
+  if (!text.trim()) {
+    toast('Bitte zuerst Prompt generieren.');
+    return;
+  }
+  copyText(text, '✓ Review-Prompt kopiert');
+}
+
+function previewCollectionReviewResult() {
+  var inputEl = document.getElementById('collectionReviewResultInput');
+  var feedbackEl = document.getElementById('collectionReviewFeedback');
+  var raw = inputEl ? inputEl.value.trim() : '';
+  var onlyExisting = !!(document.getElementById('collectionReviewOnlyExisting') && document.getElementById('collectionReviewOnlyExisting').checked);
+  if (!raw) {
+    if (feedbackEl) feedbackEl.textContent = 'Bitte JSON einfügen.';
+    toast('Bitte JSON einfügen.');
+    return;
+  }
+
+  var parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    if (feedbackEl) feedbackEl.textContent = 'Ungültiges JSON: ' + e.message;
+    toast('Ungültiges JSON.');
+    return;
+  }
+  if (!Array.isArray(parsed)) {
+    if (feedbackEl) feedbackEl.textContent = 'Erwartet wurde ein JSON-Array.';
+    toast('JSON muss ein Array sein.');
+    return;
+  }
+
+  var validActions = { assign_existing: true, create_new: true, skip: true };
+  var errors = [];
+  var nextDraft = [];
+
+  parsed.forEach(function(item, idx) {
+    if (!item || typeof item !== 'object') {
+      errors.push('#'+(idx+1)+': Eintrag ist kein Objekt.');
+      return;
+    }
+    var objId = String(item.objectId || '').trim();
+    if (!objId) { errors.push('#'+(idx+1)+': objectId fehlt.'); return; }
+    var found = findObjGlobal(objId);
+    if (!found || !found.obj) { errors.push('#'+(idx+1)+': objectId unbekannt (' + objId + ').'); return; }
+    var action = String(item.action || '').trim();
+    if (!validActions[action]) { errors.push('#'+(idx+1)+': action ungültig (' + action + ').'); return; }
+    if (onlyExisting && action === 'create_new') { errors.push('#'+(idx+1)+': create_new ist deaktiviert (nur bestehende Kollektionen).'); return; }
+
+    if (action === 'assign_existing') {
+      var colId = String(item.collectionId || '').trim();
+      if (!colId) { errors.push('#'+(idx+1)+': collectionId fehlt für assign_existing.'); return; }
+      var col = (S.collections || []).find(function(c){ return c.id === colId; });
+      if (!col) { errors.push('#'+(idx+1)+': collectionId unbekannt (' + colId + ').'); return; }
+      nextDraft.push({
+        idx: idx,
+        objectId: objId,
+        action: action,
+        collectionId: colId,
+        reason: item.reason || '',
+        confidence: item.confidence || '',
+        status: 'pending'
+      });
+      return;
+    }
+
+    if (action === 'create_new') {
+      var newName = String(item.newCollectionName || '').trim();
+      if (!newName) { errors.push('#'+(idx+1)+': newCollectionName fehlt für create_new.'); return; }
+      nextDraft.push({
+        idx: idx,
+        objectId: objId,
+        action: action,
+        newCollectionName: newName,
+        newCollectionDescription: String(item.newCollectionDescription || '').trim(),
+        reason: item.reason || '',
+        confidence: item.confidence || '',
+        status: 'pending'
+      });
+      return;
+    }
+
+    nextDraft.push({
+      idx: idx,
+      objectId: objId,
+      action: action,
+      reason: item.reason || '',
+      confidence: item.confidence || '',
+      status: 'pending'
+    });
+  });
+
+  collectionReviewDraft = nextDraft;
+  renderCollectionReviewPreview();
+
+  var msgParts = [];
+  msgParts.push('Vorschläge: ' + nextDraft.length);
+  if (errors.length) msgParts.push('Fehler: ' + errors.length);
+  if (feedbackEl) feedbackEl.textContent = msgParts.join(' · ') + (errors.length ? ' · ' + errors.slice(0, 3).join(' | ') : '');
+  if (nextDraft.length) toast('Vorschläge geladen: ' + nextDraft.length);
+  else toast('Keine gültigen Vorschläge gefunden.');
+}
+
+function renderCollectionReviewPreview() {
+  var wrap = document.getElementById('collectionReviewPreview');
+  if (!wrap) return;
+  if (!collectionReviewDraft.length) {
+    wrap.style.display = 'none';
+    wrap.innerHTML = '';
+    return;
+  }
+  var rows = collectionReviewDraft.map(function(item, i) {
+    var found = findObjGlobal(item.objectId);
+    var obj = found && found.obj ? found.obj : null;
+    var currentCols = (obj && obj.collectionIds && obj.collectionIds.length)
+      ? obj.collectionIds.map(function(cid){
+          var col = (S.collections || []).find(function(c){ return c.id === cid; });
+          return col ? col.name : cid;
+        }).join(', ')
+      : '—';
+    var targetHtml = '';
+    if (item.action === 'assign_existing') {
+      var target = (S.collections || []).find(function(c){ return c.id === item.collectionId; });
+      targetHtml = 'assign_existing → <strong>' + esc(target ? target.name : item.collectionId) + '</strong>';
+    } else if (item.action === 'create_new') {
+      targetHtml = 'create_new → <strong>' + esc(item.newCollectionName) + '</strong>' + (item.newCollectionDescription ? '<br><span style="color:var(--ink-mid)">' + esc(item.newCollectionDescription) + '</span>' : '');
+    } else {
+      targetHtml = 'skip → keine Änderung';
+    }
+    return '' +
+      '<div style="border:1px solid var(--border);border-radius:var(--r);padding:10px 12px;background:var(--surface);margin-bottom:8px">' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px">' +
+          '<div style="font-family:var(--mono);font-size:0.64rem;color:var(--ink-dim)">Objekt ' + esc(item.objectId) + ' · Status: ' + esc(item.status || 'pending') + '</div>' +
+          '<div style="display:flex;gap:6px;flex-wrap:wrap">' +
+            (item.status === 'pending' ? '<button class="btn btn-sm btn-primary" onclick="applyCollectionReviewDecisionAndRefresh(' + i + ')">Anwenden</button>' : '') +
+            (item.status === 'pending' ? '<button class="btn btn-sm btn-ghost" onclick="skipCollectionReviewDecision(' + i + ')">Überspringen</button>' : '') +
+            (item.status === 'pending' ? '<button class="btn btn-sm btn-ghost" onclick="rejectCollectionReviewDecision(' + i + ')">Ablehnen</button>' : '') +
+          '</div>' +
+        '</div>' +
+        (obj ? '<div style="font-family:var(--serif);font-size:0.88rem;color:var(--ink);margin-top:4px">' + esc(obj.text || '') + '</div>' : '<div style="font-family:var(--mono);font-size:0.7rem;color:var(--red);margin-top:4px">Objekt nicht gefunden.</div>') +
+        '<div style="font-family:var(--mono);font-size:0.64rem;color:var(--ink-dim);margin-top:4px">' +
+          'Typ: ' + esc(obj && obj.typ ? obj.typ : '-') + ' · Zeit: ' + esc(obj && obj.zeit ? obj.zeit : '-') + ' · Kollektionen: ' + esc(currentCols) +
+        '</div>' +
+        '<div style="font-family:var(--serif);font-size:0.82rem;color:var(--ink);line-height:1.6;margin-top:6px">' + targetHtml + '</div>' +
+        ((item.reason || item.confidence) ? '<div style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim);margin-top:6px">' +
+          (item.reason ? 'Grund: ' + esc(item.reason) : '') +
+          (item.reason && item.confidence ? ' · ' : '') +
+          (item.confidence ? 'Confidence: ' + esc(item.confidence) : '') +
+        '</div>' : '') +
+      '</div>';
+  }).join('');
+  wrap.innerHTML = rows;
+  wrap.style.display = 'block';
+}
+
+function applyCollectionReviewDecision(index) {
+  if (index < 0 || index >= collectionReviewDraft.length) return false;
+  var item = collectionReviewDraft[index];
+  if (!item || item.status !== 'pending') return false;
+
+  if (item.action === 'assign_existing') {
+    assignObjToCollection(item.objectId, item.collectionId);
+    item.status = 'applied';
+    return true;
+  }
+  if (item.action === 'create_new') {
+    var col = createCollectionFromValues(item.newCollectionName, item.newCollectionDescription || '');
+    if (!col) return false;
+    assignObjToCollection(item.objectId, col.id);
+    item.status = 'applied';
+    item.createdCollectionId = col.id;
+    return true;
+  }
+  if (item.action === 'skip') {
+    item.status = 'skipped';
+    return true;
+  }
+  return false;
+}
+
+function applyCollectionReviewDecisionAndRefresh(index) {
+  var ok = applyCollectionReviewDecision(index);
+  if (!ok) return;
+  renderCollectionReviewPreview();
+  renderObjectList();
+  renderKollektionenTab();
+  if (activeKolId) renderKolDetailObjects(activeKolId);
+  toast('Vorschlag angewendet');
+}
+
+function applyAllApprovedCollectionReviewDecisions() {
+  if (!collectionReviewDraft.length) { toast('Keine Vorschläge vorhanden.'); return; }
+  var applied = 0;
+  collectionReviewDraft.forEach(function(_item, idx) {
+    if (applyCollectionReviewDecision(idx)) applied++;
+  });
+  renderCollectionReviewPreview();
+  renderObjectList();
+  renderKollektionenTab();
+  if (activeKolId) renderKolDetailObjects(activeKolId);
+  toast(applied + ' Vorschläge angewendet');
+}
+
+function skipCollectionReviewDecision(index) {
+  if (index < 0 || index >= collectionReviewDraft.length) return;
+  var item = collectionReviewDraft[index];
+  if (!item || item.status !== 'pending') return;
+  item.status = 'skipped';
+  renderCollectionReviewPreview();
+}
+
+function rejectCollectionReviewDecision(index) {
+  if (index < 0 || index >= collectionReviewDraft.length) return;
+  var item = collectionReviewDraft[index];
+  if (!item || item.status !== 'pending') return;
+  item.status = 'rejected';
+  renderCollectionReviewPreview();
 }
 
 
@@ -9826,6 +10191,27 @@ function addCollection() {
   toast('Kollektion „' + col.name + '" angelegt');
 }
 
+function createCollectionFromValues(name, description) {
+  var trimmedName = (name || '').trim();
+  if (!trimmedName) return null;
+  var existing = findCollectionByNameNormalized(trimmedName);
+  if (existing) return existing;
+  var now = new Date().toISOString();
+  var col = {
+    id: 'col-' + uid(),
+    name: trimmedName,
+    description: (description || '').trim(),
+    summary: '',
+    createdAt: now,
+    updatedAt: now
+  };
+  if (!S.collections) S.collections = [];
+  S.collections.push(col);
+  save();
+  renderKollektionenTab();
+  return col;
+}
+
 function deleteCurrentCollection() {
   if (!activeKolId) return;
   var col = (S.collections||[]).find(function(c){ return c.id === activeKolId; });
@@ -10096,21 +10482,7 @@ function findCollectionByNameNormalized(name) {
 function createCollectionIfMissing(name) {
   var trimmedName = (name || '').trim();
   if (!trimmedName) return null;
-  var existing = findCollectionByNameNormalized(trimmedName);
-  if (existing) return existing;
-  var now = new Date().toISOString();
-  var col = {
-    id: 'col-' + uid(),
-    name: trimmedName,
-    description: '',
-    summary: '',
-    createdAt: now,
-    updatedAt: now
-  };
-  if (!S.collections) S.collections = [];
-  S.collections.push(col);
-  save();
-  return col;
+  return createCollectionFromValues(trimmedName, '');
 }
 
 function getKolAssignFilteredCollections(query) {
