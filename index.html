@@ -2126,6 +2126,41 @@ select:focus { outline: none; border-color: var(--border-mid); }
       </div>
       <div id="kolDetailMeta" style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim);margin-bottom:10px"></div>
       <div id="kolDetailDesc" style="font-family:var(--serif);font-size:0.88rem;color:var(--ink-mid);line-height:1.65;margin-bottom:14px;display:none"></div>
+      <div id="kolDetailSummary" class="prompt-block" style="display:none;margin-bottom:14px">
+        <div class="prompt-block-header">
+          <span class="prompt-block-label">Zusammenfassung</span>
+        </div>
+        <pre id="kolDetailSummaryText" style="max-height:200px"></pre>
+      </div>
+      <div id="kolEditSection" class="prompt-block" style="display:none;margin-bottom:14px">
+        <div class="prompt-block-header">
+          <span class="prompt-block-label">Kollektion bearbeiten</span>
+        </div>
+        <label>Name</label>
+        <input type="text" id="kolEditName" placeholder="Name der Kollektion">
+        <label style="margin-top:8px">Beschreibung</label>
+        <textarea id="kolEditDescription" style="min-height:68px" placeholder="Beschreibung"></textarea>
+        <label style="margin-top:8px">Summary</label>
+        <textarea id="kolEditSummary" style="min-height:88px" placeholder="Zusammenfassung"></textarea>
+        <div class="btn-row" style="margin-top:10px">
+          <button class="btn btn-sm btn-primary" onclick="saveCollectionEdit()">Speichern</button>
+          <button class="btn btn-sm btn-ghost" onclick="cancelCollectionEdit()">Abbrechen</button>
+        </div>
+      </div>
+      <div id="kolAiImportSection" class="prompt-block" style="display:none;margin-bottom:14px">
+        <div class="prompt-block-header">
+          <span class="prompt-block-label">KI-Ergebnis einfügen</span>
+        </div>
+        <label>KI-Ergebnis (JSON)</label>
+        <textarea id="kolAiImportInput" style="min-height:110px;font-family:var(--mono);font-size:0.73rem"
+          placeholder='{"description":"Neue Beschreibung","summary":"Neue Zusammenfassung"}'></textarea>
+        <div class="btn-row" style="margin-top:8px">
+          <button class="btn btn-sm btn-primary" onclick="previewKolAiImportProposal()">Vorschlag prüfen</button>
+          <button class="btn btn-sm btn-ghost" onclick="cancelKolAiImport()">Abbrechen</button>
+        </div>
+        <div id="kolAiImportFeedback" style="font-family:var(--mono);font-size:0.66rem;color:var(--ink-dim);margin-top:8px;min-height:1.2em"></div>
+        <div id="kolAiImportPreview" style="display:none;margin-top:8px"></div>
+      </div>
       <div id="kolDetailObjects" class="obj-list">
         <div class="empty-state">Noch keine Objekte in dieser Kollektion.</div>
       </div>
@@ -2140,6 +2175,8 @@ select:focus { outline: none; border-color: var(--border-mid); }
         </div>
       </div>
       <div class="btn-row" style="margin-top:12px">
+        <button class="btn btn-sm btn-ghost" onclick="openCollectionEdit()">Bearbeiten</button>
+        <button class="btn btn-sm btn-ghost" onclick="openKolAiImport()">KI-Ergebnis einfügen</button>
         <button class="btn btn-sm btn-ghost" onclick="generateKolSummaryPrompt()">✨ Zusammenfassung erstellen</button>
         <button class="btn btn-sm btn-ghost" style="color:var(--red)" id="kolDeleteBtn" onclick="deleteCurrentCollection()">Kollektion löschen</button>
       </div>
@@ -9252,6 +9289,7 @@ function previewCollectionReviewResult() {
   var validActions = { assign_existing: true, create_new: true, skip: true };
   var errors = [];
   var nextDraft = [];
+  var seenObjectIds = {};
 
   parsed.forEach(function(item, idx) {
     if (!item || typeof item !== 'object') {
@@ -9260,6 +9298,7 @@ function previewCollectionReviewResult() {
     }
     var objId = String(item.objectId || '').trim();
     if (!objId) { errors.push('#'+(idx+1)+': objectId fehlt.'); return; }
+    if (seenObjectIds[objId]) { errors.push('#'+(idx+1)+': duplicate objectId (' + objId + '). Nur der erste Vorschlag wird verwendet.'); return; }
     var found = findObjGlobal(objId);
     if (!found || !found.obj) { errors.push('#'+(idx+1)+': objectId unbekannt (' + objId + ').'); return; }
     var action = String(item.action || '').trim();
@@ -9280,6 +9319,7 @@ function previewCollectionReviewResult() {
         confidence: item.confidence || '',
         status: 'pending'
       });
+      seenObjectIds[objId] = true;
       return;
     }
 
@@ -9296,6 +9336,7 @@ function previewCollectionReviewResult() {
         confidence: item.confidence || '',
         status: 'pending'
       });
+      seenObjectIds[objId] = true;
       return;
     }
 
@@ -9307,6 +9348,7 @@ function previewCollectionReviewResult() {
       confidence: item.confidence || '',
       status: 'pending'
     });
+    seenObjectIds[objId] = true;
   });
 
   collectionReviewDraft = nextDraft;
@@ -9383,10 +9425,25 @@ function applyCollectionReviewDecision(index) {
     return true;
   }
   if (item.action === 'create_new') {
-    var col = createCollectionFromValues(item.newCollectionName, item.newCollectionDescription || '');
+    var normalizedName = normalizeKolName(item.newCollectionName);
+    var col = findCollectionByNameNormalized(item.newCollectionName);
+    if (!col && normalizedName) {
+      var fromDraft = collectionReviewDraft.find(function(other, idx) {
+        return idx !== index &&
+          other &&
+          (other.status === 'applied' || other.status === 'pending') &&
+          normalizeKolName(other.newCollectionName) === normalizedName &&
+          other.createdCollectionId;
+      });
+      if (fromDraft && fromDraft.createdCollectionId) {
+        col = (S.collections || []).find(function(c){ return c.id === fromDraft.createdCollectionId; }) || null;
+      }
+    }
+    if (!col) col = createCollectionFromValues(item.newCollectionName, item.newCollectionDescription || '');
     if (!col) return false;
     assignObjToCollection(item.objectId, col.id);
     item.status = 'applied';
+    item.resolvedCollectionId = col.id;
     item.createdCollectionId = col.id;
     return true;
   }
@@ -10165,6 +10222,7 @@ function addZettelManual() {
 // Kollektionen
 // ════════════════════════════════════════════════
 var activeKolId = null; // currently viewed collection id
+var kolAiImportProposal = null;
 
 // ── CRUD ─────────────────────────────────────────
 
@@ -10209,6 +10267,43 @@ function createCollectionFromValues(name, description) {
   S.collections.push(col);
   save();
   renderKollektionenTab();
+  return col;
+}
+
+function updateCollectionFields(colId, patch) {
+  if (!colId || !patch || typeof patch !== 'object') return null;
+  var col = (S.collections || []).find(function(c){ return c.id === colId; });
+  if (!col) return null;
+
+  var hasNamePatch = Object.prototype.hasOwnProperty.call(patch, 'name');
+  var nextName = Object.prototype.hasOwnProperty.call(patch, 'name') ? String(patch.name || '').trim() : col.name;
+  var nextDescription = Object.prototype.hasOwnProperty.call(patch, 'description') ? String(patch.description || '').trim() : col.description;
+  var nextSummary = Object.prototype.hasOwnProperty.call(patch, 'summary') ? String(patch.summary || '').trim() : col.summary;
+
+  if (!nextName) {
+    toast('Name darf nicht leer sein.');
+    return null;
+  }
+
+  var currentNameNormalized = normalizeKolName(col.name || '');
+  var nextNameNormalized = normalizeKolName(nextName);
+  if (hasNamePatch || nextNameNormalized !== currentNameNormalized) {
+    var existing = findCollectionByNameNormalized(nextName);
+    if (existing && existing.id !== colId) {
+      toast('Eine Kollektion mit diesem Namen existiert bereits.');
+      return null;
+    }
+  }
+
+  col.name = nextName;
+  col.description = nextDescription;
+  col.summary = nextSummary;
+  col.updatedAt = new Date().toISOString();
+  save();
+
+  var wasActive = activeKolId === colId;
+  renderKollektionenTab();
+  if (wasActive) openKolDetail(colId);
   return col;
 }
 
@@ -10376,6 +10471,21 @@ function openKolDetail(colId) {
     }
   }
 
+  var summaryWrapEl = document.getElementById('kolDetailSummary');
+  var summaryEl = document.getElementById('kolDetailSummaryText');
+  if (summaryWrapEl && summaryEl) {
+    if (col.summary) {
+      summaryEl.textContent = col.summary;
+      summaryWrapEl.style.display = 'block';
+    } else {
+      summaryEl.textContent = '';
+      summaryWrapEl.style.display = 'none';
+    }
+  }
+
+  cancelCollectionEdit(true);
+  cancelKolAiImport(true);
+
   renderKolDetailObjects(colId);
 }
 
@@ -10423,9 +10533,144 @@ function renderKolDetailObjects(colId) {
 
 function closeKolDetail() {
   activeKolId = null;
+  cancelCollectionEdit(true);
+  cancelKolAiImport(true);
   var sec = document.getElementById('kolSummarySection');
   if (sec) sec.style.display = 'none';
   renderKollektionenTab();
+}
+
+function openCollectionEdit() {
+  if (!activeKolId) return;
+  var col = (S.collections || []).find(function(c){ return c.id === activeKolId; });
+  if (!col) return;
+  var wrapEl = document.getElementById('kolEditSection');
+  var nameEl = document.getElementById('kolEditName');
+  var descriptionEl = document.getElementById('kolEditDescription');
+  var summaryEl = document.getElementById('kolEditSummary');
+  if (!wrapEl || !nameEl || !descriptionEl || !summaryEl) return;
+  nameEl.value = col.name || '';
+  descriptionEl.value = col.description || '';
+  summaryEl.value = col.summary || '';
+  wrapEl.style.display = 'block';
+}
+
+function cancelCollectionEdit(silent) {
+  var wrapEl = document.getElementById('kolEditSection');
+  if (wrapEl) wrapEl.style.display = 'none';
+  if (!silent) toast('Bearbeiten abgebrochen');
+}
+
+function saveCollectionEdit() {
+  if (!activeKolId) return;
+  var patch = {
+    name: document.getElementById('kolEditName') ? document.getElementById('kolEditName').value : '',
+    description: document.getElementById('kolEditDescription') ? document.getElementById('kolEditDescription').value : '',
+    summary: document.getElementById('kolEditSummary') ? document.getElementById('kolEditSummary').value : ''
+  };
+  var updated = updateCollectionFields(activeKolId, patch);
+  if (!updated) return;
+  cancelCollectionEdit(true);
+  toast('Kollektion gespeichert');
+}
+
+function openKolAiImport() {
+  if (!activeKolId) return;
+  kolAiImportProposal = null;
+  var wrapEl = document.getElementById('kolAiImportSection');
+  var feedbackEl = document.getElementById('kolAiImportFeedback');
+  var previewEl = document.getElementById('kolAiImportPreview');
+  if (wrapEl) wrapEl.style.display = 'block';
+  if (feedbackEl) feedbackEl.textContent = '';
+  if (previewEl) { previewEl.style.display = 'none'; previewEl.innerHTML = ''; }
+}
+
+function cancelKolAiImport(silent) {
+  kolAiImportProposal = null;
+  var wrapEl = document.getElementById('kolAiImportSection');
+  var inputEl = document.getElementById('kolAiImportInput');
+  var feedbackEl = document.getElementById('kolAiImportFeedback');
+  var previewEl = document.getElementById('kolAiImportPreview');
+  if (wrapEl) wrapEl.style.display = 'none';
+  if (inputEl) inputEl.value = '';
+  if (feedbackEl) feedbackEl.textContent = '';
+  if (previewEl) { previewEl.style.display = 'none'; previewEl.innerHTML = ''; }
+  if (!silent) toast('Import abgebrochen');
+}
+
+function previewKolAiImportProposal() {
+  if (!activeKolId) return;
+  var col = (S.collections || []).find(function(c){ return c.id === activeKolId; });
+  if (!col) return;
+
+  var inputEl = document.getElementById('kolAiImportInput');
+  var feedbackEl = document.getElementById('kolAiImportFeedback');
+  var previewEl = document.getElementById('kolAiImportPreview');
+  var raw = inputEl ? inputEl.value.trim() : '';
+  if (!raw) {
+    if (feedbackEl) feedbackEl.textContent = 'Bitte JSON einfügen.';
+    toast('Bitte JSON einfügen.');
+    return;
+  }
+
+  var parsed;
+  try {
+    parsed = JSON.parse(raw);
+  } catch (e) {
+    if (feedbackEl) feedbackEl.textContent = 'Ungültiges JSON: ' + e.message;
+    toast('Ungültiges JSON.');
+    return;
+  }
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    if (feedbackEl) feedbackEl.textContent = 'Erwartet wird ein JSON-Objekt mit name/description/summary.';
+    toast('Ungültiges Format.');
+    return;
+  }
+
+  var patch = {};
+  ['name', 'description', 'summary'].forEach(function(key) {
+    if (Object.prototype.hasOwnProperty.call(parsed, key)) patch[key] = String(parsed[key] == null ? '' : parsed[key]).trim();
+  });
+  var keys = Object.keys(patch);
+  if (!keys.length) {
+    if (feedbackEl) feedbackEl.textContent = 'Mindestens eines der Felder name, description, summary muss vorhanden sein.';
+    toast('Keine unterstützten Felder gefunden.');
+    return;
+  }
+  if (Object.prototype.hasOwnProperty.call(patch, 'name') && !patch.name) {
+    if (feedbackEl) feedbackEl.textContent = 'Name darf nicht leer sein.';
+    toast('Name darf nicht leer sein.');
+    return;
+  }
+
+  kolAiImportProposal = patch;
+  var rows = keys.map(function(key) {
+    var labels = { name: 'Name', description: 'Beschreibung', summary: 'Summary' };
+    return '' +
+      '<div style="border:1px solid var(--border);border-radius:var(--r);padding:8px 10px;background:var(--surface);margin-bottom:8px">' +
+        '<div style="font-family:var(--mono);font-size:0.62rem;color:var(--ink-dim);margin-bottom:4px">' + labels[key] + '</div>' +
+        '<div style="font-family:var(--serif);font-size:0.82rem;color:var(--ink-mid)">Alt: ' + esc(col[key] || '—') + '</div>' +
+        '<div style="font-family:var(--serif);font-size:0.85rem;color:var(--ink);margin-top:4px">Neu: ' + esc(patch[key] || '—') + '</div>' +
+      '</div>';
+  }).join('');
+
+  if (previewEl) {
+    previewEl.innerHTML = rows +
+      '<div class="btn-row" style="margin-top:8px">' +
+        '<button class="btn btn-sm btn-primary" onclick="applyKolAiImportProposal()">Übernehmen</button>' +
+        '<button class="btn btn-sm btn-ghost" onclick="cancelKolAiImport()">Abbrechen</button>' +
+      '</div>';
+    previewEl.style.display = 'block';
+  }
+  if (feedbackEl) feedbackEl.textContent = 'Vorschau bereit. Noch nichts gespeichert.';
+}
+
+function applyKolAiImportProposal() {
+  if (!activeKolId || !kolAiImportProposal) return;
+  var updated = updateCollectionFields(activeKolId, kolAiImportProposal);
+  if (!updated) return;
+  cancelKolAiImport(true);
+  toast('Kollektion aus KI-Vorschlag aktualisiert');
 }
 
 function generateKolSummaryPrompt() {
