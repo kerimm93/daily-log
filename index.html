@@ -4865,15 +4865,12 @@ function toggleHideCollected() {
 }
 
 function renderObjectList() { renderObjectListForDate(); }
-function renderObjectListForDate() {
-  var container = document.getElementById('objectList');
-  var facetsEl = document.getElementById('objFacetFilters');
+
+function getVisibleRootObjectsForSelection() {
   var viewObjs = getViewData().objects || [];
   var rootObjs = viewObjs.filter(function(o){ return !o.parentId; });
   var active   = rootObjs.filter(function(o){ return !o.dismissed; });
-  var isPast   = !isViewingToday();
 
-  // Hide done if toggled (xx = canceln, x = erledigt; '--' war ein verwaister Legacy-Wert und wird nicht mehr gesetzt)
   var pool = showDismissed ? rootObjs : active;
   if (hideDone) {
     pool = pool.filter(function(o){
@@ -4894,10 +4891,8 @@ function renderObjectListForDate() {
     pool = pool.filter(function(o){ return !objHasCollections(o); });
   }
 
-  // Filter by type
   var typeScopedPool = activeObjFilter ? pool.filter(function(o){ return o.typ === activeObjFilter; }) : pool;
 
-  // Build context/collection facets from the currently visible (day + status + type) object pool
   var ctxCounts = {};
   var colCounts = {};
   typeScopedPool.forEach(function(o) {
@@ -4919,6 +4914,28 @@ function renderObjectListForDate() {
   if (activeObjCollectionFilter) {
     visible = visible.filter(function(o) { return getObjCollectionIdsForFilter(o).indexOf(activeObjCollectionFilter) !== -1; });
   }
+
+  return {
+    active: active,
+    visible: visible,
+    ctxCounts: ctxCounts,
+    colCounts: colCounts,
+    ctxList: ctxList,
+    colList: colList
+  };
+}
+
+function renderObjectListForDate() {
+  var container = document.getElementById('objectList');
+  var facetsEl = document.getElementById('objFacetFilters');
+  var filtered = getVisibleRootObjectsForSelection();
+  var active   = filtered.active;
+  var visible  = filtered.visible;
+  var ctxCounts = filtered.ctxCounts;
+  var colCounts = filtered.colCounts;
+  var ctxList = filtered.ctxList;
+  var colList = filtered.colList;
+  var isPast   = !isViewingToday();
 
   if (facetsEl) {
     var showFacets = !!(ctxList.length || colList.length || activeObjCtxFilter || activeObjCollectionFilter);
@@ -9021,8 +9038,8 @@ function toggleObjSel(objId) {
 }
 
 function selectAllObjs() {
-  var active = getViewData().objects.filter(function(o){ return !o.dismissed && !o.parentId; });
-  active.forEach(function(o){ selectedObjIds[o.id] = true; });
+  var visible = getVisibleRootObjectsForSelection().visible;
+  visible.forEach(function(o){ selectedObjIds[o.id] = true; });
   renderObjectList();
   updateSelToolbar();
 }
