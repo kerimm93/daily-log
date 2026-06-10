@@ -5655,6 +5655,23 @@ function getDailyNoteFullDayInput() {
   });
   addSection('Rohkarten (alle)', cardLines);
 
+  var feedLines = (Array.isArray(view.feedItems) ? view.feedItems : []).filter(function(item) {
+    return !!item;
+  }).map(function(item) {
+    var meta = [];
+    if (item.source) meta.push('Quelle: ' + item.source);
+    if (item.status) meta.push('Status: ' + item.status);
+    if (item.loadedAt || item.date) meta.push('Zeitpunkt: ' + (item.loadedAt || item.date));
+    var entry = '- ' + (meta.length ? meta.join(' · ') : 'Externer Eintrag');
+    if (item.title) entry += '\n  Titel: ' + item.title;
+    var body = item.text || item.body || item.excerpt || item.summary || '';
+    if (body) entry += '\n  Inhalt: ' + body;
+    var link = item.url || item.link || '';
+    if (link) entry += '\n  Link: ' + link;
+    return entry;
+  });
+  if (feedLines.length) addSection('Lesestoff / externe Einträge', feedLines);
+
   var tasksByStatus = {};
   objects.filter(function(o){ return o.typ === 'aufgabe'; }).forEach(function(o) {
     var status = o.status || 'open';
