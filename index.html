@@ -1714,10 +1714,10 @@ select:focus { outline: none; border-color: var(--border-mid); }
       <div class="pipe-step" id="pnav-1" onclick="goPipeStep(1)">
         <span class="pipe-icon">✓</span>Aufgaben (alt)
       </div>
-      <div class="pipe-step active" id="pnav-2" onclick="goPipeStep(2)">
+      <div class="pipe-step" id="pnav-2" onclick="goPipeStep(2)">
         <span class="pipe-icon">📎</span>Scanner
       </div>
-      <div class="pipe-step" id="pnav-3" onclick="goPipeStep(3)">
+      <div class="pipe-step active" id="pnav-3" onclick="goPipeStep(3)">
         <span class="pipe-icon">📝</span>Daily Note
       </div>
       <div class="pipe-step" id="pnav-4" onclick="goPipeStep(4)">
@@ -1750,7 +1750,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
     </div>
 
     <!-- Schritt 2 -->
-    <div id="pipe-2" class="pipe-panel">
+    <div id="pipe-2" class="pipe-panel" style="display:none">
       <div class="section">
         <div class="section-title">Schritt 2 · 📎 Forensischer Scanner</div>
         <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
@@ -1771,7 +1771,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
     </div>
 
     <!-- Schritt 3 -->
-    <div id="pipe-3" class="pipe-panel" style="display:none">
+    <div id="pipe-3" class="pipe-panel">
       <div class="section">
         <div class="section-title">Schritt 3 · Daily Note</div>
         <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
@@ -1807,7 +1807,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
             </div>
             <pre id="pipe-text-4"></pre>
           </div>
-          <div class="btn-row"><button class="btn" onclick="goPipeStep(5)">Weiter →</button></div>
+          <div class="btn-row"><button class="btn btn-primary" onclick="finishDay()">Tag abschließen &amp; speichern</button></div>
         </div>
       </div>
     </div>
@@ -1838,8 +1838,8 @@ select:focus { outline: none; border-color: var(--border-mid); }
     </div>
 
     <!-- Alle auf einmal -->
-    <div class="section" style="margin-top:8px">
-      <div class="section-title">Alle 5 Schritte auf einmal</div>
+    <div class="section" id="legacyPipeActions" style="margin-top:8px">
+      <div class="section-title">Optionale Legacy-Prompts</div>
       <button class="btn btn-sm" onclick="generateAllPipePrompts()">Alle generieren</button>
     </div>
 
@@ -2924,7 +2924,9 @@ var TODAY = {
 
 var currentExtractCardId = null;
 var currentExtractViewDate = null;
-var currentPipeStep = 2;
+var DAILYLOG_SHOW_FEED_TAB = false;
+var DAILYLOG_SHOW_LEGACY_CLOSE_STEPS = false;
+var currentPipeStep = 3;
 var pipeStepsDone = {};
 var activeObjFilter = null; // null = alle anzeigen
 var activeObjCtxFilter = null;
@@ -3536,6 +3538,19 @@ function filterDeleted(arr) {
   if (!arr || !S.deletedIds) return arr || [];
   return arr.filter(function(item) { return !isDeleted(item.id); });
 }
+function applyStandardWorkflowVisibility() {
+  ['tab-feed', 'dnav-feed'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = DAILYLOG_SHOW_FEED_TAB ? '' : 'none';
+  });
+  ['pnav-1', 'pnav-2', 'pnav-5', 'legacyPipeActions'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.style.display = DAILYLOG_SHOW_LEGACY_CLOSE_STEPS ? '' : 'none';
+  });
+}
+
+document.addEventListener('DOMContentLoaded', applyStandardWorkflowVisibility);
+
 function switchTab(name) {
   ['sammeln','feed','objekte','plan','review','abschluss','futurelog','kontexte','zettel','kollektionen','verlauf'].forEach(function(t) {
     var p = document.getElementById('panel-' + t);
@@ -3556,7 +3571,7 @@ function switchTab(name) {
   if (name === 'kollektionen')  renderKollektionenTab();
   if (name === 'objekte')    renderObjectsTab();
   if (name === 'review')     renderReviewTab();
-  if (name === 'abschluss')  goPipeStep(2);
+  if (name === 'abschluss')  goPipeStep(3);
   if (name === 'futurelog')  renderFutureLog();
   if (name === 'verlauf')    renderHistory();
 }
@@ -5611,6 +5626,108 @@ function getInputSummary() {
   return lines.join('\n');
 }
 
+function getDailyNoteFullDayInput() {
+  var view = getViewData() || {};
+  var lines = [];
+  var cards = Array.isArray(view.cards) ? view.cards : [];
+  var objects = (Array.isArray(view.objects) ? view.objects : []).filter(function(o){ return o && !o.dismissed; });
+  var plan = view.plan || {};
+
+  function addSection(title, entries) {
+    lines.push('## ' + title);
+    if (entries.length) entries.forEach(function(entry){ lines.push(entry); });
+    else lines.push('(keine)');
+    lines.push('');
+  }
+
+  lines.push('# Vollständiger Tageskontext');
+  lines.push('Datum: ' + viewDate);
+  lines.push('');
+
+  var cardLines = [];
+  cards.forEach(function(card) {
+    var meta = [];
+    if (card.time) meta.push(card.time);
+    if (card.type) meta.push(card.type);
+    meta.push(card.processed ? 'verarbeitet' : 'unverarbeitet');
+    cardLines.push('--- Karte [' + meta.join(' · ') + '] ---');
+    cardLines.push(card.text || '(leer)');
+  });
+  addSection('Rohkarten (alle)', cardLines);
+
+  var tasksByStatus = {};
+  objects.filter(function(o){ return o.typ === 'aufgabe'; }).forEach(function(o) {
+    var status = o.status || 'open';
+    if (!tasksByStatus[status]) tasksByStatus[status] = [];
+    tasksByStatus[status].push(formatObjForPrompt(o));
+  });
+  var taskLines = [];
+  Object.keys(tasksByStatus).sort().forEach(function(status) {
+    taskLines.push('### Status: ' + status);
+    tasksByStatus[status].forEach(function(line){ taskLines.push(line); });
+  });
+  addSection('Aufgaben nach Status', taskLines);
+
+  [
+    ['Ereignisse', 'ereignis'],
+    ['Notizen', 'notiz'],
+    ['Ideen', 'idee'],
+    ['Beobachtungen', 'beobachtung'],
+    ['SOPs', 'sop'],
+    ['Zitate', 'zitat'],
+    ['Referenzen', 'referenz']
+  ].forEach(function(group) {
+    addSection(group[0], objects.filter(function(o){ return o.typ === group[1]; }).map(formatObjForPrompt));
+  });
+
+  var knownTypes = ['aufgabe','ereignis','notiz','idee','beobachtung','sop','zitat','referenz'];
+  addSection('Weitere strukturierte Objekte', objects.filter(function(o){ return knownTypes.indexOf(o.typ) === -1; }).map(formatObjForPrompt));
+
+  var planLines = [];
+  if (plan.intentionen) planLines.push('Intentionen: ' + plan.intentionen);
+  if (plan.vermeiden) planLines.push('Vermeiden: ' + plan.vermeiden);
+  if (plan.ort) planLines.push('Ort: ' + plan.ort);
+  if (plan.aufstehzeit) planLines.push('Aufstehzeit: ' + plan.aufstehzeit);
+  if (plan.stundenplan) planLines.push('Stundenplan: ' + plan.stundenplan);
+  if (Array.isArray(plan.tasks) && plan.tasks.length) {
+    planLines.push('Plan-Tasks:');
+    plan.tasks.forEach(function(task) {
+      planLines.push('- ' + (task && task.done ? '[x] ' : '[ ] ') + ((task && task.text) || '(leer)'));
+    });
+  }
+  addSection('Plan', planLines);
+  addSection('Review', ['Status: ' + (view.reviewDone ? 'abgeschlossen' : 'offen')]);
+
+  var migrationLines = (Array.isArray(S.migrationPuffer) ? S.migrationPuffer : []).filter(function(item) {
+    return item && item.fromDate === viewDate;
+  }).map(function(item) {
+    return '- ' + (item.text || '(leer)') + (item.note ? ' · Hinweis: ' + item.note : '');
+  });
+  addSection('Migrationshinweise', migrationLines);
+
+  var futureLines = (Array.isArray(S.futurelog) ? S.futurelog : []).filter(function(entry) {
+    return entry && !entry.done && (entry.fromDate === viewDate || entry.date === viewDate);
+  }).map(function(entry) {
+    var refs = [];
+    if (entry.date) refs.push('terminiert: ' + entry.date);
+    if (entry.fromDate) refs.push('aus: ' + entry.fromDate);
+    return '- ' + (entry.text || '(leer)') + (refs.length ? ' (' + refs.join(' · ') + ')' : '') + (entry.note ? ' · ' + entry.note : '');
+  });
+  addSection('Future-Log-Bezüge', futureLines);
+
+  var zettelLines = (Array.isArray(S.zettels) ? S.zettels : []).filter(function(zettel) {
+    return zettel && zettel.date === viewDate;
+  }).map(function(zettel) {
+    var line = '- ' + (zettel.title || '(ohne Titel)');
+    if (zettel.tags && zettel.tags.length) line += ' · #' + zettel.tags.join(' #');
+    if (zettel.body) line += '\n  ' + zettel.body;
+    return line;
+  });
+  if (zettelLines.length) addSection('Tages-Zettel', zettelLines);
+
+  return lines.join('\n').trim();
+}
+
 function getForensicScannerInput() {
   var view = getViewData();
   var lines = [];
@@ -5669,17 +5786,20 @@ function buildPipePrompt(n) {
     '## Tages-Input', scannerInput
   ].filter(function(l){ return l !== null; }).join('\n');
 
-  if (n === 3) return [
+  if (n === 3) {
+    var dailyNoteInput = getDailyNoteFullDayInput();
+    return [
     '# Daily Note Erstellung · ' + dateStr,
     '', cfg ? '## System-Kontext\n' + cfg + '\n' : null,
     getPromptTemplate(PROMPT_KEYS.PIPE_DAILY_NOTE),
     '',
-    '## Frontmatter\n```yaml\n---\ndatum: ' + today() + '\ntags: [daily-note]\nenergie: []\n---\n```',
+    '## Frontmatter\n```yaml\n---\ndatum: ' + viewDate + '\ntags: [daily-note]\nenergie: []\n---\n```',
     '',
     '## Abschnitte: Überblick · Tageslog · Aufgaben (mit Status) · Erkenntnisse · Verknüpfungen',
     '',
-    '## Tages-Input', input
-  ].filter(function(l){ return l !== null; }).join('\n');
+    '## Vollständiger Tageskontext', dailyNoteInput
+    ].filter(function(l){ return l !== null; }).join('\n');
+  }
 
   if (n === 4) return [
     '# BuJo-Fassung · ' + dateStr,
@@ -11989,6 +12109,7 @@ async function init() {
   var hd = document.getElementById('headerDate'); if (hd) hd.textContent = todayDE();
   await gistSync(); // auto two-way sync on startup (before first visible render)
   loadSettingsUI();
+  applyStandardWorkflowVisibility();
   renderCardList();
   updateBadges();
   updateDateNav();
