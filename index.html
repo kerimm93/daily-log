@@ -5656,7 +5656,10 @@ function getDailyNoteFullDayInput() {
   addSection('Rohkarten (alle)', cardLines);
 
   var feedLines = (Array.isArray(view.feedItems) ? view.feedItems : []).filter(function(item) {
-    return !!item;
+    if (!item) return false;
+    return ['source','status','loadedAt','date','title','text','body','excerpt','summary','url','link'].some(function(field) {
+      return item[field] !== undefined && item[field] !== null && String(item[field]).trim() !== '';
+    });
   }).map(function(item) {
     var meta = [];
     if (item.source) meta.push('Quelle: ' + item.source);
