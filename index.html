@@ -13,20 +13,24 @@
 @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  --bg:         #111110;
-  --bg-mid:     #161614;
-  --surface:    #1c1c1a;
-  --surface-2:  #222220;
-  --surface-3:  #2a2a27;
-  --border:     #2c2c29;
-  --border-mid: #3a3a36;
+  --bg:         #100f0d;
+  --bg-mid:     #16150f;
+  --surface:    #1b1a16;
+  --surface-2:  #222019;
+  --surface-3:  #2a2820;
+  --border:     #302d25;
+  --border-mid: #423e33;
+  --border-str: #56503f;
 
-  --ink:        #e6e4dc;
-  --ink-mid:    #9a9890;
-  --ink-dim:    #4e4c46;
+  --ink:        #efece1;
+  --ink-mid:    #b3afa2;
+  --ink-soft:   #807c70;
+  --ink-dim:    #5a5648;
 
-  --accent:     #c4b48e;
-  --accent-dim: #6e6248;
+  --accent:     #cdbb8f;
+  --accent-2:   #d9c89c;
+  --accent-dim: #7d7050;
+  --accent-bg:  rgba(205,187,143,0.10);
   --green:      #6a9870;
   --green-bg:   rgba(106,152,112,0.08);
   --red:        #9e5a52;
@@ -45,9 +49,9 @@
 
 /* ── Light Theme ─────────────────────────────────────── */
 [data-theme="light"] {
-  --bg:         #f5f4f0;
-  --bg-mid:     #eeede8;
-  --surface:    #ffffff;
+  --bg:         #efece3;
+  --bg-mid:     #e8e4d9;
+  --surface:    #fbfaf5;
   --surface-2:  #f0efe9;
   --surface-3:  #e8e7e0;
   --border:     #d0cec5;
@@ -57,8 +61,10 @@
   --ink-mid:    #5a5850;
   --ink-dim:    #9a9890;
 
-  --accent:     #7a6840;
+  --accent:     #7c6a3e;
+  --accent-2:   #8b784b;
   --accent-dim: #b0a070;
+  --accent-bg:  rgba(124,106,62,0.10);
   --green:      #3a6e42;
   --green-bg:   rgba(58,110,66,0.10);
   --red:        #8e3a34;
@@ -86,7 +92,9 @@
   --ink-dim:    #666666;
 
   --accent:     #000000;
+  --accent-2:   #000000;
   --accent-dim: #444444;
+  --accent-bg:  transparent;
   --green:      #000000;
   --green-bg:   transparent;
   --red:        #000000;
@@ -157,12 +165,15 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--serif);
+  font-size: 0.94rem;
   min-height: 100vh;
-  line-height: 1.7;
+  line-height: 1.72;
+  text-wrap: pretty;
 }
 
 /* ── Layout ── */
-#app { max-width: 860px; margin: 0 auto; padding: 28px 18px 80px; }
+#app { max-width: 1120px; margin: 0 auto; padding: 28px 24px 88px; }
+.app-shell { display: block; }
 
 /* ── Header ── */
 
@@ -1401,6 +1412,66 @@ textarea { min-height: 120px; }
   .hamburger-btn { display: none !important; }
 }
 
+
+/* ── Redesign Sprint 1: Desktop Shell / Mobile Navigation ── */
+.desktop-sidebar { display: none; }
+.sidebar-brand { padding: 24px 18px 18px; border-bottom: 1px solid var(--border); }
+.sidebar-title { font-family: var(--serif); font-weight: 600; font-size: 1.05rem; color: var(--ink); }
+.sidebar-date { font-family: var(--mono); font-size: 0.64rem; color: var(--ink-soft); margin-top: 4px; letter-spacing: 0.06em; }
+.sidebar-group { padding: 16px 10px 6px; }
+.sidebar-group-title { font-family: var(--mono); font-size: 0.56rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--ink-soft); padding: 0 10px 7px; }
+.shell-nav-btn, .bottom-nav-btn, .more-nav-btn { font-family: var(--mono); cursor: pointer; }
+.shell-nav-btn { width: 100%; min-height: 38px; display: flex; align-items: center; gap: 9px; padding: 8px 10px; border: 1px solid transparent; border-radius: var(--r); background: transparent; color: var(--ink-mid); text-align: left; font-size: 0.68rem; letter-spacing: 0.03em; }
+.shell-nav-btn:hover { background: var(--surface-2); color: var(--ink); }
+.shell-nav-btn.active { background: var(--surface-3); color: var(--ink); border-color: var(--border-mid); font-weight: 600; }
+.shell-nav-btn.active .nav-icon { color: var(--accent); }
+.nav-icon { width: 18px; text-align: center; color: var(--ink-soft); }
+.mobile-bottom-nav { display: none; }
+.mobile-more-btn { display: none; }
+.sammeln-layout { display: block; }
+.card-type-select { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
+.segmented-card-types { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.card-type-option { min-height: 44px; padding: 9px 13px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-mid); border-radius: var(--r); font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.06em; cursor: pointer; }
+.card-type-option.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-2); font-weight: 600; }
+.capture-section textarea { min-height: 152px; font-size: 0.98rem; }
+.sammeln-side { display: grid; gap: 12px; align-content: start; }
+.day-status-card { padding: 14px; }
+.day-status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.day-stat { border: 1px solid var(--border); border-radius: var(--r); background: var(--bg-mid); padding: 9px; }
+.day-stat-value { font-family: var(--mono); font-size: 1.05rem; color: var(--ink); line-height: 1.1; }
+.day-stat-label { font-family: var(--mono); font-size: 0.55rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); margin-top: 3px; }
+.compact-action-card p { font-size: 0.82rem !important; line-height: 1.55 !important; margin-bottom: 10px !important; }
+.mobile-day-status { display: none; font-family: var(--mono); font-size: 0.62rem; color: var(--ink-soft); gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+@media (min-width: 900px) {
+  body { overflow-x: hidden; }
+  .app-shell { display: flex; align-items: flex-start; min-height: 100vh; }
+  .desktop-sidebar { display: block; position: sticky; top: 0; width: 218px; height: 100vh; overflow-y: auto; flex: 0 0 218px; background: var(--bg-mid); border-right: 1px solid var(--border); }
+  #app { flex: 1; max-width: none; min-width: 0; padding: 32px 44px 88px; }
+  .tabs { display: none; }
+  .app-header { align-items: center; }
+  .app-title { display: none; }
+  .sammeln-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 20px; align-items: start; }
+}
+@media (max-width: 680px) {
+  body { padding-bottom: calc(68px + env(safe-area-inset-bottom)); overflow-x: hidden; }
+  #app { max-width: 400px; padding: 14px 14px 88px; }
+  .mobile-bottom-nav { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 180; background: var(--bg-mid); border-top: 1px solid var(--border); padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); }
+  .bottom-nav-btn { min-height: 48px; border: none; background: transparent; color: var(--ink-soft); font-size: 0.58rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+  .bottom-nav-btn.active { color: var(--accent); font-weight: 600; }
+  .mobile-more-btn { display: inline-flex; }
+  .mobile-day-status { display: flex; }
+  .section { padding: 15px 14px; }
+  .card-header { flex-wrap: wrap; }
+  .card-preview { flex-basis: 100%; white-space: normal; }
+  .btn, .card-type-option { min-height: 44px; }
+}
+[data-theme="eink"] .shell-nav-btn.active,
+[data-theme="eink"] .bottom-nav-btn.active,
+[data-theme="eink"] .card-type-option.active { background: var(--ink) !important; color: var(--surface) !important; border-color: var(--ink) !important; }
+[data-theme="eink"] .desktop-sidebar,
+[data-theme="eink"] .mobile-bottom-nav,
+[data-theme="eink"] .day-stat { background: var(--surface) !important; }
+
 /* ── Select type dropdown ── */
 select {
   background: var(--bg-mid);
@@ -1455,6 +1526,30 @@ select:focus { outline: none; border-color: var(--border-mid); }
 </style>
 </head>
 <body>
+<div class="app-shell">
+  <aside class="desktop-sidebar" aria-label="Hauptnavigation">
+    <div class="sidebar-brand"><div class="sidebar-title">Daily Log</div><div class="sidebar-date" id="sidebarDateLabel">Heute</div></div>
+    <nav>
+      <div class="sidebar-group"><div class="sidebar-group-title">Täglich</div>
+        <button class="shell-nav-btn active" id="snav-sammeln" onclick="switchTab('sammeln')"><span class="nav-icon">＋</span>Sammeln <span class="nav-drawer-badge" id="sbadge-karten">0</span></button>
+        <button class="shell-nav-btn" id="snav-objekte" onclick="switchTab('objekte')"><span class="nav-icon">⬡</span>Objekte <span class="nav-drawer-badge" id="sbadge-objekte">0</span></button>
+        <button class="shell-nav-btn" id="snav-futurelog" onclick="switchTab('futurelog')"><span class="nav-icon">◂</span>Future Log <span class="nav-drawer-badge" id="sbadge-fl" style="display:none">0</span></button>
+        <button class="shell-nav-btn" id="snav-verlauf" onclick="switchTab('verlauf')"><span class="nav-icon">◷</span>Verlauf</button>
+        <button class="shell-nav-btn" id="snav-abschluss" onclick="switchTab('abschluss')"><span class="nav-icon">◆</span>Abschluss <span class="nav-drawer-badge" id="sbadge-review" style="display:none">!</span></button>
+      </div>
+      <div class="sidebar-group"><div class="sidebar-group-title">Woche / Verlauf</div>
+        <button class="shell-nav-btn" id="snav-review" onclick="switchTab('review')"><span class="nav-icon">✓</span>Review</button>
+        <button class="shell-nav-btn" id="snav-kollektionen" onclick="switchTab('kollektionen')"><span class="nav-icon">⬡</span>Kollektionen <span class="nav-drawer-badge" id="sbadge-kollektionen" style="display:none">0</span></button>
+        <button class="shell-nav-btn" id="snav-kontexte" onclick="switchTab('kontexte')"><span class="nav-icon">@</span>Kontexte</button>
+      </div>
+      <div class="sidebar-group"><div class="sidebar-group-title">Werkzeuge</div>
+        <button class="shell-nav-btn" id="snav-plan" onclick="switchTab('plan')"><span class="nav-icon">□</span>Plan</button>
+        <button class="shell-nav-btn" id="snav-zettel" onclick="switchTab('zettel')"><span class="nav-icon">✎</span>Zettel <span class="nav-drawer-badge" id="sbadge-zettel" style="display:none">0</span></button>
+        <button class="shell-nav-btn" id="snav-feed" onclick="switchTab('feed')"><span class="nav-icon">☰</span>Feed <span class="nav-drawer-badge" id="sbadge-feed" style="display:none">0</span></button>
+        <button class="shell-nav-btn" onclick="openModal('settingsModal')"><span class="nav-icon">⚙</span>Settings / Backup / Sync</button>
+      </div>
+    </nav>
+  </aside>
 <div id="app">
 
   <!-- Header -->
@@ -1474,6 +1569,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
     </div>
     <div class="header-right">
       <button class="btn btn-sm btn-ghost" onclick="openSearchModal()" id="btnSearch">⌕ Suche</button>
+      <button class="btn btn-sm btn-ghost mobile-more-btn" onclick="openNavDrawer()">Mehr</button>
       <button class="btn btn-sm btn-ghost" onclick="openModal('settingsModal')">⚙ Einstellungen</button>
     </div>
   </header>
@@ -1511,19 +1607,25 @@ select:focus { outline: none; border-color: var(--border-mid); }
   <!-- Tab: Sammeln                               -->
   <!-- ══════════════════════════════════════════ -->
   <div id="panel-sammeln" class="panel active">
-
+    <div class="mobile-day-status" id="mobileDayStatus"><span>Karten 0</span><span>Objekte 0</span><span>Abschluss offen</span></div>
+    <div class="sammeln-layout">
+      <main class="sammeln-main">
     <!-- Neue Karte hinzufügen -->
-    <div class="section">
+    <div class="section capture-section">
       <div class="section-title">Neue Karte hinzufügen</div>
 
-      <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; align-items:center">
-        <label style="margin:0; white-space:nowrap">Typ:</label>
-        <select id="newCardType">
-          <option value="log">📋 Getippter Log</option>
-          <option value="voice">🎙 Voice-Memo-Export</option>
-          <option value="email">✉ E-Mail-Report</option>
-          <option value="free">📝 Freier Text</option>
-        </select>
+      <label>Kartentyp</label>
+      <select id="newCardType" class="card-type-select" aria-hidden="true" tabindex="-1">
+        <option value="log">📋 Getippter Log</option>
+        <option value="voice">🎙 Voice-Memo-Export</option>
+        <option value="email">✉ E-Mail-Report</option>
+        <option value="free">📝 Freier Text</option>
+      </select>
+      <div class="segmented-card-types" role="radiogroup" aria-label="Kartentyp">
+        <button type="button" class="card-type-option active" data-card-type="log" onclick="setNewCardType('log')">LOG</button>
+        <button type="button" class="card-type-option" data-card-type="voice" onclick="setNewCardType('voice')">VOICE</button>
+        <button type="button" class="card-type-option" data-card-type="email" onclick="setNewCardType('email')">MAIL</button>
+        <button type="button" class="card-type-option" data-card-type="free" onclick="setNewCardType('free')">TEXT</button>
       </div>
 
       <textarea id="newCardText" placeholder="Inhalt hier einfügen – Zeitstempel-Bullets, Voice-Memo-Obsidian-Export, E-Mail-Report, oder freier Text..."></textarea>
@@ -1548,8 +1650,31 @@ select:focus { outline: none; border-color: var(--border-mid); }
       <div style="margin-top:6px; font-family:var(--mono); font-size:0.62rem; color:var(--ink-dim)">Liest .md/.txt lokal ein und fügt sie in das Kartenfeld ein.</div>
     </div>
 
+    <!-- Karten-Liste -->
+    <div class="section">
+      <div class="section-title">
+        Heutige Karten
+        <span style="margin-left:auto; font-family:var(--mono); font-size:0.6rem; color:var(--ink-dim)" id="kartenMeta"></span>
+      </div>
+      <div id="cardList" class="card-list">
+        <div class="empty-state">Noch keine Karten für heute.</div>
+      </div>
+    </div>
+
+      </main>
+      <aside class="sammeln-side">
+    <div class="section day-status-card">
+      <div class="section-title">Tagesstatus</div>
+      <div class="day-status-grid">
+        <div class="day-stat"><div class="day-stat-value" id="statCards">0</div><div class="day-stat-label">Karten</div></div>
+        <div class="day-stat"><div class="day-stat-value" id="statUnprocessed">0</div><div class="day-stat-label">offen</div></div>
+        <div class="day-stat"><div class="day-stat-value" id="statObjects">0</div><div class="day-stat-label">Objekte</div></div>
+        <div class="day-stat"><div class="day-stat-value" id="statClose">offen</div><div class="day-stat-label">Abschluss</div></div>
+      </div>
+    </div>
+
     <!-- Morning Briefing -->
-    <div class="section" style="border-color: var(--border-mid)">
+    <div class="section compact-action-card" style="border-color: var(--border-mid)">
       <div class="section-title">☀ Morning Briefing</div>
       <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:12px">
         Generiert einen Prompt der den bisherigen Tag und die Woche zusammenfasst — für einen schnellen Tagesstart-Chat. Das Ergebnis kannst du als Karte importieren.
@@ -1561,7 +1686,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
     </div>
 
     <!-- Co-Pilot -->
-    <div class="section" id="copilotSection" style="border-color: var(--accent-dim)">
+    <div class="section compact-action-card" id="copilotSection" style="border-color: var(--accent-dim)">
       <div class="section-title">Co-Pilot · Fokus-Modus</div>
       <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:12px">
         Generiert einen Prompt mit dem bisherigen Tag als Kontext — für einen begleitenden Chat der dich durch einen Fokus-Block führt. Den Abschlussbericht importierst du danach als neue Karte.
@@ -1572,15 +1697,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
       </div>
     </div>
 
-    <!-- Karten-Liste -->
-    <div class="section">
-      <div class="section-title">
-        Heutige Karten
-        <span style="margin-left:auto; font-family:var(--mono); font-size:0.6rem; color:var(--ink-dim)" id="kartenMeta"></span>
-      </div>
-      <div id="cardList" class="card-list">
-        <div class="empty-state">Noch keine Karten für heute.</div>
-      </div>
+      </aside>
     </div>
 
   </div>
@@ -3539,7 +3656,7 @@ function filterDeleted(arr) {
   return arr.filter(function(item) { return !isDeleted(item.id); });
 }
 function applyStandardWorkflowVisibility() {
-  ['tab-feed', 'dnav-feed'].forEach(function(id) {
+  ['tab-feed', 'dnav-feed', 'snav-feed'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.style.display = DAILYLOG_SHOW_FEED_TAB ? '' : 'none';
   });
@@ -3582,7 +3699,18 @@ function switchTab(name) {
 document.addEventListener('DOMContentLoaded', function() {
   var ta = document.getElementById('newCardText');
   if (ta) ta.addEventListener('input', updateNewCardMeta);
+  setNewCardType((document.getElementById('newCardType') || {}).value || 'log');
 });
+
+function setNewCardType(type) {
+  var select = document.getElementById('newCardType');
+  if (select) select.value = type;
+  Array.prototype.forEach.call(document.querySelectorAll('.card-type-option'), function(btn) {
+    var active = btn.getAttribute('data-card-type') === type;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
 
 function updateNewCardMeta() {
   var text = document.getElementById('newCardText').value;
@@ -3590,8 +3718,10 @@ function updateNewCardMeta() {
   var lines = text.trim() ? text.split('\n').filter(function(l){ return l.trim(); }).length : 0;
   var wc = document.getElementById('newCardWordCount');
   var lc = document.getElementById('newCardLines');
-  if (wc) wc.textContent = words + ' Wörter';
-  wc.className = words > 0 ? 'lit' : '';
+  if (wc) {
+    wc.textContent = words + ' Wörter';
+    wc.className = words > 0 ? 'lit' : '';
+  }
   if (lc) lc.textContent = lines + ' Zeilen';
 }
 
@@ -5587,9 +5717,34 @@ function updateBadges() {
   var bk = document.getElementById('badge-karten');
   var bo = document.getElementById('badge-objekte');
   var vd = getViewData();
-  if (bk) bk.textContent = (vd.cards || []).length;
+  var cardCount = (vd.cards || []).length;
+  if (bk) bk.textContent = cardCount;
   var activeObjs = (vd.objects || []).filter(function(o){ return !o.dismissed; }).length;
   if (bo) bo.textContent = activeObjs;
+  updateSammelnStatus();
+}
+
+function setTextIfPresent(id, text) {
+  var el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+function updateSammelnStatus() {
+  var vd = getViewData();
+  var cards = vd.cards || [];
+  var unprocessed = cards.filter(function(c){ return !c.processed; }).length;
+  var activeObjs = (vd.objects || []).filter(function(o){ return !o.dismissed; }).length;
+  var closeDone = vd.reviewDone ? 'fertig' : 'offen';
+  setTextIfPresent('statCards', cards.length);
+  setTextIfPresent('statUnprocessed', unprocessed);
+  setTextIfPresent('statObjects', activeObjs);
+  setTextIfPresent('statClose', closeDone);
+  var mobile = document.getElementById('mobileDayStatus');
+  if (mobile) {
+    mobile.innerHTML = '<span>Karten ' + cards.length + '</span><span>Offen ' + unprocessed + '</span><span>Objekte ' + activeObjs + '</span><span>Abschluss ' + closeDone + '</span>';
+  }
+  setTextIfPresent('sbadge-karten', cards.length);
+  setTextIfPresent('sbadge-objekte', activeObjs);
 }
 
 // ════════════════════════════════════════════════
@@ -8704,6 +8859,8 @@ function updateReviewBadge() {
     badge.style.display = open.length > 0 ? 'inline-flex' : 'none';
     badge.textContent = open.length;
   }
+  syncBadge('badge-review', 'dbadge-review');
+  syncBadge('badge-review', 'sbadge-review');
   // Update abschluss banner
   renderAbschlussBanner();
 }
@@ -8857,6 +9014,8 @@ function updateFLBadge() {
     badge.style.display = total > 0 ? 'inline-flex' : 'none';
     badge.textContent = total;
   }
+  syncBadge('badge-fl', 'dbadge-fl');
+  syncBadge('badge-fl', 'sbadge-fl');
 }
 
 function renderFutureLog() {
@@ -11728,24 +11887,30 @@ function updateDrawerActive(name) {
   currentTab = name;
   var tabs = ['sammeln','feed','objekte','plan','review','abschluss','futurelog','kontexte','zettel','kollektionen','verlauf'];
   tabs.forEach(function(t) {
-    var el = document.getElementById('dnav-' + t);
-    if (el) el.classList.toggle('active', t === name);
+    ['dnav-', 'snav-', 'mnav-'].forEach(function(prefix) {
+      var el = document.getElementById(prefix + t);
+      if (el) el.classList.toggle('active', t === name);
+    });
   });
 }
 
+function syncBadge(sourceId, targetId) {
+  var src = document.getElementById(sourceId);
+  var dst = document.getElementById(targetId);
+  if (src && dst) { dst.style.display = src.style.display; dst.textContent = src.textContent; }
+}
+
 function syncDrawerBadges() {
-  // Sync feed badge
-  var fb = document.getElementById('badge-feed');
-  var dfb = document.getElementById('dbadge-feed');
-  if (fb && dfb) { dfb.style.display = fb.style.display; dfb.textContent = fb.textContent; }
-  // Sync FL badge
-  var flb = document.getElementById('badge-fl');
-  var dflb = document.getElementById('dbadge-fl');
-  if (flb && dflb) { dflb.style.display = flb.style.display; dflb.textContent = flb.textContent; }
-  // Sync zettel badge
-  var zb = document.getElementById('badge-zettel');
-  var dzb = document.getElementById('dbadge-zettel');
-  if (zb && dzb) { dzb.style.display = zb.style.display; dzb.textContent = zb.textContent; }
+  syncBadge('badge-feed', 'dbadge-feed');
+  syncBadge('badge-feed', 'sbadge-feed');
+  syncBadge('badge-fl', 'dbadge-fl');
+  syncBadge('badge-fl', 'sbadge-fl');
+  syncBadge('badge-zettel', 'dbadge-zettel');
+  syncBadge('badge-zettel', 'sbadge-zettel');
+  syncBadge('badge-review', 'dbadge-review');
+  syncBadge('badge-review', 'sbadge-review');
+  syncBadge('badge-kollektionen', 'sbadge-kollektionen');
+  updateSammelnStatus();
 }
 
 
@@ -11861,6 +12026,7 @@ function updateBadgesForView() {
   // Objekte badge
   var ob = document.getElementById('badge-objekte');
   if (ob) ob.textContent = (data.objects||[]).filter(function(o){ return !o.parentId && !o.dismissed; }).length;
+  updateSammelnStatus();
 }
 
 
@@ -12154,6 +12320,16 @@ if ('serviceWorker' in navigator) {
 </script>
 
 <!-- Nav Drawer (Mobile) -->
+</div>
+
+<nav class="mobile-bottom-nav" aria-label="Hauptnavigation mobil">
+  <button class="bottom-nav-btn active" id="mnav-sammeln" onclick="switchTab('sammeln')"><span>＋</span><span>Sammeln</span></button>
+  <button class="bottom-nav-btn" id="mnav-objekte" onclick="switchTab('objekte')"><span>⬡</span><span>Objekte</span></button>
+  <button class="bottom-nav-btn" id="mnav-futurelog" onclick="switchTab('futurelog')"><span>◂</span><span>Future</span></button>
+  <button class="bottom-nav-btn" id="mnav-verlauf" onclick="switchTab('verlauf')"><span>◷</span><span>Verlauf</span></button>
+  <button class="bottom-nav-btn" id="mnav-abschluss" onclick="switchTab('abschluss')"><span>◆</span><span>Abschluss</span></button>
+</nav>
+
 <div class="nav-overlay" id="navOverlay" onclick="closeNavDrawer()"></div>
 <div class="nav-drawer" id="navDrawer">
   <div class="nav-drawer-header">
@@ -12168,7 +12344,7 @@ if ('serviceWorker' in navigator) {
     <button class="nav-drawer-item" id="dnav-objekte" onclick="drawerNav('objekte')">⬡ Objekte</button>
     <button class="nav-drawer-item" id="dnav-plan" onclick="drawerNav('plan')">📅 Plan</button>
     <button class="nav-drawer-item" id="dnav-review" onclick="drawerNav('review')">✓ Review</button>
-    <button class="nav-drawer-item" id="dnav-abschluss" onclick="drawerNav('abschluss')">◆ Abschluss</button>
+    <button class="nav-drawer-item" id="dnav-abschluss" onclick="drawerNav('abschluss')">◆ Abschluss <span class="nav-drawer-badge" id="dbadge-review" style="display:none">!</span></button>
     <button class="nav-drawer-item" id="dnav-futurelog" onclick="drawerNav('futurelog')">
       ◂ Future Log <span class="nav-drawer-badge" id="dbadge-fl" style="display:none">0</span>
     </button>
