@@ -472,19 +472,20 @@ textarea { min-height: 120px; }
 }
 
 /* ── Objects ── */
-.obj-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.obj-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 
 .obj-item {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 10px;
+  padding: 12px 14px;
   border-radius: var(--r);
   border: 1px solid var(--border);
   background: var(--bg-mid);
-  transition: border-color .12s;
+  transition: border-color .12s, background .12s;
 }
-.obj-item.dismissed { opacity: 0.35; }
+.obj-item:hover, .obj-item:focus-within { border-color: var(--border-mid); background: var(--surface-2); }
+.obj-item.dismissed { opacity: 0.48; }
 
 .obj-icon {
   font-size: 0.85rem;
@@ -506,7 +507,26 @@ textarea { min-height: 120px; }
   color: var(--ink-dim);
   margin-top: 2px;
 }
-.obj-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.obj-actions { display: flex; gap: 4px; flex-shrink: 0; opacity: 0; transition: opacity .12s; }
+.obj-item:hover .obj-actions,
+.obj-item:focus-within .obj-actions,
+.obj-item.expanded .obj-actions,
+.obj-item.selected-for-prompt .obj-actions { opacity: 1; }
+.obj-meta-row, .obj-tag-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.obj-meta-row { margin-top: 6px; }
+.obj-tag-row { margin-top: 7px; }
+.obj-quick-actions { display: inline-flex; gap: 4px; align-items: center; opacity: 0; transition: opacity .12s; }
+.obj-item:hover .obj-quick-actions, .obj-item:focus-within .obj-quick-actions, .obj-item.expanded .obj-quick-actions { opacity: 1; }
+.obj-review-badge, .obj-import-badge { font-family: var(--mono); font-size: 0.58rem; border-radius: 999px; padding: 2px 7px; }
+.obj-review-badge { color: var(--orange); border: 1px solid var(--orange); background: var(--orange-bg); }
+.obj-import-badge { color: var(--ink-dim); border: 1px solid var(--border-mid); }
+
+@media (hover: none) {
+  .obj-actions,
+  .obj-quick-actions {
+    opacity: 1;
+  }
+}
 
 .obj-type-label {
   font-family: var(--mono);
@@ -537,6 +557,18 @@ textarea { min-height: 120px; }
   border: 1px solid var(--border);
   border-radius: var(--r);
   margin-top: 12px;
+  overflow: hidden;
+}
+.extract-steps {
+  font-family: var(--serif);
+  font-size: 0.88rem;
+  color: var(--ink-mid);
+  line-height: 1.7;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface-2);
 }
 .prompt-block-header {
   display: flex;
@@ -613,15 +645,22 @@ textarea { min-height: 120px; }
   gap: 8px;
   flex-wrap: wrap;
   margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
 }
 .obj-count {
   font-family: var(--mono);
   font-size: 0.64rem;
-  padding: 4px 9px;
-  border-radius: 3px;
+  padding: 6px 11px;
+  border-radius: 999px;
   border: 1px solid var(--border);
   color: var(--ink-dim);
+  background: var(--surface);
 }
+.obj-count.active { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); font-weight: 600; }
+.obj-controls { padding: 10px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface); }
+.obj-controls::before { content: 'Ansicht'; font-family: var(--mono); font-size: 0.56rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); margin-right: 2px; }
+.obj-facet-filters { padding: 10px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface); }
 
 /* ── Notice ── */
 .notice {
@@ -1464,6 +1503,12 @@ textarea { min-height: 120px; }
   .card-header { flex-wrap: wrap; }
   .card-preview { flex-basis: 100%; white-space: normal; }
   .btn, .card-type-option { min-height: 44px; }
+  .obj-summary, .obj-controls, .obj-facet-row { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .obj-count, .sort-btn, .ctx-pill { white-space: nowrap; }
+  .obj-item { padding: 12px; gap: 8px; }
+  .obj-actions, .obj-quick-actions { opacity: 1; }
+  .obj-actions { flex-direction: column; }
+  .sel-toolbar { bottom: 76px; }
 }
 [data-theme="eink"] .shell-nav-btn.active,
 [data-theme="eink"] .bottom-nav-btn.active,
@@ -1783,8 +1828,8 @@ select:focus { outline: none; border-color: var(--border-mid); }
       <!-- Selection toolbar -->
       <div class="sel-toolbar" id="selToolbar">
         <span class="sel-count" id="selCount">0 ausgewählt</span>
-        <button class="btn btn-sm btn-ghost" onclick="selectAllObjs()">Alle</button>
-        <button class="btn btn-sm btn-ghost" onclick="selectNoneObjs()">Keine</button>
+        <button class="btn btn-sm btn-ghost" onclick="selectAllObjs()">Alle sichtbaren auswählen</button>
+        <button class="btn btn-sm btn-ghost" onclick="selectNoneObjs()">Auswahl leeren</button>
         <div style="flex:1"></div>
         <button class="btn btn-primary btn-sm" onclick="openSelPromptModal()">→ In Prompt einbetten</button>
         <button class="btn btn-sm btn-ghost" onclick="openCollectionReviewModal()">⇄ Mit Kollektionen abgleichen</button>
@@ -2456,11 +2501,12 @@ select:focus { outline: none; border-color: var(--border-mid); }
 <div class="modal-bg hidden" id="extractModal">
   <div class="modal-box">
     <div class="modal-title">Objekte extrahieren</div>
-    <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
-      1. Kopiere den Prompt unten in ChatGPT oder Claude.<br>
-      2. Füge das JSON-Ergebnis in das Feld darunter ein.<br>
-      3. Klicke "Objekte importieren".
-    </p>
+    <div class="extract-steps">
+      <strong>Eingabe → Aktion → Ergebnis:</strong><br>
+      1. Prompt kopieren oder direkte KI-Extraktion nutzen.<br>
+      2. JSON-Ergebnis unverändert in das Ergebnisfeld einfügen.<br>
+      3. Bestehenden Import mit „Objekte importieren“ abschließen.
+    </div>
 
     <div class="prompt-block" id="extractPromptBlock">
       <div class="prompt-block-header">
@@ -5117,14 +5163,10 @@ function renderObjectListForDate() {
   var counts = {};
   active.forEach(function(o){ counts[o.typ] = (counts[o.typ]||0) + 1; });
   var summaryEl = document.getElementById('objSummary');
-  var allPill = '<span class="obj-count" style="cursor:pointer;' +
-    (activeObjFilter === null ? 'border-color:var(--accent);color:var(--accent)' : '') +
-    '" onclick="setObjFilter(null)">alle · ' + active.length + '</span>';
+  var allPill = '<span class="obj-count' + (activeObjFilter === null ? ' active' : '') + '" style="cursor:pointer" onclick="setObjFilter(null)">Alle · ' + active.length + '</span>';
   var typePills = Object.keys(counts).map(function(k) {
     var isActive = activeObjFilter === k;
-    return '<span class="obj-count t-' + k + '" style="cursor:pointer;' +
-      (isActive ? 'opacity:1;box-shadow:0 0 0 1px currentColor' : 'opacity:0.7') +
-      '" onclick="setObjFilter(\'' + k + '\')">' +
+    return '<span class="obj-count t-' + k + (isActive ? ' active' : '') + '" style="cursor:pointer" onclick="setObjFilter(\'' + k + '\')">' +
       (OBJ_ICONS[k]||'·') + ' ' + k + ' · ' + counts[k] + '</span>';
   }).join('');
   summaryEl.innerHTML = allPill + typePills;
@@ -5202,10 +5244,10 @@ function renderObjItem(obj, depth) {
     ? '<button class="btn btn-sm btn-ghost" style="font-size:0.58rem;padding:2px 6px;min-height:20px;opacity:0.5" onclick="toggleObjSource(\'' + obj.id + '\')" title="Quelle anzeigen/ausblenden">\u00b6 Quelle</button>'
     : '';
   var reviewBadge = obj.needsReview
-    ? '<span style="font-family:var(--mono);font-size:0.58rem;color:var(--orange);border:1px solid var(--orange);border-radius:3px;padding:1px 5px">pr\u00fcfen</span>'
+    ? '<span class="obj-review-badge">pr\u00fcfen</span>'
     : '';
   var importedDoneBadge = (obj.typ === 'aufgabe' && obj.source && obj.source.completionOrigin === 'import')
-    ? '<span style="font-family:var(--mono);font-size:0.58rem;color:var(--ink-dim);border:1px solid var(--border-mid);border-radius:3px;padding:1px 5px">Import</span>'
+    ? '<span class="obj-import-badge">Import</span>'
     : '';
 
   var selClass = selMode ? ' selectable' + (selectedObjIds[obj.id] ? ' selected-for-prompt' : '') : '';
@@ -5220,7 +5262,7 @@ function renderObjItem(obj, depth) {
       '<input class="obj-main-input" id="' + mainInputId + '" type="text" value="' + esc(obj.text) + '"' +
         ' onblur="saveEditMain(\'' + obj.id + '\')" onkeydown="mainInputKey(event,\'' + obj.id + '\')">' +
       // Meta row
-      '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px">' +
+      '<div class="obj-meta-row">' +
         '<span class="obj-type-label t-' + obj.typ + '">' + obj.typ + '</span>' +
         (obj.zeit ? '<span class="obj-meta">' + esc(obj.zeit) + '</span>' : '') +
         statusChip(obj.status) +
@@ -5235,9 +5277,11 @@ function renderObjItem(obj, depth) {
         ((obj.signifiers && obj.signifiers.includes('!')) ? '<span style="color:var(--purple);font-family:var(--mono);font-size:0.7rem">!</span>' : '') +
         reviewBadge +
         importedDoneBadge +
-        srcToggle +
-        '<button class="btn btn-sm btn-ghost" style="font-size:0.58rem;padding:2px 6px;min-height:20px;opacity:0.5" onclick="openKolAssignModal(\'' + obj.id + '\')" title="Kollektion zuweisen">⬡</button>' +
-        '<button class="btn btn-sm btn-ghost" style="font-size:0.58rem;padding:2px 6px;min-height:20px;opacity:0.5" onclick="toggleExpand(\'' + obj.id + '\')" title="Ergänzung hinzufügen">+ Ergänzung</button>' +
+        '<span class="obj-quick-actions">' +
+          srcToggle +
+          '<button class="btn btn-sm btn-ghost" style="font-size:0.58rem;padding:2px 6px;min-height:20px" onclick="openKolAssignModal(\'' + obj.id + '\')" title="Kollektion zuweisen">⬡</button>' +
+          '<button class="btn btn-sm btn-ghost" style="font-size:0.58rem;padding:2px 6px;min-height:20px" onclick="toggleExpand(\'' + obj.id + '\')" title="Ergänzung hinzufügen">+ Ergänzung</button>' +
+        '</span>' +
       '</div>' +
       sourcePanel +
       // Status row for aufgaben only
