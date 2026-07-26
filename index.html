@@ -639,6 +639,153 @@ textarea { min-height: 120px; }
 .pipe-step.done { color: var(--green); }
 .pipe-icon { display: block; font-size: 0.85rem; margin-bottom: 1px; }
 
+/* ── Abschluss: focused two-output workflow ── */
+#panel-abschluss .close-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 14px;
+}
+#panel-abschluss .close-eyebrow,
+#panel-abschluss .close-step-kicker {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+#panel-abschluss .close-title {
+  margin-top: 4px;
+  font-family: var(--serif);
+  font-size: clamp(1.35rem, 3vw, 1.75rem);
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--ink);
+}
+#panel-abschluss .close-intro {
+  max-width: 620px;
+  margin-top: 6px;
+  color: var(--ink-mid);
+  font-family: var(--serif);
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+#panel-abschluss .close-route-status {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border: 1px solid var(--border-mid);
+  border-radius: 999px;
+  color: var(--ink-mid);
+  background: var(--surface);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  white-space: nowrap;
+}
+#panel-abschluss .pipeline-nav {
+  max-width: 620px;
+  margin-bottom: 16px;
+  background: var(--surface);
+}
+#panel-abschluss .pipe-step {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 0.68rem;
+  overflow: visible;
+}
+#panel-abschluss .pipe-step.active {
+  box-shadow: inset 0 -2px 0 var(--accent);
+  font-weight: 500;
+}
+#panel-abschluss .pipe-icon { display: inline; margin: 0; }
+#panel-abschluss .close-card { padding: 22px; }
+#panel-abschluss .close-card-primary { border-color: var(--accent-dim); }
+#panel-abschluss .close-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+#panel-abschluss .close-card-title {
+  font-family: var(--serif);
+  color: var(--ink);
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+#panel-abschluss .close-card-badge {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--accent);
+  border: 1px solid var(--accent-dim);
+  border-radius: 999px;
+  padding: 4px 8px;
+}
+#panel-abschluss .close-description {
+  max-width: 680px;
+  margin-bottom: 16px;
+  color: var(--ink-mid);
+  font-family: var(--serif);
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+#panel-abschluss .close-primary-action {
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 0.7rem;
+}
+#panel-abschluss .prompt-block { margin-top: 16px; }
+#panel-abschluss .prompt-block-header { min-height: 44px; gap: 12px; }
+#panel-abschluss .prompt-block pre {
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  max-height: min(48vh, 480px);
+}
+#panel-abschluss .close-output-actions {
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+#panel-abschluss .close-direct-note {
+  margin-top: 14px;
+  color: var(--ink-mid);
+  font-family: var(--serif);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+#panel-abschluss .close-output-actions .btn { min-height: 44px; }
+#panel-abschluss .close-finish-actions {
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 4px;
+}
+#panel-abschluss #legacyPipeActions {
+  border-style: dashed;
+  background: var(--bg-mid);
+  opacity: 0.82;
+}
+
+@media (max-width: 600px) {
+  #panel-abschluss .close-header { display: block; }
+  #panel-abschluss .close-route-status { display: inline-block; margin-top: 12px; }
+  #panel-abschluss .pipeline-nav { margin-bottom: 12px; }
+  #panel-abschluss .pipe-step { min-width: 0; min-height: 48px; padding: 9px 7px; font-size: 0.62rem; }
+  #panel-abschluss .close-card { padding: 16px 14px; }
+  #panel-abschluss .close-card-heading { align-items: flex-start; }
+  #panel-abschluss .close-primary-action,
+  #panel-abschluss .close-output-actions .btn,
+  #panel-abschluss .close-finish-actions .btn { width: 100%; min-height: 44px; }
+  #panel-abschluss .close-output-actions,
+  #panel-abschluss .close-finish-actions { flex-direction: column; align-items: stretch; }
+  #panel-abschluss .prompt-block-header .btn { min-height: 40px; }
+  #panel-abschluss .prompt-block pre { padding: 12px; font-size: 0.7rem; }
+}
+
 /* ── Objects Summary ── */
 .obj-summary {
   display: flex;
@@ -1875,8 +2022,17 @@ select:focus { outline: none; border-color: var(--border-mid); }
 
     <div class="review-done-banner" id="reviewDoneBanner" style="display:none"></div>
 
+    <header class="close-header">
+      <div>
+        <div class="close-eyebrow">Tagesabschluss</div>
+        <h2 class="close-title">Den Tag in zwei Formaten sichern</h2>
+        <p class="close-intro">Erstelle zuerst die vollständige Daily Note und danach bei Bedarf die kompakte BuJo-Fassung.</p>
+      </div>
+      <div class="close-route-status" aria-label="Abschlussroute mit zwei Ausgängen">2 Ausgänge · Daily Note zuerst</div>
+    </header>
+
     <!-- Pipeline Nav -->
-    <div class="pipeline-nav">
+    <div class="pipeline-nav" aria-label="Schritte des Tagesabschlusses">
       <div class="pipe-step" id="pnav-1" onclick="goPipeStep(1)">
         <span class="pipe-icon">✓</span>Aufgaben (alt)
       </div>
@@ -1884,10 +2040,10 @@ select:focus { outline: none; border-color: var(--border-mid); }
         <span class="pipe-icon">📎</span>Scanner
       </div>
       <div class="pipe-step active" id="pnav-3" onclick="goPipeStep(3)">
-        <span class="pipe-icon">📝</span>Daily Note
+        <span class="pipe-icon" aria-hidden="true">1</span>Daily Note
       </div>
       <div class="pipe-step" id="pnav-4" onclick="goPipeStep(4)">
-        <span class="pipe-icon">◦</span>BuJo
+        <span class="pipe-icon" aria-hidden="true">2</span>BuJo
       </div>
       <div class="pipe-step" id="pnav-5" onclick="goPipeStep(5)">
         <span class="pipe-icon">⬡</span>Zettelkasten
@@ -1938,42 +2094,53 @@ select:focus { outline: none; border-color: var(--border-mid); }
 
     <!-- Schritt 3 -->
     <div id="pipe-3" class="pipe-panel">
-      <div class="section">
-        <div class="section-title">Schritt 3 · Daily Note</div>
-        <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
+      <div class="section close-card close-card-primary">
+        <div class="close-step-kicker">1 · Primärer Ausgang</div>
+        <div class="close-card-heading">
+          <div class="close-card-title">Daily Note</div>
+          <span class="close-card-badge">Empfohlen</span>
+        </div>
+        <p class="close-description">
           Vollständige, verlustfreie Daily Note im Obsidian-Markdown-Format.
         </p>
-        <button class="btn btn-primary" onclick="generatePipePrompt(3)">Prompt generieren</button>
+        <button class="btn btn-primary close-primary-action" onclick="generatePipePrompt(3)">Daily-Note-Prompt generieren</button>
         <div id="pipe-out-3" style="display:none">
           <div class="prompt-block">
             <div class="prompt-block-header">
-              <span class="prompt-block-label">Schritt 3 – Daily Note</span>
+              <span class="prompt-block-label">Daily-Note-Prompt</span>
               <button class="btn btn-sm" onclick="copyPipePrompt(3)">Kopieren</button>
             </div>
             <pre id="pipe-text-3"></pre>
           </div>
-          <div class="btn-row"><button class="btn" onclick="goPipeStep(4)">Weiter →</button></div>
+          <div class="close-direct-note">BuJo ist optional. Du kannst den Tag direkt mit der Daily Note abschließen oder zusätzlich die kompakte Fassung erstellen.</div>
+          <div class="btn-row close-output-actions">
+            <button class="btn btn-primary" onclick="finishDay()">Tag ohne BuJo abschließen</button>
+            <button class="btn" onclick="goPipeStep(4)">Weiter zu BuJo →</button>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- Schritt 4 -->
     <div id="pipe-4" class="pipe-panel" style="display:none">
-      <div class="section">
-        <div class="section-title">Schritt 4 · BuJo-Fassung</div>
-        <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
+      <div class="section close-card">
+        <div class="close-step-kicker">2 · Kompakter Ausgang</div>
+        <div class="close-card-heading">
+          <div class="close-card-title">BuJo-Fassung</div>
+        </div>
+        <p class="close-description">
           Kompakte Rapid-Logging-Version für das E-Paper-Tablet.
         </p>
-        <button class="btn btn-primary" onclick="generatePipePrompt(4)">Prompt generieren</button>
+        <button class="btn btn-primary close-primary-action" onclick="generatePipePrompt(4)">BuJo-Prompt generieren</button>
         <div id="pipe-out-4" style="display:none">
           <div class="prompt-block">
             <div class="prompt-block-header">
-              <span class="prompt-block-label">Schritt 4 – BuJo</span>
+              <span class="prompt-block-label">BuJo-Prompt</span>
               <button class="btn btn-sm" onclick="copyPipePrompt(4)">Kopieren</button>
             </div>
             <pre id="pipe-text-4"></pre>
           </div>
-          <div class="btn-row"><button class="btn btn-primary" onclick="finishDay()">Tag abschließen &amp; speichern</button></div>
+          <div class="btn-row close-finish-actions"><span class="close-step-kicker">Prompt gesichert? Dann den Tag schließen.</span><button class="btn btn-primary" onclick="finishDay()">Tag abschließen &amp; speichern</button></div>
         </div>
       </div>
     </div>
