@@ -639,6 +639,161 @@ textarea { min-height: 120px; }
 .pipe-step.done { color: var(--green); }
 .pipe-icon { display: block; font-size: 0.85rem; margin-bottom: 1px; }
 
+/* ── Abschluss: focused two-output workflow ── */
+#panel-abschluss .close-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 14px;
+}
+#panel-abschluss .close-eyebrow,
+#panel-abschluss .close-step-kicker {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+#panel-abschluss .close-title {
+  margin-top: 4px;
+  font-family: var(--serif);
+  font-size: clamp(1.35rem, 3vw, 1.75rem);
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--ink);
+}
+#panel-abschluss .close-intro {
+  max-width: 620px;
+  margin-top: 6px;
+  color: var(--ink-mid);
+  font-family: var(--serif);
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+#panel-abschluss .close-route-status {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border: 1px solid var(--border-mid);
+  border-radius: 999px;
+  color: var(--ink-mid);
+  background: var(--surface);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  white-space: nowrap;
+}
+#panel-abschluss .close-route-status.is-closed {
+  color: var(--green);
+  border-color: var(--green);
+  background: var(--green-bg);
+}
+#panel-abschluss .close-route-status.is-open {
+  color: var(--ink-mid);
+}
+#panel-abschluss .pipeline-nav {
+  max-width: 620px;
+  margin-bottom: 16px;
+  background: var(--surface);
+}
+#panel-abschluss .pipe-step {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 0.68rem;
+  overflow: visible;
+}
+#panel-abschluss .pipe-step.active {
+  box-shadow: inset 0 -2px 0 var(--accent);
+  font-weight: 500;
+}
+#panel-abschluss .pipe-icon { display: inline; margin: 0; }
+#panel-abschluss .close-card { padding: 22px; }
+#panel-abschluss .close-card-primary { border-color: var(--accent-dim); }
+#panel-abschluss .close-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+#panel-abschluss .close-card-title {
+  font-family: var(--serif);
+  color: var(--ink);
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+#panel-abschluss .close-card-badge {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--accent);
+  border: 1px solid var(--accent-dim);
+  border-radius: 999px;
+  padding: 4px 8px;
+}
+#panel-abschluss .close-description {
+  max-width: 680px;
+  margin-bottom: 16px;
+  color: var(--ink-mid);
+  font-family: var(--serif);
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+#panel-abschluss .close-primary-action {
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 0.7rem;
+}
+#panel-abschluss .prompt-block { margin-top: 16px; }
+#panel-abschluss .prompt-block-header { min-height: 44px; gap: 12px; }
+#panel-abschluss .prompt-block pre {
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  max-height: min(48vh, 480px);
+}
+#panel-abschluss .close-output-actions {
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+#panel-abschluss .close-direct-note {
+  margin-top: 14px;
+  color: var(--ink-mid);
+  font-family: var(--serif);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+#panel-abschluss .close-output-actions .btn { min-height: 44px; }
+#panel-abschluss .close-finish-actions {
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 4px;
+}
+#panel-abschluss #legacyPipeActions {
+  border-style: dashed;
+  background: var(--bg-mid);
+  opacity: 0.82;
+}
+
+@media (max-width: 600px) {
+  #panel-abschluss .close-header { display: block; }
+  #panel-abschluss .close-route-status { display: inline-block; margin-top: 12px; }
+  #panel-abschluss .pipeline-nav { margin-bottom: 12px; }
+  #panel-abschluss .pipe-step { min-width: 0; min-height: 48px; padding: 9px 7px; font-size: 0.62rem; }
+  #panel-abschluss .close-card { padding: 16px 14px; }
+  #panel-abschluss .close-card-heading { align-items: flex-start; }
+  #panel-abschluss .close-primary-action,
+  #panel-abschluss .close-output-actions .btn,
+  #panel-abschluss .close-finish-actions .btn { width: 100%; min-height: 44px; }
+  #panel-abschluss .close-output-actions,
+  #panel-abschluss .close-finish-actions { flex-direction: column; align-items: stretch; }
+  #panel-abschluss .prompt-block-header .btn { min-height: 40px; }
+  #panel-abschluss .prompt-block pre { padding: 12px; font-size: 0.7rem; }
+}
+
 /* ── Objects Summary ── */
 .obj-summary {
   display: flex;
@@ -1875,8 +2030,17 @@ select:focus { outline: none; border-color: var(--border-mid); }
 
     <div class="review-done-banner" id="reviewDoneBanner" style="display:none"></div>
 
+    <header class="close-header">
+      <div>
+        <div class="close-eyebrow">Tagesabschluss</div>
+        <h2 class="close-title">Den Tag in zwei Formaten sichern</h2>
+        <p class="close-intro">Erstelle zuerst die vollständige Daily Note und danach bei Bedarf die kompakte BuJo-Fassung.</p>
+      </div>
+      <div class="close-route-status is-open" id="closeDayStatus" role="status" aria-live="polite" aria-label="Tagesstatus: Offen">· Offen</div>
+    </header>
+
     <!-- Pipeline Nav -->
-    <div class="pipeline-nav">
+    <div class="pipeline-nav" aria-label="Schritte des Tagesabschlusses">
       <div class="pipe-step" id="pnav-1" onclick="goPipeStep(1)">
         <span class="pipe-icon">✓</span>Aufgaben (alt)
       </div>
@@ -1884,10 +2048,10 @@ select:focus { outline: none; border-color: var(--border-mid); }
         <span class="pipe-icon">📎</span>Scanner
       </div>
       <div class="pipe-step active" id="pnav-3" onclick="goPipeStep(3)">
-        <span class="pipe-icon">📝</span>Daily Note
+        <span class="pipe-icon" aria-hidden="true">1</span>Daily Note
       </div>
       <div class="pipe-step" id="pnav-4" onclick="goPipeStep(4)">
-        <span class="pipe-icon">◦</span>BuJo
+        <span class="pipe-icon" aria-hidden="true">2</span>BuJo
       </div>
       <div class="pipe-step" id="pnav-5" onclick="goPipeStep(5)">
         <span class="pipe-icon">⬡</span>Zettelkasten
@@ -1938,42 +2102,53 @@ select:focus { outline: none; border-color: var(--border-mid); }
 
     <!-- Schritt 3 -->
     <div id="pipe-3" class="pipe-panel">
-      <div class="section">
-        <div class="section-title">Schritt 3 · Daily Note</div>
-        <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
+      <div class="section close-card close-card-primary">
+        <div class="close-step-kicker">1 · Primärer Ausgang</div>
+        <div class="close-card-heading">
+          <div class="close-card-title">Daily Note</div>
+          <span class="close-card-badge">Empfohlen</span>
+        </div>
+        <p class="close-description">
           Vollständige, verlustfreie Daily Note im Obsidian-Markdown-Format.
         </p>
-        <button class="btn btn-primary" onclick="generatePipePrompt(3)">Prompt generieren</button>
+        <button class="btn btn-primary close-primary-action" onclick="generatePipePrompt(3)">Daily-Note-Prompt generieren</button>
         <div id="pipe-out-3" style="display:none">
           <div class="prompt-block">
             <div class="prompt-block-header">
-              <span class="prompt-block-label">Schritt 3 – Daily Note</span>
+              <span class="prompt-block-label">Daily-Note-Prompt</span>
               <button class="btn btn-sm" onclick="copyPipePrompt(3)">Kopieren</button>
             </div>
             <pre id="pipe-text-3"></pre>
           </div>
-          <div class="btn-row"><button class="btn" onclick="goPipeStep(4)">Weiter →</button></div>
+          <div class="close-direct-note">BuJo ist optional. Du kannst den Tag direkt mit der Daily Note abschließen oder zusätzlich die kompakte Fassung erstellen.</div>
+          <div class="btn-row close-output-actions">
+            <button class="btn btn-primary" onclick="finishDay()">Tag ohne BuJo abschließen</button>
+            <button class="btn" onclick="goPipeStep(4)">Weiter zu BuJo →</button>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- Schritt 4 -->
     <div id="pipe-4" class="pipe-panel" style="display:none">
-      <div class="section">
-        <div class="section-title">Schritt 4 · BuJo-Fassung</div>
-        <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
+      <div class="section close-card">
+        <div class="close-step-kicker">2 · Kompakter Ausgang</div>
+        <div class="close-card-heading">
+          <div class="close-card-title">BuJo-Fassung</div>
+        </div>
+        <p class="close-description">
           Kompakte Rapid-Logging-Version für das E-Paper-Tablet.
         </p>
-        <button class="btn btn-primary" onclick="generatePipePrompt(4)">Prompt generieren</button>
+        <button class="btn btn-primary close-primary-action" onclick="generatePipePrompt(4)">BuJo-Prompt generieren</button>
         <div id="pipe-out-4" style="display:none">
           <div class="prompt-block">
             <div class="prompt-block-header">
-              <span class="prompt-block-label">Schritt 4 – BuJo</span>
+              <span class="prompt-block-label">BuJo-Prompt</span>
               <button class="btn btn-sm" onclick="copyPipePrompt(4)">Kopieren</button>
             </div>
             <pre id="pipe-text-4"></pre>
           </div>
-          <div class="btn-row"><button class="btn btn-primary" onclick="finishDay()">Tag abschließen &amp; speichern</button></div>
+          <div class="btn-row close-finish-actions"><span class="close-step-kicker">Prompt gesichert? Dann den Tag schließen.</span><button class="btn btn-primary" onclick="finishDay()">Tag abschließen &amp; speichern</button></div>
         </div>
       </div>
     </div>
@@ -2028,14 +2203,14 @@ select:focus { outline: none; border-color: var(--border-mid); }
         Was soll morgen bedeuten? Hauptfokus, Energie-Intention, woran du dich erinnern willst.
       </p>
       <textarea id="planIntentionen" style="min-height:80px;font-family:var(--serif);font-size:0.9rem"
-        placeholder="z.B. Morgen ist ein Aktivierungstag. Hauptfokus: Bewerbungen. Ich will früh Momentum aufbauen und den Abend für mich lassen." oninput="savePlanField()"></textarea>
+        placeholder="z.B. Morgen ist ein Aktivierungstag. Hauptfokus: Bewerbungen. Ich will früh Momentum aufbauen und den Abend für mich lassen." oninput="savePlanField('intentionen')"></textarea>
     </div>
 
     <!-- Vermeiden (optional) -->
     <div class="section">
       <div class="section-title">Vermeiden (optional)</div>
       <textarea id="planVermeiden" style="min-height:60px;font-family:var(--serif);font-size:0.9rem"
-        placeholder="z.B. Rabbit Holes, Instagram vor 18 Uhr, unnötige Tabs aufmachen…" oninput="savePlanField()"></textarea>
+        placeholder="z.B. Rabbit Holes, Instagram vor 18 Uhr, unnötige Tabs aufmachen…" oninput="savePlanField('vermeiden')"></textarea>
     </div>
 
     <!-- Aufstehzeit + Stundenplan -->
@@ -2044,11 +2219,11 @@ select:focus { outline: none; border-color: var(--border-mid); }
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
         <div style="flex:0 0 auto">
           <label>Aufstehzeit</label>
-          <input type="time" id="planAufstehzeit" value="05:00" style="font-family:var(--mono);font-size:0.82rem;padding:7px 10px;min-height:36px" oninput="savePlanField()">
+          <input type="time" id="planAufstehzeit" value="05:00" style="font-family:var(--mono);font-size:0.82rem;padding:7px 10px;min-height:36px" oninput="savePlanWakeTime()">
         </div>
         <div style="flex:1;min-width:160px">
           <label>Ort</label>
-          <select id="planOrt" style="min-height:36px;font-size:0.78rem" onchange="savePlanField()">
+          <select id="planOrt" style="min-height:36px;font-size:0.78rem" onchange="savePlanField('ort')">
             <option value="">— wählen —</option>
             <option value="Standort">Standort</option>
             <option value="Homeoffice">Homeoffice</option>
@@ -2059,7 +2234,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
       </div>
       <label>Stundenplan / Termine (Format wie gewohnt)</label>
       <textarea id="planStundenplan" style="min-height:100px;font-family:var(--mono);font-size:0.76rem;line-height:1.6"
-        placeholder="08:00–09:30 → Theorie: ITT-Net-IS&#10;09:35–11:05 → Praxis mit Lernbegleitung&#10;12:40–13:25 → Mittagspause&#10;&#10;Oder: 14:00 Arzttermin · 19:00 Lesekreis" oninput="savePlanField()"></textarea>
+        placeholder="08:00–09:30 → Theorie: ITT-Net-IS&#10;09:35–11:05 → Praxis mit Lernbegleitung&#10;12:40–13:25 → Mittagspause&#10;&#10;Oder: 14:00 Arzttermin · 19:00 Lesekreis" oninput="savePlanField('stundenplan')"></textarea>
     </div>
 
     <!-- Aufgaben für morgen -->
@@ -3738,7 +3913,7 @@ function switchTab(name) {
   if (name === 'kollektionen')  renderKollektionenTab();
   if (name === 'objekte')    renderObjectsTab();
   if (name === 'review')     renderReviewTab();
-  if (name === 'abschluss')  goPipeStep(3);
+  if (name === 'abschluss')  { goPipeStep(3); renderCloseDayStatus(); }
   if (name === 'futurelog')  renderFutureLog();
   if (name === 'verlauf')    renderHistory();
 }
@@ -4748,10 +4923,14 @@ function importObjects() {
   var detachedManualCount = detachManualDescendantsBeforeReplace(vd, replaceTree.treeIds, currentExtractCardId);
 
   // Legacy-safe replace: remove complete replaceable extraction tree (incl. legacy nodes without source.kind=extract)
+  var removedExtractionIds = [];
   vd.objects = (vd.objects || []).filter(function(o) {
     if (!previousTreeMap[o.id]) return true;
-    return isExplicitManualObject(o);
+    if (isExplicitManualObject(o)) return true;
+    removedExtractionIds.push(o.id);
+    return false;
   });
+  removedExtractionIds.forEach(function(id) { recordDeletion(id); });
 
   var added = 0;
   var insertedIds = [];
@@ -4800,7 +4979,7 @@ function importObjects() {
   console.debug('[extract/import]', {
     cardId: currentExtractCardId,
     foundOldRoots: replaceTree.rootIds.length,
-    removedOldTreeObjects: replaceTree.treeIds.length,
+    removedOldTreeObjects: removedExtractionIds.length,
     detachedManualObjects: detachedManualCount,
     insertedNewObjects: added
   });
@@ -6091,6 +6270,89 @@ function exportAllPipePrompts() {
 // ════════════════════════════════════════════════
 // Finish Day
 // ════════════════════════════════════════════════
+function getCloseDayItemFreshness(item) {
+  var updated = item && item.updatedAt ? Date.parse(item.updatedAt) : NaN;
+  if (isFinite(updated)) return updated;
+  var created = item && item.createdAt ? Date.parse(item.createdAt) : NaN;
+  return isFinite(created) ? created : null;
+}
+
+function mergeCloseDayItems(previousItems, currentItems) {
+  var merged = [];
+  var positionsById = Object.create(null);
+  function add(item, currentWins) {
+    if (!item) return;
+    var id = item.id;
+    if (id && isDeleted(id)) return;
+    if (!id) {
+      merged.push(item);
+      return;
+    }
+    if (Object.prototype.hasOwnProperty.call(positionsById, id)) {
+      var position = positionsById[id];
+      var existingFreshness = getCloseDayItemFreshness(merged[position]);
+      var candidateFreshness = getCloseDayItemFreshness(item);
+      var candidateIsNewer = candidateFreshness !== null &&
+        (existingFreshness === null || candidateFreshness > existingFreshness);
+      var currentWinsTie = currentWins && (
+        candidateFreshness === existingFreshness ||
+        (candidateFreshness === null && existingFreshness === null)
+      );
+      if (candidateIsNewer || currentWinsTie) merged[position] = item;
+      return;
+    }
+    positionsById[id] = merged.length;
+    merged.push(item);
+  }
+  (previousItems || []).forEach(function(item) { add(item, false); });
+  (currentItems || []).forEach(function(item) { add(item, true); });
+  return merged;
+}
+
+function mergeCloseDayPlan(previousPlan, currentPlan) {
+  var previous = previousPlan || {};
+  var current = currentPlan || {};
+  var merged = Object.assign({}, previous);
+  var explicitlyEdited = current.planFieldsExplicitlyEdited || {};
+  ['intentionen', 'vermeiden', 'ort', 'stundenplan'].forEach(function(key) {
+    var hasCurrentString = Object.prototype.hasOwnProperty.call(current, key) && typeof current[key] === 'string';
+    if (hasCurrentString && (explicitlyEdited[key] === true || current[key].trim())) merged[key] = current[key];
+  });
+  delete merged.planFieldsExplicitlyEdited;
+  var wakeTimeExplicit = current.aufstehzeitExplicitlyEdited === true;
+  if (current.aufstehzeit && (wakeTimeExplicit || current.aufstehzeit !== '05:00' || !previous.aufstehzeit)) {
+    merged.aufstehzeit = current.aufstehzeit;
+  }
+  delete merged.aufstehzeitExplicitlyEdited;
+  var tasksExplicitlyCleared = current.planTasksExplicitlyCleared === true;
+  var tasks = [];
+  var previousPositions = Object.create(null);
+  function taskKey(task) {
+    return task.objectId
+      ? 'object:' + task.objectId
+      : 'manual:' + (task.text || '') + '\u0000' + (task.source || '');
+  }
+  (tasksExplicitlyCleared ? [] : (previous.tasks || [])).forEach(function(task) {
+    if (!task) return;
+    var key = taskKey(task);
+    if (!previousPositions[key]) previousPositions[key] = [];
+    previousPositions[key].push(tasks.length);
+    tasks.push(task);
+  });
+  (current.tasks || []).forEach(function(task) {
+    if (!task) return;
+    var positions = previousPositions[taskKey(task)];
+    if (positions && positions.length) {
+      tasks[positions.shift()] = task;
+    } else {
+      tasks.push(task);
+    }
+  });
+  merged.tasks = tasks;
+  delete merged.planTasksExplicitlyCleared;
+  return merged;
+}
+
 function finishDay() {
   var targetDate = viewDate;          // the day we're closing
   var vd = getViewData();             // data for that day (TODAY ref or S.days ref)
@@ -6144,15 +6406,18 @@ function finishDay() {
   } else {
     // ── 2b. Today: upsert into S.days (never create a duplicate for the same date).
     var existingIdx = (S.days || []).findIndex(function(d){ return d.date === targetDate; });
-    var entry = {
-      id:         existingIdx >= 0 ? (S.days[existingIdx].id || uid()) : uid(),
+    var existingDay = existingIdx >= 0 ? S.days[existingIdx] : {};
+    var entry = Object.assign({}, existingDay, {
+      id:         existingDay.id || uid(),
       date:       targetDate,
-      cards:      JSON.parse(JSON.stringify(TODAY.cards)),
-      objects:    JSON.parse(JSON.stringify(TODAY.objects)),
-      reviewDone: TODAY.reviewDone || false,
+      cards:      mergeCloseDayItems(existingDay.cards, TODAY.cards),
+      objects:    mergeCloseDayItems(existingDay.objects, TODAY.objects),
+      feedItems:  mergeCloseDayItems(existingDay.feedItems, TODAY.feedItems),
+      plan:       mergeCloseDayPlan(existingDay.plan, TODAY.plan),
+      reviewDone: existingDay.reviewDone || TODAY.reviewDone || false,
       closedAt:   closedAt,
-      createdAt:  existingIdx >= 0 ? (S.days[existingIdx].createdAt || closedAt) : closedAt
-    };
+      createdAt:  existingDay.createdAt || closedAt
+    });
     if (existingIdx >= 0) {
       S.days[existingIdx] = entry;   // update in place — no duplicate
     } else {
@@ -7638,7 +7903,8 @@ async function gistPull(silent, forceOverwrite) {
         }
       }
 
-      var mergedS = parsed.S ? mergeS(S, parsed.S) : S;
+      // Make combined tombstones visible before mergeToday can archive a stale remote TODAY.
+      S.deletedIds = mergeDeletedIds(S.deletedIds || {}, (parsed.S && parsed.S.deletedIds) || {});
       var mergedToday = TODAY;
       if (parsed.TODAY && parsed.TODAY.date === today()) {
         var localObjs  = (TODAY.objects||[]).length + (TODAY.cards||[]).length;
@@ -7646,7 +7912,10 @@ async function gistPull(silent, forceOverwrite) {
         mergedToday = localObjs >= remoteObjs
           ? mergeToday(TODAY, parsed.TODAY)
           : mergeToday(parsed.TODAY, TODAY);
+      } else if (parsed.TODAY) {
+        mergedToday = mergeToday(TODAY, parsed.TODAY);
       }
+      var mergedS = parsed.S ? mergeS(S, parsed.S) : S;
       if (conflicts && conflicts.length) {
         applyConflictResolutions(mergedS, mergedToday, conflicts, decision.resolutions || {});
         pullHadConflictResolution = true;
@@ -7659,8 +7928,12 @@ async function gistPull(silent, forceOverwrite) {
 
     // Apply tombstones to TODAY after any pull/merge
     if (!S.deletedIds) S.deletedIds = {};
+    (S.days || []).forEach(function(day) {
+      day.feedItems = filterDeletedFeedItems(day.feedItems);
+    });
     TODAY.cards   = (TODAY.cards||[]).filter(function(c){ return !isDeleted(c.id); });
     TODAY.objects = (TODAY.objects||[]).filter(function(o){ return !isDeleted(o.id); });
+    TODAY.feedItems = filterDeletedFeedItems(TODAY.feedItems);
 
     // Ensure defaults
     if (!S.days) S.days = [];
@@ -7734,6 +8007,12 @@ function mergeById(localArr, remoteArr, idKey) {
   return Object.values(map).filter(function(item) { return !isDeleted(item[idKey]); });
 }
 
+function filterDeletedFeedItems(items) {
+  return (items || []).filter(function(item) {
+    return !item || !item.id || !isDeleted(item.id);
+  });
+}
+
 function mergeDays(localDays, remoteDays) {
   // Build map by date — for each date, keep the version with more objects
   // (or newer createdAt if same count)
@@ -7744,8 +8023,9 @@ function mergeDays(localDays, remoteDays) {
     // Filter tombstoned items out of incoming remote day before comparing
     var remoteCards   = (day.cards||[]).filter(function(c){ return !isDeleted(c.id); });
     var remoteObjects = (day.objects||[]).filter(function(o){ return !isDeleted(o.id); });
+    var remoteFeedItems = filterDeletedFeedItems(day.feedItems);
     if (!existing) {
-      map[day.date] = Object.assign({}, day, { cards: remoteCards, objects: remoteObjects });
+      map[day.date] = Object.assign({}, day, { cards: remoteCards, objects: remoteObjects, feedItems: remoteFeedItems });
     } else {
       // closedAt: once set, never lose it (either side wins if one has it)
       var mergedClosedAt = existing.closedAt || day.closedAt || undefined;
@@ -7753,7 +8033,7 @@ function mergeDays(localDays, remoteDays) {
       var remoteObjs = remoteObjects.length;
       if (remoteObjs > localObjs) {
         map[day.date] = Object.assign({}, day, {
-          cards: remoteCards, objects: remoteObjects,
+          cards: remoteCards, objects: remoteObjects, feedItems: remoteFeedItems,
           closedAt: mergedClosedAt,
           reviewDone: existing.reviewDone || day.reviewDone
         });
@@ -7762,7 +8042,7 @@ function mergeDays(localDays, remoteDays) {
         map[day.date] = Object.assign({}, existing, {
           objects:    mergeById(existing.objects||[], remoteObjects, 'id'),
           cards:      mergeById(existing.cards||[],  remoteCards,   'id'),
-          feedItems:  mergeById(existing.feedItems||[], day.feedItems||[], 'id'),
+          feedItems:  mergeById(existing.feedItems||[], remoteFeedItems, 'id'),
           reviewDone: existing.reviewDone || day.reviewDone,
           closedAt:   mergedClosedAt,
           plan:       (existing.plan && existing.plan.intentionen) ? existing.plan : (day.plan || existing.plan)
@@ -7772,6 +8052,7 @@ function mergeDays(localDays, remoteDays) {
         map[day.date] = Object.assign({}, existing, {
           cards:     (existing.cards||[]).filter(function(c){ return !isDeleted(c.id); }),
           objects:   (existing.objects||[]).filter(function(o){ return !isDeleted(o.id); }),
+          feedItems: filterDeletedFeedItems(existing.feedItems),
           closedAt:  mergedClosedAt
         });
       }
@@ -7782,6 +8063,7 @@ function mergeDays(localDays, remoteDays) {
     var day = map[date];
     day.cards   = (day.cards||[]).filter(function(c){ return !isDeleted(c.id); });
     day.objects = (day.objects||[]).filter(function(o){ return !isDeleted(o.id); });
+    day.feedItems = filterDeletedFeedItems(day.feedItems);
   });
   // Sort descending by date
   return Object.values(map).sort(function(a,b){ return b.date > a.date ? 1 : -1; });
@@ -7789,14 +8071,17 @@ function mergeDays(localDays, remoteDays) {
 
 function archiveTodayIfStale() {
   if (!TODAY || !TODAY.date || TODAY.date === today()) return;
+  var activeFeedItems = filterDeletedFeedItems(TODAY.feedItems);
   var alreadyArchived = (S.days||[]).some(function(d){ return d.date === TODAY.date; });
   if (!alreadyArchived && (
   (TODAY.objects||[]).length > 0 ||
   (TODAY.cards||[]).length > 0 ||
-  (TODAY.feedItems||[]).length > 0
+  activeFeedItems.length > 0
 )) {
     if (!S.days) S.days = [];
-    S.days.unshift(JSON.parse(JSON.stringify(TODAY)));
+    var staleToday = JSON.parse(JSON.stringify(TODAY));
+    staleToday.feedItems = activeFeedItems;
+    S.days.unshift(staleToday);
     S.days.sort(function(a,b){ return b.date > a.date ? 1 : -1; });
   }
   TODAY = {
@@ -7813,26 +8098,44 @@ function mergeToday(local, remote) {
     // Filter tombstoned items from remote before archiving
     var remoteCards   = (remote.cards||[]).filter(function(c){ return !isDeleted(c.id); });
     var remoteObjects = (remote.objects||[]).filter(function(o){ return !isDeleted(o.id); });
+    var remoteFeedItems = filterDeletedFeedItems(remote.feedItems);
+    var remotePlan = remote.plan || {};
+    var hasRelevantRemotePlan = ['intentionen', 'vermeiden', 'ort', 'stundenplan'].some(function(key) {
+      return typeof remotePlan[key] === 'string' && remotePlan[key].trim();
+    }) || (remotePlan.tasks || []).length > 0 || (
+      remotePlan.aufstehzeit &&
+      (remotePlan.aufstehzeit !== '05:00' || remotePlan.aufstehzeitExplicitlyEdited === true)
+    );
     var already = (S.days||[]).some(function(d){ return d.date === remoteDate; });
-    if (!already && (remoteObjects.length || remoteCards.length || (remote.feedItems||[]).length)) {
+    if (!already && (remoteObjects.length || remoteCards.length || remoteFeedItems.length || hasRelevantRemotePlan)) {
       if (!S.days) S.days = [];
       S.days.unshift({
         date:       remoteDate,
         cards:      remoteCards,
         objects:    remoteObjects,
-        feedItems:  remote.feedItems || [],
+        feedItems:  remoteFeedItems,
         reviewDone: remote.reviewDone || false,
         closedAt:   remote.closedAt || undefined,
-        plan:       remote.plan || {}
+        plan:       mergeCloseDayPlan({}, remote.plan)
       });
-    } else if (already && (remoteObjects.length || remoteCards.length || (remote.feedItems||[]).length)) {
+    } else if (already && (remoteObjects.length || remoteCards.length || remoteFeedItems.length || hasRelevantRemotePlan)) {
       // Merge objects into existing archived day, respecting tombstones
       var existing = S.days.find(function(d){ return d.date === remoteDate; });
       if (existing) {
+        existing.cards = mergeCloseDayItems(remoteCards, existing.cards);
         var existingIds = (existing.objects||[]).map(function(o){ return o.id; });
         remoteObjects.forEach(function(o) {
           if (existingIds.indexOf(o.id) === -1) existing.objects.push(o);
         });
+        existing.feedItems = mergeById(existing.feedItems || [], remoteFeedItems, 'id');
+        var conservativeRemotePlan = Object.assign({}, remote.plan || {});
+        ['intentionen', 'vermeiden', 'ort', 'stundenplan'].forEach(function(key) {
+          if (existing.plan && typeof existing.plan[key] === 'string' && existing.plan[key].trim()) {
+            delete conservativeRemotePlan[key];
+          }
+        });
+        if (existing.plan && existing.plan.aufstehzeit) delete conservativeRemotePlan.aufstehzeit;
+        existing.plan = mergeCloseDayPlan(existing.plan, conservativeRemotePlan);
         // Preserve closedAt: once set on either side, never lose it
         if (!existing.closedAt && remote.closedAt) existing.closedAt = remote.closedAt;
         // Preserve reviewDone the same way
@@ -7996,23 +8299,34 @@ async function gistSync() {
     var remoteSnapshot = { S: remote.S || {}, TODAY: remote.TODAY || {} };
 
     var conflicts = detectSyncConflicts(localSnapshot, remoteSnapshot);
+    var decision = null;
     if (conflicts.length) {
       setSyncStatus('conflict', 'Konflikte erkannt', gistTime, conflicts.length);
       recordSyncLog({ action: 'conflict', remoteTime: gistTime, conflictCount: conflicts.length, shortMessage: conflicts.length + ' Konflikte erkannt' });
+      decision = await openSyncConflictModal(conflicts);
+      if (!decision || decision.cancelled) {
+        setSyncStatus('skipped', 'Sync abgebrochen wegen Konflikten', gistTime, conflicts.length);
+        recordSyncLog({ action: 'skip', remoteTime: gistTime, conflictCount: conflicts.length, shortMessage: 'Konflikt-Dialog abgebrochen' });
+        toast('⚠ Sync abgebrochen wegen Konflikten');
+        return;
+      }
     }
 
-    // Merge both sides
-    var mergedS = mergeS(S, remote.S || {});
-
+    // Make combined tombstones visible before mergeToday can archive a stale remote TODAY.
+    S.deletedIds = mergeDeletedIds(S.deletedIds || {}, ((remote.S || {}).deletedIds) || {});
     // For TODAY: never let an empty remote overwrite a populated local
     var localTodayObjs  = (TODAY.objects||[]).length + (TODAY.cards||[]).length;
     var remoteTodayObjs = ((remote.TODAY||{}).objects||[]).length + ((remote.TODAY||{}).cards||[]).length;
     var mergedToday;
-    if (localTodayObjs >= remoteTodayObjs) {
+    if (remote.TODAY && remote.TODAY.date && remote.TODAY.date !== today()) {
+      mergedToday = mergeToday(TODAY, remote.TODAY);
+    } else if (localTodayObjs >= remoteTodayObjs) {
       mergedToday = mergeToday(TODAY, remote.TODAY || {});
     } else {
       mergedToday = mergeToday(remote.TODAY, TODAY);
     }
+    // Merge S after mergeToday so an archived stale remote TODAY is retained.
+    var mergedS = mergeS(S, remote.S || {});
 
     // ── Detect whether the merge actually changed anything ─────────────────
     // Serialize before/after to detect real changes. Avoids unnecessary writes
@@ -8031,14 +8345,11 @@ async function gistSync() {
     // ─────────────────────────────────────────────────────────────────────
 
     if (conflicts.length) {
-      var decision = await openSyncConflictModal(conflicts);
-      if (!decision || decision.cancelled) {
-        setSyncStatus('skipped', 'Sync abgebrochen wegen Konflikten', gistTime, conflicts.length);
-        recordSyncLog({ action: 'skip', remoteTime: gistTime, conflictCount: conflicts.length, shortMessage: 'Konflikt-Dialog abgebrochen' });
-        toast('⚠ Sync abgebrochen wegen Konflikten');
-        return;
-      }
       applyConflictResolutions(mergedS, mergedToday, conflicts, decision.resolutions || {});
+      (mergedS.days || []).forEach(function(day) {
+        day.feedItems = filterDeletedFeedItems(day.feedItems);
+      });
+      mergedToday.feedItems = filterDeletedFeedItems(mergedToday.feedItems);
       afterSnapshot = JSON.stringify({ S: mergedS, TODAY: mergedToday });
       didChange = (beforeSnapshot !== afterSnapshot);
       mergedSnapshotComparable = JSON.stringify({
@@ -8056,6 +8367,7 @@ async function gistSync() {
     // Apply tombstones to TODAY (mergedS already applied them to S.days)
     TODAY.cards   = (TODAY.cards||[]).filter(function(c){ return !isDeleted(c.id); });
     TODAY.objects = (TODAY.objects||[]).filter(function(o){ return !isDeleted(o.id); });
+    TODAY.feedItems = filterDeletedFeedItems(TODAY.feedItems);
 
     // Ensure defaults
     ensurePromptOverrideState();
@@ -10165,7 +10477,12 @@ function restoreFeedItem(id) {
 }
 
 function clearFeedIgnored() {
-  var vdfi = getViewData(); vdfi.feedItems = (vdfi.feedItems||[]).filter(function(i){ return i.status !== 'ignored'; });
+  var vdfi = getViewData();
+  var removedIgnored = (vdfi.feedItems || []).filter(function(i){ return i.status === 'ignored'; });
+  removedIgnored.forEach(function(item) {
+    if (item.id) recordDeletion(item.id);
+  });
+  vdfi.feedItems = (vdfi.feedItems||[]).filter(function(i){ return i.status !== 'ignored'; });
   save(); renderFeedList(); updateFeedBadge();
   toast('Ignorierte entfernt');
 }
@@ -10209,10 +10526,12 @@ async function loadReadwise() {
 
     var added = 0;
     results.forEach(function(doc) {
-      var existing = (TODAY.feedItems||[]).find(function(i){ return i.id === 'rw-' + doc.id; });
+      var itemId = 'rw-' + doc.id;
+      if (isDeleted(itemId)) return;
+      var existing = (TODAY.feedItems||[]).find(function(i){ return i.id === itemId; });
       if (existing) return;
       TODAY.feedItems.push({
-        id: 'rw-' + doc.id,
+        id: itemId,
         source: 'readwise',
         title: doc.title || doc.source_url || '',
         body: doc.summary || doc.notes || '',
@@ -10263,12 +10582,14 @@ async function loadRaindrop() {
 
     var added = 0;
     items.forEach(function(drop) {
-      var existing = (TODAY.feedItems||[]).find(function(i){ return i.id === 'rd-' + drop._id; });
+      var itemId = 'rd-' + drop._id;
+      if (isDeleted(itemId)) return;
+      var existing = (TODAY.feedItems||[]).find(function(i){ return i.id === itemId; });
       if (existing) return;
       // Skip if already imported (by date comparison)
       if (S.feedLastRaindrop && drop.created && drop.created < S.feedLastRaindrop) return;
       TODAY.feedItems.push({
-        id: 'rd-' + drop._id,
+        id: itemId,
         source: 'raindrop',
         title: drop.title || '',
         body: drop.excerpt || drop.note || '',
@@ -10326,6 +10647,8 @@ async function loadHighlights() {
 
     var added = 0;
     results.forEach(function(hl) {
+      var itemId = 'hl-' + hl.id;
+      if (isDeleted(itemId)) return;
       var itemDate = (hl.updated_at || hl.created_at || '').slice(0, 10) || today();
 var targetDay;
 
@@ -10348,11 +10671,11 @@ if (itemDate === today()) {
   }
 }
 
-var existing = (targetDay.feedItems||[]).find(function(i){ return i.id === 'hl-' + hl.id; });
+var existing = (targetDay.feedItems||[]).find(function(i){ return i.id === itemId; });
 if (existing) return;
 
 targetDay.feedItems.push({
-  id: 'hl-' + hl.id,
+  id: itemId,
   source: 'highlight',
   title: hl.title || hl.document_title || hl.document_note || '',
   body: hl.content || hl.text || '',
@@ -11658,7 +11981,7 @@ function renderPlanTab() {
   renderPlanTaskList();
 }
 
-function savePlanField() {
+function savePlanField(editedField) {
   ensurePlanState();
   ensurePlanState();
   var f = getViewData().plan;
@@ -11668,7 +11991,30 @@ function savePlanField() {
   el = document.getElementById('planAufstehzeit');  if (el) f.aufstehzeit = el.value;
   el = document.getElementById('planOrt');          if (el) f.ort = el.value;
   el = document.getElementById('planStundenplan');  if (el) f.stundenplan = el.value;
+  var allowedFields = ['intentionen', 'vermeiden', 'ort', 'stundenplan'];
+  if (isViewingToday() && allowedFields.indexOf(editedField) !== -1) {
+    if (!f.planFieldsExplicitlyEdited) f.planFieldsExplicitlyEdited = {};
+    f.planFieldsExplicitlyEdited[editedField] = true;
+  } else if (!isViewingToday() && editedField && f.planFieldsExplicitlyEdited) {
+    delete f.planFieldsExplicitlyEdited;
+  }
   save();
+  if (isViewingToday() && allowedFields.indexOf(editedField) !== -1) renderCloseDayStatus();
+}
+
+function savePlanWakeTime() {
+  ensurePlanState();
+  var plan = getViewData().plan;
+  var input = document.getElementById('planAufstehzeit');
+  if (!input) return;
+  plan.aufstehzeit = input.value;
+  if (isViewingToday() && input.value) {
+    plan.aufstehzeitExplicitlyEdited = true;
+  } else {
+    delete plan.aufstehzeitExplicitlyEdited;
+  }
+  save();
+  if (isViewingToday()) renderCloseDayStatus();
 }
 
 function isPlanTaskClosed(task) {
@@ -11900,9 +12246,21 @@ function copyPlanPrompt() {
 
 function clearPlanPrompt() {
   ensurePlanState();
-  var vdc = getViewData(); vdc.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
+  var vdc = getViewData();
+  vdc.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
+  if (isViewingToday()) {
+    vdc.plan.planFieldsExplicitlyEdited = {
+      intentionen: true,
+      vermeiden: true,
+      ort: true,
+      stundenplan: true
+    };
+    vdc.plan.aufstehzeitExplicitlyEdited = true;
+    vdc.plan.planTasksExplicitlyCleared = true;
+  }
   save();
   renderPlanTab();
+  if (isViewingToday()) renderCloseDayStatus();
   var textEl = document.getElementById('planPromptText');
   var placeholder = document.getElementById('planPromptPlaceholder');
   if (textEl) { textEl.textContent = ''; textEl.style.display = 'none'; }
@@ -12014,6 +12372,41 @@ function navToDate(date) {
   refreshAllTabs();
 }
 
+function renderCloseDayStatus() {
+  var status = document.getElementById('closeDayStatus');
+  if (!status) return;
+  var viewData = getViewData();
+  // Closing today archives the completed snapshot in S.days and resets TODAY.
+  // Use that snapshot only while the reset working state is still empty.
+  var archivedDay = (S.days || []).find(function(day) { return day.date === viewDate; });
+  var plan = (TODAY && TODAY.plan) || {};
+  var editedPlanFields = plan.planFieldsExplicitlyEdited || {};
+  var hasExplicitPlanEdit = ['intentionen', 'vermeiden', 'ort', 'stundenplan'].some(function(key) {
+    return editedPlanFields[key] === true;
+  });
+  var hasActiveTodayContent = !!(
+    (TODAY && TODAY.cards && TODAY.cards.length) ||
+    (TODAY && TODAY.objects && TODAY.objects.length) ||
+    (TODAY && TODAY.feedItems && TODAY.feedItems.length) ||
+    (plan.intentionen && plan.intentionen.trim()) ||
+    (plan.vermeiden && plan.vermeiden.trim()) ||
+    (plan.ort && plan.ort.trim()) ||
+    (plan.stundenplan && plan.stundenplan.trim()) ||
+    hasExplicitPlanEdit ||
+    (plan.aufstehzeit && (plan.aufstehzeit !== '05:00' || plan.aufstehzeitExplicitlyEdited === true)) ||
+    (plan.tasks && plan.tasks.length)
+  );
+  var useTodayArchive = viewDate === today() && !hasActiveTodayContent;
+  var isClosed = !!(
+    (viewData && viewData.closedAt) ||
+    (useTodayArchive && archivedDay && archivedDay.closedAt)
+  );
+  status.textContent = isClosed ? '✓ Abgeschlossen' : '· Offen';
+  status.setAttribute('aria-label', 'Tagesstatus: ' + (isClosed ? 'Abgeschlossen' : 'Offen'));
+  status.classList.toggle('is-closed', isClosed);
+  status.classList.toggle('is-open', !isClosed);
+}
+
 function updateDateNav() {
   var picker = document.getElementById('dateNavPicker');
   var todayBtn = document.getElementById('btnDateToday');
@@ -12046,6 +12439,7 @@ function updateDateNav() {
     }
     bannerText.innerHTML = '📅 ' + esc(label) + statusStr;
   }
+  renderCloseDayStatus();
   renderCalendarDots();
 }
 
