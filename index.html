@@ -5961,7 +5961,7 @@ function updateSammelnStatus() {
   var cards = vd.cards || [];
   var unprocessed = cards.filter(function(c){ return !c.processed; }).length;
   var activeObjs = (vd.objects || []).filter(function(o){ return !o.dismissed; }).length;
-  var closeDone = vd.reviewDone ? 'fertig' : 'offen';
+  var closeDone = isDayClosed(vd) ? 'fertig' : 'offen';
   setTextIfPresent('statCards', cards.length);
   setTextIfPresent('statUnprocessed', unprocessed);
   setTextIfPresent('statObjects', activeObjs);
@@ -5972,6 +5972,17 @@ function updateSammelnStatus() {
   }
   setTextIfPresent('sbadge-karten', cards.length);
   setTextIfPresent('sbadge-objekte', activeObjs);
+}
+
+function isDayClosed(day) {
+  if (day && day.closedAt) return true;
+  if (day === TODAY) {
+    var archivedToday = (S.days || []).find(function(candidate) {
+      return candidate.date === today();
+    });
+    return !!(archivedToday && archivedToday.closedAt);
+  }
+  return false;
 }
 
 // ════════════════════════════════════════════════
@@ -6314,11 +6325,23 @@ function mergeCloseDayPlan(previousPlan, currentPlan) {
   var current = currentPlan || {};
   var merged = Object.assign({}, previous);
   var explicitlyEdited = current.planFieldsExplicitlyEdited || {};
+  var clearedAt = Object.assign({}, previous.planFieldClearedAt || {});
   ['intentionen', 'vermeiden', 'ort', 'stundenplan'].forEach(function(key) {
     var hasCurrentString = Object.prototype.hasOwnProperty.call(current, key) && typeof current[key] === 'string';
-    if (hasCurrentString && (explicitlyEdited[key] === true || current[key].trim())) merged[key] = current[key];
+    if (hasCurrentString && (explicitlyEdited[key] === true || current[key].trim())) {
+      merged[key] = current[key];
+      if (explicitlyEdited[key] === true) {
+        if (current[key].trim()) delete clearedAt[key];
+        else clearedAt[key] = new Date().toISOString();
+      }
+    }
+    var currentClear = current.planFieldClearedAt && current.planFieldClearedAt[key] &&
+      !(hasCurrentString && current[key].trim());
+    if (currentClear && (!clearedAt[key] || currentClear > clearedAt[key])) clearedAt[key] = currentClear;
   });
   delete merged.planFieldsExplicitlyEdited;
+  if (Object.keys(clearedAt).length) merged.planFieldClearedAt = clearedAt;
+  else delete merged.planFieldClearedAt;
   var wakeTimeExplicit = current.aufstehzeitExplicitlyEdited === true;
   if (current.aufstehzeit && (wakeTimeExplicit || current.aufstehzeit !== '05:00' || !previous.aufstehzeit)) {
     merged.aufstehzeit = current.aufstehzeit;
@@ -6351,6 +6374,33 @@ function mergeCloseDayPlan(previousPlan, currentPlan) {
   merged.tasks = tasks;
   delete merged.planTasksExplicitlyCleared;
   return merged;
+}
+
+// Merge persisted archive plans conservatively. A recorded explicit clear protects
+// an empty field from stale values; an undated remote clear cannot erase content.
+function mergeArchivedDayPlan(existingPlan, incomingPlan) {
+  var existing = existingPlan || {};
+  var incoming = Object.assign({}, incomingPlan || {});
+  var incomingClears = Object.assign({}, incoming.planFieldClearedAt || {});
+  ['intentionen', 'vermeiden', 'ort', 'stundenplan'].forEach(function(key) {
+    var existingHasValue = typeof existing[key] === 'string' && !!existing[key].trim();
+    var existingWasCleared = !!(
+      (existing.planFieldClearedAt && existing.planFieldClearedAt[key]) ||
+      (existing.planFieldsExplicitlyEdited && existing.planFieldsExplicitlyEdited[key] === true &&
+        typeof existing[key] === 'string' && !existing[key].trim())
+    );
+    if (existingHasValue || existingWasCleared) {
+      delete incoming[key];
+      delete incomingClears[key];
+    } else if (typeof incoming[key] === 'string' && !incoming[key].trim() && !incomingClears[key]) {
+      delete incoming[key];
+    }
+  });
+  if (Object.keys(incomingClears).length) incoming.planFieldClearedAt = incomingClears;
+  else delete incoming.planFieldClearedAt;
+  if (existing.aufstehzeit) delete incoming.aufstehzeit;
+  if ((existing.tasks || []).length) delete incoming.planTasksExplicitlyCleared;
+  return mergeCloseDayPlan(existing, incoming);
 }
 
 function finishDay() {
@@ -8035,7 +8085,8 @@ function mergeDays(localDays, remoteDays) {
         map[day.date] = Object.assign({}, day, {
           cards: remoteCards, objects: remoteObjects, feedItems: remoteFeedItems,
           closedAt: mergedClosedAt,
-          reviewDone: existing.reviewDone || day.reviewDone
+          reviewDone: existing.reviewDone || day.reviewDone,
+          plan: mergeArchivedDayPlan(existing.plan, day.plan)
         });
       } else if (remoteObjs === localObjs) {
         // Same count — merge objects by id (mergeById already filters tombstones)
@@ -8045,7 +8096,7 @@ function mergeDays(localDays, remoteDays) {
           feedItems:  mergeById(existing.feedItems||[], remoteFeedItems, 'id'),
           reviewDone: existing.reviewDone || day.reviewDone,
           closedAt:   mergedClosedAt,
-          plan:       (existing.plan && existing.plan.intentionen) ? existing.plan : (day.plan || existing.plan)
+          plan:       mergeArchivedDayPlan(existing.plan, day.plan)
         });
       } else {
         // local has more — still filter tombstoned items from local
@@ -8053,7 +8104,8 @@ function mergeDays(localDays, remoteDays) {
           cards:     (existing.cards||[]).filter(function(c){ return !isDeleted(c.id); }),
           objects:   (existing.objects||[]).filter(function(o){ return !isDeleted(o.id); }),
           feedItems: filterDeletedFeedItems(existing.feedItems),
-          closedAt:  mergedClosedAt
+          closedAt:  mergedClosedAt,
+          plan:      mergeArchivedDayPlan(existing.plan, day.plan)
         });
       }
     }
@@ -8128,15 +8180,7 @@ function mergeToday(local, remote) {
           if (existingIds.indexOf(o.id) === -1) existing.objects.push(o);
         });
         existing.feedItems = mergeById(existing.feedItems || [], remoteFeedItems, 'id');
-        var conservativeRemotePlan = Object.assign({}, remote.plan || {});
-        ['intentionen', 'vermeiden', 'ort', 'stundenplan'].forEach(function(key) {
-          if (existing.plan && typeof existing.plan[key] === 'string' && existing.plan[key].trim()) {
-            delete conservativeRemotePlan[key];
-          }
-        });
-        if (existing.plan && existing.plan.aufstehzeit) delete conservativeRemotePlan.aufstehzeit;
-        delete conservativeRemotePlan.planTasksExplicitlyCleared;
-        existing.plan = mergeCloseDayPlan(existing.plan, conservativeRemotePlan);
+        existing.plan = mergeArchivedDayPlan(existing.plan, remote.plan);
         // Preserve closedAt: once set on either side, never lose it
         if (!existing.closedAt && remote.closedAt) existing.closedAt = remote.closedAt;
         // Preserve reviewDone the same way
@@ -8161,7 +8205,7 @@ function mergeToday(local, remote) {
     cards:      mergeById(local.cards||[],   remote.cards||[],   'id'),
     objects:    mergeById(local.objects||[], remote.objects||[], 'id'),
     feedItems:  mergedFeed,
-    plan:       (local.plan && local.plan.intentionen) ? local.plan : (remote.plan || local.plan)
+    plan:       mergeArchivedDayPlan(local.plan, remote.plan)
   };
 }
 
@@ -10675,6 +10719,7 @@ if (itemDate === today()) {
 var existing = (targetDay.feedItems||[]).find(function(i){ return i.id === itemId; });
 if (existing) return;
 
+if (!Array.isArray(targetDay.feedItems)) targetDay.feedItems = [];
 targetDay.feedItems.push({
   id: itemId,
   source: 'highlight',
@@ -12622,9 +12667,7 @@ function importFileAndMerge(input) {
             existing.cards     = mergeById(existing.cards||[], remoteTODAY.cards||[], 'id');
             existing.feedItems = mergeById(existing.feedItems||[], remoteTODAY.feedItems||[], 'id');
             existing.reviewDone = existing.reviewDone || remoteTODAY.reviewDone;
-            if ((!existing.plan || !existing.plan.intentionen) && remoteTODAY.plan) {
-              existing.plan = remoteTODAY.plan;
-            }
+            existing.plan = mergeArchivedDayPlan(existing.plan, remoteTODAY.plan);
           }
         }
       }
@@ -12684,7 +12727,7 @@ function importFileAndOverwrite(input) {
             existing.cards = mergeById(existing.cards||[], TODAY.cards||[], 'id');
             existing.feedItems = mergeById(existing.feedItems||[], TODAY.feedItems||[], 'id');
             existing.reviewDone = existing.reviewDone || TODAY.reviewDone;
-            if ((!existing.plan || !existing.plan.intentionen) && TODAY.plan) existing.plan = TODAY.plan;
+            existing.plan = mergeArchivedDayPlan(existing.plan, TODAY.plan);
           }
         }
         TODAY = freshToday();
