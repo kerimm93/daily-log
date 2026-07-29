@@ -5961,7 +5961,7 @@ function updateSammelnStatus() {
   var cards = vd.cards || [];
   var unprocessed = cards.filter(function(c){ return !c.processed; }).length;
   var activeObjs = (vd.objects || []).filter(function(o){ return !o.dismissed; }).length;
-  var closeDone = vd.reviewDone ? 'fertig' : 'offen';
+  var closeDone = isDayClosed(vd) ? 'fertig' : 'offen';
   setTextIfPresent('statCards', cards.length);
   setTextIfPresent('statUnprocessed', unprocessed);
   setTextIfPresent('statObjects', activeObjs);
@@ -5972,6 +5972,34 @@ function updateSammelnStatus() {
   }
   setTextIfPresent('sbadge-karten', cards.length);
   setTextIfPresent('sbadge-objekte', activeObjs);
+}
+
+function isDayClosed(day) {
+  if (day && day.closedAt) return true;
+  if (day === TODAY) {
+    if (hasActiveDayContent(day)) return false;
+    var archivedToday = (S.days || []).find(function(candidate) {
+      return candidate.date === today();
+    });
+    return !!(archivedToday && archivedToday.closedAt);
+  }
+  return false;
+}
+
+function hasActiveDayContent(day) {
+  if (!day) return false;
+  var plan = day.plan || {};
+  var explicitlyEdited = plan.planFieldsExplicitlyEdited || {};
+  return !!(
+    (day.cards && day.cards.length) ||
+    (day.objects && day.objects.some(function(object) { return object && !object.dismissed; })) ||
+    (day.feedItems && day.feedItems.length) ||
+    ['intentionen', 'vermeiden', 'ort', 'stundenplan'].some(function(key) {
+      return (typeof plan[key] === 'string' && !!plan[key].trim()) || explicitlyEdited[key] === true;
+    }) ||
+    (plan.aufstehzeit && (plan.aufstehzeit !== '05:00' || plan.aufstehzeitExplicitlyEdited === true)) ||
+    (plan.tasks && plan.tasks.length)
+  );
 }
 
 // ════════════════════════════════════════════════
@@ -6314,11 +6342,30 @@ function mergeCloseDayPlan(previousPlan, currentPlan) {
   var current = currentPlan || {};
   var merged = Object.assign({}, previous);
   var explicitlyEdited = current.planFieldsExplicitlyEdited || {};
+  var clearedAt = Object.assign({}, previous.planFieldClearedAt || {});
+  var editedAt = Object.assign({}, previous.planFieldEditedAt || {});
   ['intentionen', 'vermeiden', 'ort', 'stundenplan'].forEach(function(key) {
     var hasCurrentString = Object.prototype.hasOwnProperty.call(current, key) && typeof current[key] === 'string';
-    if (hasCurrentString && (explicitlyEdited[key] === true || current[key].trim())) merged[key] = current[key];
+    if (hasCurrentString && (explicitlyEdited[key] === true || current[key].trim())) {
+      merged[key] = current[key];
+      if (explicitlyEdited[key] === true) {
+        var editTime = (current.planFieldEditedAt && current.planFieldEditedAt[key]) || new Date().toISOString();
+        editedAt[key] = editTime;
+        if (current[key].trim()) delete clearedAt[key];
+        else clearedAt[key] = editTime;
+      }
+    }
+    var currentEdit = current.planFieldEditedAt && current.planFieldEditedAt[key];
+    if (currentEdit && (!editedAt[key] || currentEdit > editedAt[key])) editedAt[key] = currentEdit;
+    var currentClear = current.planFieldClearedAt && current.planFieldClearedAt[key] &&
+      !(hasCurrentString && current[key].trim());
+    if (currentClear && (!clearedAt[key] || currentClear > clearedAt[key])) clearedAt[key] = currentClear;
   });
   delete merged.planFieldsExplicitlyEdited;
+  if (Object.keys(editedAt).length) merged.planFieldEditedAt = editedAt;
+  else delete merged.planFieldEditedAt;
+  if (Object.keys(clearedAt).length) merged.planFieldClearedAt = clearedAt;
+  else delete merged.planFieldClearedAt;
   var wakeTimeExplicit = current.aufstehzeitExplicitlyEdited === true;
   if (current.aufstehzeit && (wakeTimeExplicit || current.aufstehzeit !== '05:00' || !previous.aufstehzeit)) {
     merged.aufstehzeit = current.aufstehzeit;
@@ -6350,6 +6397,55 @@ function mergeCloseDayPlan(previousPlan, currentPlan) {
   });
   merged.tasks = tasks;
   delete merged.planTasksExplicitlyCleared;
+  return merged;
+}
+
+// Merge persisted archive plans conservatively. A recorded explicit clear protects
+// an empty field from stale values; an undated remote clear cannot erase content.
+function mergeArchivedDayPlan(existingPlan, incomingPlan, currentNonTextWins) {
+  var existing = existingPlan || {};
+  var incoming = Object.assign({}, incomingPlan || {});
+  var mergeInput = Object.assign({}, incoming);
+  if (!currentNonTextWins && existing.aufstehzeit) delete mergeInput.aufstehzeit;
+  if (!currentNonTextWins && (existing.tasks || []).length) delete mergeInput.planTasksExplicitlyCleared;
+  var merged = mergeCloseDayPlan(existing, mergeInput);
+  var mergedEditedAt = {};
+  var mergedClearedAt = {};
+  function fieldState(plan, key) {
+    var value = typeof plan[key] === 'string' ? plan[key] : '';
+    var editedAt = (plan.planFieldEditedAt && plan.planFieldEditedAt[key]) || '';
+    // Compatibility for states saved by the first freshness implementation:
+    // an empty value with an edit timestamp is an explicit, dated clear even if
+    // planFieldClearedAt had not yet been written.
+    var clearAt = !value.trim() && (
+      (plan.planFieldClearedAt && plan.planFieldClearedAt[key]) || editedAt
+    );
+    if (!editedAt) editedAt = clearAt || '';
+    return { value: value, editedAt: editedAt, clearAt: clearAt || '' };
+  }
+  function chooseFieldState(left, right) {
+    if (left.editedAt && right.editedAt && left.editedAt !== right.editedAt) {
+      return left.editedAt > right.editedAt ? left : right;
+    }
+    if (left.editedAt !== right.editedAt) return left.editedAt ? left : right;
+    if (left.value === right.value) {
+      if (left.clearAt !== right.clearAt) return left.clearAt ? left : right;
+      return left;
+    }
+    if (!!left.value.trim() !== !!right.value.trim()) return left.value.trim() ? left : right;
+    // Deterministic fallback for equally fresh or undated conflicting legacy values.
+    return left.value > right.value ? left : right;
+  }
+  ['intentionen', 'vermeiden', 'ort', 'stundenplan'].forEach(function(key) {
+    var selected = chooseFieldState(fieldState(existing, key), fieldState(incoming, key));
+    merged[key] = selected.value;
+    if (selected.editedAt) mergedEditedAt[key] = selected.editedAt;
+    if (selected.clearAt) mergedClearedAt[key] = selected.clearAt;
+  });
+  if (Object.keys(mergedEditedAt).length) merged.planFieldEditedAt = mergedEditedAt;
+  else delete merged.planFieldEditedAt;
+  if (Object.keys(mergedClearedAt).length) merged.planFieldClearedAt = mergedClearedAt;
+  else delete merged.planFieldClearedAt;
   return merged;
 }
 
@@ -6413,7 +6509,7 @@ function finishDay() {
       cards:      mergeCloseDayItems(existingDay.cards, TODAY.cards),
       objects:    mergeCloseDayItems(existingDay.objects, TODAY.objects),
       feedItems:  mergeCloseDayItems(existingDay.feedItems, TODAY.feedItems),
-      plan:       mergeCloseDayPlan(existingDay.plan, TODAY.plan),
+      plan:       mergeArchivedDayPlan(existingDay.plan, TODAY.plan, true),
       reviewDone: existingDay.reviewDone || TODAY.reviewDone || false,
       closedAt:   closedAt,
       createdAt:  existingDay.createdAt || closedAt
@@ -8035,7 +8131,8 @@ function mergeDays(localDays, remoteDays) {
         map[day.date] = Object.assign({}, day, {
           cards: remoteCards, objects: remoteObjects, feedItems: remoteFeedItems,
           closedAt: mergedClosedAt,
-          reviewDone: existing.reviewDone || day.reviewDone
+          reviewDone: existing.reviewDone || day.reviewDone,
+          plan: mergeArchivedDayPlan(existing.plan, day.plan)
         });
       } else if (remoteObjs === localObjs) {
         // Same count — merge objects by id (mergeById already filters tombstones)
@@ -8045,7 +8142,7 @@ function mergeDays(localDays, remoteDays) {
           feedItems:  mergeById(existing.feedItems||[], remoteFeedItems, 'id'),
           reviewDone: existing.reviewDone || day.reviewDone,
           closedAt:   mergedClosedAt,
-          plan:       (existing.plan && existing.plan.intentionen) ? existing.plan : (day.plan || existing.plan)
+          plan:       mergeArchivedDayPlan(existing.plan, day.plan)
         });
       } else {
         // local has more — still filter tombstoned items from local
@@ -8053,7 +8150,8 @@ function mergeDays(localDays, remoteDays) {
           cards:     (existing.cards||[]).filter(function(c){ return !isDeleted(c.id); }),
           objects:   (existing.objects||[]).filter(function(o){ return !isDeleted(o.id); }),
           feedItems: filterDeletedFeedItems(existing.feedItems),
-          closedAt:  mergedClosedAt
+          closedAt:  mergedClosedAt,
+          plan:      mergeArchivedDayPlan(existing.plan, day.plan)
         });
       }
     }
@@ -8105,7 +8203,8 @@ function mergeToday(local, remote) {
     }) || (remotePlan.tasks || []).length > 0 || (
       remotePlan.aufstehzeit &&
       (remotePlan.aufstehzeit !== '05:00' || remotePlan.aufstehzeitExplicitlyEdited === true)
-    );
+    ) || Object.keys(remotePlan.planFieldEditedAt || {}).length > 0 ||
+      Object.keys(remotePlan.planFieldClearedAt || {}).length > 0;
     var already = (S.days||[]).some(function(d){ return d.date === remoteDate; });
     if (!already && (remoteObjects.length || remoteCards.length || remoteFeedItems.length || hasRelevantRemotePlan)) {
       if (!S.days) S.days = [];
@@ -8128,15 +8227,7 @@ function mergeToday(local, remote) {
           if (existingIds.indexOf(o.id) === -1) existing.objects.push(o);
         });
         existing.feedItems = mergeById(existing.feedItems || [], remoteFeedItems, 'id');
-        var conservativeRemotePlan = Object.assign({}, remote.plan || {});
-        ['intentionen', 'vermeiden', 'ort', 'stundenplan'].forEach(function(key) {
-          if (existing.plan && typeof existing.plan[key] === 'string' && existing.plan[key].trim()) {
-            delete conservativeRemotePlan[key];
-          }
-        });
-        if (existing.plan && existing.plan.aufstehzeit) delete conservativeRemotePlan.aufstehzeit;
-        delete conservativeRemotePlan.planTasksExplicitlyCleared;
-        existing.plan = mergeCloseDayPlan(existing.plan, conservativeRemotePlan);
+        existing.plan = mergeArchivedDayPlan(existing.plan, remote.plan);
         // Preserve closedAt: once set on either side, never lose it
         if (!existing.closedAt && remote.closedAt) existing.closedAt = remote.closedAt;
         // Preserve reviewDone the same way
@@ -8161,7 +8252,7 @@ function mergeToday(local, remote) {
     cards:      mergeById(local.cards||[],   remote.cards||[],   'id'),
     objects:    mergeById(local.objects||[], remote.objects||[], 'id'),
     feedItems:  mergedFeed,
-    plan:       (local.plan && local.plan.intentionen) ? local.plan : (remote.plan || local.plan)
+    plan:       mergeArchivedDayPlan(local.plan, remote.plan)
   };
 }
 
@@ -10675,6 +10766,7 @@ if (itemDate === today()) {
 var existing = (targetDay.feedItems||[]).find(function(i){ return i.id === itemId; });
 if (existing) return;
 
+if (!Array.isArray(targetDay.feedItems)) targetDay.feedItems = [];
 targetDay.feedItems.push({
   id: itemId,
   source: 'highlight',
@@ -11993,10 +12085,22 @@ function savePlanField(editedField) {
   el = document.getElementById('planOrt');          if (el) f.ort = el.value;
   el = document.getElementById('planStundenplan');  if (el) f.stundenplan = el.value;
   var allowedFields = ['intentionen', 'vermeiden', 'ort', 'stundenplan'];
+  if (allowedFields.indexOf(editedField) !== -1) {
+    var editedAt = new Date().toISOString();
+    if (!f.planFieldEditedAt) f.planFieldEditedAt = {};
+    f.planFieldEditedAt[editedField] = editedAt;
+    if (typeof f[editedField] === 'string' && !f[editedField].trim()) {
+      if (!f.planFieldClearedAt) f.planFieldClearedAt = {};
+      f.planFieldClearedAt[editedField] = editedAt;
+    } else if (f.planFieldClearedAt) {
+      delete f.planFieldClearedAt[editedField];
+      if (!Object.keys(f.planFieldClearedAt).length) delete f.planFieldClearedAt;
+    }
+  }
   if (isViewingToday() && allowedFields.indexOf(editedField) !== -1) {
     if (!f.planFieldsExplicitlyEdited) f.planFieldsExplicitlyEdited = {};
     f.planFieldsExplicitlyEdited[editedField] = true;
-  } else if (!isViewingToday() && editedField && f.planFieldsExplicitlyEdited) {
+  } else if (!isViewingToday() && f.planFieldsExplicitlyEdited) {
     delete f.planFieldsExplicitlyEdited;
   }
   save();
@@ -12249,6 +12353,19 @@ function clearPlanPrompt() {
   ensurePlanState();
   var vdc = getViewData();
   vdc.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
+  var clearedAt = new Date().toISOString();
+  vdc.plan.planFieldEditedAt = {
+    intentionen: clearedAt,
+    vermeiden: clearedAt,
+    ort: clearedAt,
+    stundenplan: clearedAt
+  };
+  vdc.plan.planFieldClearedAt = {
+    intentionen: clearedAt,
+    vermeiden: clearedAt,
+    ort: clearedAt,
+    stundenplan: clearedAt
+  };
   if (isViewingToday()) {
     vdc.plan.planFieldsExplicitlyEdited = {
       intentionen: true,
@@ -12380,23 +12497,7 @@ function renderCloseDayStatus() {
   // Closing today archives the completed snapshot in S.days and resets TODAY.
   // Use that snapshot only while the reset working state is still empty.
   var archivedDay = (S.days || []).find(function(day) { return day.date === viewDate; });
-  var plan = (TODAY && TODAY.plan) || {};
-  var editedPlanFields = plan.planFieldsExplicitlyEdited || {};
-  var hasExplicitPlanEdit = ['intentionen', 'vermeiden', 'ort', 'stundenplan'].some(function(key) {
-    return editedPlanFields[key] === true;
-  });
-  var hasActiveTodayContent = !!(
-    (TODAY && TODAY.cards && TODAY.cards.length) ||
-    (TODAY && TODAY.objects && TODAY.objects.length) ||
-    (TODAY && TODAY.feedItems && TODAY.feedItems.length) ||
-    (plan.intentionen && plan.intentionen.trim()) ||
-    (plan.vermeiden && plan.vermeiden.trim()) ||
-    (plan.ort && plan.ort.trim()) ||
-    (plan.stundenplan && plan.stundenplan.trim()) ||
-    hasExplicitPlanEdit ||
-    (plan.aufstehzeit && (plan.aufstehzeit !== '05:00' || plan.aufstehzeitExplicitlyEdited === true)) ||
-    (plan.tasks && plan.tasks.length)
-  );
+  var hasActiveTodayContent = hasActiveDayContent(TODAY);
   var useTodayArchive = viewDate === today() && !hasActiveTodayContent;
   var isClosed = !!(
     (viewData && viewData.closedAt) ||
@@ -12622,9 +12723,7 @@ function importFileAndMerge(input) {
             existing.cards     = mergeById(existing.cards||[], remoteTODAY.cards||[], 'id');
             existing.feedItems = mergeById(existing.feedItems||[], remoteTODAY.feedItems||[], 'id');
             existing.reviewDone = existing.reviewDone || remoteTODAY.reviewDone;
-            if ((!existing.plan || !existing.plan.intentionen) && remoteTODAY.plan) {
-              existing.plan = remoteTODAY.plan;
-            }
+            existing.plan = mergeArchivedDayPlan(existing.plan, remoteTODAY.plan);
           }
         }
       }
@@ -12684,7 +12783,7 @@ function importFileAndOverwrite(input) {
             existing.cards = mergeById(existing.cards||[], TODAY.cards||[], 'id');
             existing.feedItems = mergeById(existing.feedItems||[], TODAY.feedItems||[], 'id');
             existing.reviewDone = existing.reviewDone || TODAY.reviewDone;
-            if ((!existing.plan || !existing.plan.intentionen) && TODAY.plan) existing.plan = TODAY.plan;
+            existing.plan = mergeArchivedDayPlan(existing.plan, TODAY.plan);
           }
         }
         TODAY = freshToday();
