@@ -13,20 +13,24 @@
 @import url('https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@400;500&display=swap');
 
 :root {
-  --bg:         #111110;
-  --bg-mid:     #161614;
-  --surface:    #1c1c1a;
-  --surface-2:  #222220;
-  --surface-3:  #2a2a27;
-  --border:     #2c2c29;
-  --border-mid: #3a3a36;
+  --bg:         #100f0d;
+  --bg-mid:     #16150f;
+  --surface:    #1b1a16;
+  --surface-2:  #222019;
+  --surface-3:  #2a2820;
+  --border:     #302d25;
+  --border-mid: #423e33;
+  --border-str: #56503f;
 
-  --ink:        #e6e4dc;
-  --ink-mid:    #9a9890;
-  --ink-dim:    #4e4c46;
+  --ink:        #efece1;
+  --ink-mid:    #b3afa2;
+  --ink-soft:   #807c70;
+  --ink-dim:    #5a5648;
 
-  --accent:     #c4b48e;
-  --accent-dim: #6e6248;
+  --accent:     #cdbb8f;
+  --accent-2:   #d9c89c;
+  --accent-dim: #7d7050;
+  --accent-bg:  rgba(205,187,143,0.10);
   --green:      #6a9870;
   --green-bg:   rgba(106,152,112,0.08);
   --red:        #9e5a52;
@@ -45,9 +49,9 @@
 
 /* ── Light Theme ─────────────────────────────────────── */
 [data-theme="light"] {
-  --bg:         #f5f4f0;
-  --bg-mid:     #eeede8;
-  --surface:    #ffffff;
+  --bg:         #efece3;
+  --bg-mid:     #e8e4d9;
+  --surface:    #fbfaf5;
   --surface-2:  #f0efe9;
   --surface-3:  #e8e7e0;
   --border:     #d0cec5;
@@ -57,8 +61,10 @@
   --ink-mid:    #5a5850;
   --ink-dim:    #9a9890;
 
-  --accent:     #7a6840;
+  --accent:     #7c6a3e;
+  --accent-2:   #8b784b;
   --accent-dim: #b0a070;
+  --accent-bg:  rgba(124,106,62,0.10);
   --green:      #3a6e42;
   --green-bg:   rgba(58,110,66,0.10);
   --red:        #8e3a34;
@@ -86,7 +92,9 @@
   --ink-dim:    #666666;
 
   --accent:     #000000;
+  --accent-2:   #000000;
   --accent-dim: #444444;
+  --accent-bg:  transparent;
   --green:      #000000;
   --green-bg:   transparent;
   --red:        #000000;
@@ -157,12 +165,15 @@ body {
   background: var(--bg);
   color: var(--ink);
   font-family: var(--serif);
+  font-size: 0.94rem;
   min-height: 100vh;
-  line-height: 1.7;
+  line-height: 1.72;
+  text-wrap: pretty;
 }
 
 /* ── Layout ── */
-#app { max-width: 860px; margin: 0 auto; padding: 28px 18px 80px; }
+#app { max-width: 1120px; margin: 0 auto; padding: 28px 24px 88px; }
+.app-shell { display: block; }
 
 /* ── Header ── */
 
@@ -461,19 +472,20 @@ textarea { min-height: 120px; }
 }
 
 /* ── Objects ── */
-.obj-list { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+.obj-list { display: flex; flex-direction: column; gap: 8px; margin-top: 12px; }
 
 .obj-item {
   display: flex;
   align-items: flex-start;
-  gap: 8px;
-  padding: 8px 10px;
+  gap: 10px;
+  padding: 12px 14px;
   border-radius: var(--r);
   border: 1px solid var(--border);
   background: var(--bg-mid);
-  transition: border-color .12s;
+  transition: border-color .12s, background .12s;
 }
-.obj-item.dismissed { opacity: 0.35; }
+.obj-item:hover, .obj-item:focus-within { border-color: var(--border-mid); background: var(--surface-2); }
+.obj-item.dismissed { opacity: 0.48; }
 
 .obj-icon {
   font-size: 0.85rem;
@@ -495,7 +507,26 @@ textarea { min-height: 120px; }
   color: var(--ink-dim);
   margin-top: 2px;
 }
-.obj-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.obj-actions { display: flex; gap: 4px; flex-shrink: 0; opacity: 0; transition: opacity .12s; }
+.obj-item:hover .obj-actions,
+.obj-item:focus-within .obj-actions,
+.obj-item.expanded .obj-actions,
+.obj-item.selected-for-prompt .obj-actions { opacity: 1; }
+.obj-meta-row, .obj-tag-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+.obj-meta-row { margin-top: 6px; }
+.obj-tag-row { margin-top: 7px; }
+.obj-quick-actions { display: inline-flex; gap: 4px; align-items: center; opacity: 0; transition: opacity .12s; }
+.obj-item:hover .obj-quick-actions, .obj-item:focus-within .obj-quick-actions, .obj-item.expanded .obj-quick-actions { opacity: 1; }
+.obj-review-badge, .obj-import-badge { font-family: var(--mono); font-size: 0.58rem; border-radius: 999px; padding: 2px 7px; }
+.obj-review-badge { color: var(--orange); border: 1px solid var(--orange); background: var(--orange-bg); }
+.obj-import-badge { color: var(--ink-dim); border: 1px solid var(--border-mid); }
+
+@media (hover: none) {
+  .obj-actions,
+  .obj-quick-actions {
+    opacity: 1;
+  }
+}
 
 .obj-type-label {
   font-family: var(--mono);
@@ -526,6 +557,18 @@ textarea { min-height: 120px; }
   border: 1px solid var(--border);
   border-radius: var(--r);
   margin-top: 12px;
+  overflow: hidden;
+}
+.extract-steps {
+  font-family: var(--serif);
+  font-size: 0.88rem;
+  color: var(--ink-mid);
+  line-height: 1.7;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface-2);
 }
 .prompt-block-header {
   display: flex;
@@ -596,21 +639,183 @@ textarea { min-height: 120px; }
 .pipe-step.done { color: var(--green); }
 .pipe-icon { display: block; font-size: 0.85rem; margin-bottom: 1px; }
 
+/* ── Abschluss: focused two-output workflow ── */
+#panel-abschluss .close-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 14px;
+}
+#panel-abschluss .close-eyebrow,
+#panel-abschluss .close-step-kicker {
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+#panel-abschluss .close-title {
+  margin-top: 4px;
+  font-family: var(--serif);
+  font-size: clamp(1.35rem, 3vw, 1.75rem);
+  font-weight: 500;
+  line-height: 1.25;
+  color: var(--ink);
+}
+#panel-abschluss .close-intro {
+  max-width: 620px;
+  margin-top: 6px;
+  color: var(--ink-mid);
+  font-family: var(--serif);
+  font-size: 0.86rem;
+  line-height: 1.6;
+}
+#panel-abschluss .close-route-status {
+  flex: 0 0 auto;
+  padding: 6px 10px;
+  border: 1px solid var(--border-mid);
+  border-radius: 999px;
+  color: var(--ink-mid);
+  background: var(--surface);
+  font-family: var(--mono);
+  font-size: 0.62rem;
+  white-space: nowrap;
+}
+#panel-abschluss .close-route-status.is-closed {
+  color: var(--green);
+  border-color: var(--green);
+  background: var(--green-bg);
+}
+#panel-abschluss .close-route-status.is-open {
+  color: var(--ink-mid);
+}
+#panel-abschluss .pipeline-nav {
+  max-width: 620px;
+  margin-bottom: 16px;
+  background: var(--surface);
+}
+#panel-abschluss .pipe-step {
+  min-height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  font-size: 0.68rem;
+  overflow: visible;
+}
+#panel-abschluss .pipe-step.active {
+  box-shadow: inset 0 -2px 0 var(--accent);
+  font-weight: 500;
+}
+#panel-abschluss .pipe-icon { display: inline; margin: 0; }
+#panel-abschluss .close-card { padding: 22px; }
+#panel-abschluss .close-card-primary { border-color: var(--accent-dim); }
+#panel-abschluss .close-card-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+#panel-abschluss .close-card-title {
+  font-family: var(--serif);
+  color: var(--ink);
+  font-size: 1.15rem;
+  font-weight: 500;
+}
+#panel-abschluss .close-card-badge {
+  font-family: var(--mono);
+  font-size: 0.58rem;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--accent);
+  border: 1px solid var(--accent-dim);
+  border-radius: 999px;
+  padding: 4px 8px;
+}
+#panel-abschluss .close-description {
+  max-width: 680px;
+  margin-bottom: 16px;
+  color: var(--ink-mid);
+  font-family: var(--serif);
+  font-size: 0.88rem;
+  line-height: 1.7;
+}
+#panel-abschluss .close-primary-action {
+  min-height: 44px;
+  padding: 10px 16px;
+  font-size: 0.7rem;
+}
+#panel-abschluss .prompt-block { margin-top: 16px; }
+#panel-abschluss .prompt-block-header { min-height: 44px; gap: 12px; }
+#panel-abschluss .prompt-block pre {
+  overflow-wrap: anywhere;
+  max-width: 100%;
+  max-height: min(48vh, 480px);
+}
+#panel-abschluss .close-output-actions {
+  justify-content: flex-end;
+  padding-top: 4px;
+}
+#panel-abschluss .close-direct-note {
+  margin-top: 14px;
+  color: var(--ink-mid);
+  font-family: var(--serif);
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+#panel-abschluss .close-output-actions .btn { min-height: 44px; }
+#panel-abschluss .close-finish-actions {
+  justify-content: space-between;
+  align-items: center;
+  padding-top: 4px;
+}
+#panel-abschluss #legacyPipeActions {
+  border-style: dashed;
+  background: var(--bg-mid);
+  opacity: 0.82;
+}
+
+@media (max-width: 600px) {
+  #panel-abschluss .close-header { display: block; }
+  #panel-abschluss .close-route-status { display: inline-block; margin-top: 12px; }
+  #panel-abschluss .pipeline-nav { margin-bottom: 12px; }
+  #panel-abschluss .pipe-step { min-width: 0; min-height: 48px; padding: 9px 7px; font-size: 0.62rem; }
+  #panel-abschluss .close-card { padding: 16px 14px; }
+  #panel-abschluss .close-card-heading { align-items: flex-start; }
+  #panel-abschluss .close-primary-action,
+  #panel-abschluss .close-output-actions .btn,
+  #panel-abschluss .close-finish-actions .btn { width: 100%; min-height: 44px; }
+  #panel-abschluss .close-output-actions,
+  #panel-abschluss .close-finish-actions { flex-direction: column; align-items: stretch; }
+  #panel-abschluss .prompt-block-header .btn { min-height: 40px; }
+  #panel-abschluss .prompt-block pre { padding: 12px; font-size: 0.7rem; }
+}
+
 /* ── Objects Summary ── */
 .obj-summary {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
 }
 .obj-count {
   font-family: var(--mono);
   font-size: 0.64rem;
-  padding: 4px 9px;
-  border-radius: 3px;
+  padding: 6px 11px;
+  border-radius: 999px;
   border: 1px solid var(--border);
   color: var(--ink-dim);
+  background: var(--surface);
 }
+.obj-count.active { border-color: var(--accent); color: var(--accent); background: var(--accent-bg); font-weight: 600; }
+.obj-controls { padding: 10px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface); }
+.obj-controls::before { content: 'Ansicht'; font-family: var(--mono); font-size: 0.56rem; letter-spacing: 0.12em; text-transform: uppercase; color: var(--ink-soft); margin-right: 2px; }
+.obj-facet-filters { padding: 10px; border: 1px solid var(--border); border-radius: var(--r); background: var(--surface); }
 
 /* ── Notice ── */
 .notice {
@@ -1401,6 +1606,76 @@ textarea { min-height: 120px; }
   .hamburger-btn { display: none !important; }
 }
 
+
+/* ── Redesign Sprint 1: Desktop Shell / Mobile Navigation ── */
+.desktop-sidebar { display: none; }
+.sidebar-brand { padding: 24px 18px 18px; border-bottom: 1px solid var(--border); }
+.sidebar-title { font-family: var(--serif); font-weight: 600; font-size: 1.05rem; color: var(--ink); }
+.sidebar-date { font-family: var(--mono); font-size: 0.64rem; color: var(--ink-soft); margin-top: 4px; letter-spacing: 0.06em; }
+.sidebar-group { padding: 16px 10px 6px; }
+.sidebar-group-title { font-family: var(--mono); font-size: 0.56rem; letter-spacing: 0.13em; text-transform: uppercase; color: var(--ink-soft); padding: 0 10px 7px; }
+.shell-nav-btn, .bottom-nav-btn, .more-nav-btn { font-family: var(--mono); cursor: pointer; }
+.shell-nav-btn { width: 100%; min-height: 38px; display: flex; align-items: center; gap: 9px; padding: 8px 10px; border: 1px solid transparent; border-radius: var(--r); background: transparent; color: var(--ink-mid); text-align: left; font-size: 0.68rem; letter-spacing: 0.03em; }
+.shell-nav-btn:hover { background: var(--surface-2); color: var(--ink); }
+.shell-nav-btn.active { background: var(--surface-3); color: var(--ink); border-color: var(--border-mid); font-weight: 600; }
+.shell-nav-btn.active .nav-icon { color: var(--accent); }
+.nav-icon { width: 18px; text-align: center; color: var(--ink-soft); }
+.mobile-bottom-nav { display: none; }
+.mobile-more-btn { display: none; }
+.sammeln-layout { display: block; }
+.card-type-select { position: absolute; opacity: 0; pointer-events: none; width: 1px; height: 1px; }
+.segmented-card-types { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 12px; }
+.card-type-option { min-height: 44px; padding: 9px 13px; border: 1px solid var(--border); background: var(--surface-2); color: var(--ink-mid); border-radius: var(--r); font-family: var(--mono); font-size: 0.66rem; letter-spacing: 0.06em; cursor: pointer; }
+.card-type-option.active { background: var(--accent-bg); border-color: var(--accent); color: var(--accent-2); font-weight: 600; }
+.capture-section textarea { min-height: 152px; font-size: 0.98rem; }
+.sammeln-side { display: grid; gap: 12px; align-content: start; }
+.day-status-card { padding: 14px; }
+.day-status-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.day-stat { border: 1px solid var(--border); border-radius: var(--r); background: var(--bg-mid); padding: 9px; }
+.day-stat-value { font-family: var(--mono); font-size: 1.05rem; color: var(--ink); line-height: 1.1; }
+.day-stat-label { font-family: var(--mono); font-size: 0.55rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-soft); margin-top: 3px; }
+.compact-action-card p { font-size: 0.82rem !important; line-height: 1.55 !important; margin-bottom: 10px !important; }
+.mobile-day-status { display: none; font-family: var(--mono); font-size: 0.62rem; color: var(--ink-soft); gap: 8px; margin-top: 6px; flex-wrap: wrap; }
+@media (min-width: 900px) {
+  body { overflow-x: hidden; }
+  .app-shell { display: flex; align-items: flex-start; min-height: 100vh; }
+  .desktop-sidebar { display: block; position: sticky; top: 0; width: 218px; height: 100vh; overflow-y: auto; flex: 0 0 218px; background: var(--bg-mid); border-right: 1px solid var(--border); }
+  #app { flex: 1; max-width: none; min-width: 0; padding: 32px 44px 88px; }
+  .tabs { display: none; }
+  .app-header { align-items: center; }
+  .app-title { display: none; }
+  .sammeln-layout { display: grid; grid-template-columns: minmax(0, 1fr) 260px; gap: 20px; align-items: start; }
+}
+@media (max-width: 680px) {
+  body { padding-bottom: calc(68px + env(safe-area-inset-bottom)); overflow-x: hidden; }
+  #app { max-width: 400px; padding: 14px 14px 88px; }
+  .mobile-bottom-nav { display: grid; grid-template-columns: repeat(5, 1fr); position: fixed; left: 0; right: 0; bottom: 0; z-index: 180; background: var(--bg-mid); border-top: 1px solid var(--border); padding: 6px 8px calc(6px + env(safe-area-inset-bottom)); }
+  .bottom-nav-btn { min-height: 48px; border: none; background: transparent; color: var(--ink-soft); font-size: 0.58rem; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; }
+  .bottom-nav-btn.active { color: var(--accent); font-weight: 600; }
+  .mobile-more-btn { display: inline-flex; }
+  .mobile-day-status { display: flex; }
+  .section { padding: 15px 14px; }
+  .card-header { flex-wrap: wrap; }
+  .card-preview { flex-basis: 100%; white-space: normal; }
+  .btn, .card-type-option { min-height: 44px; }
+  .obj-summary, .obj-controls, .obj-facet-row { flex-wrap: nowrap; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .obj-summary, .obj-controls, .obj-facet-row { scrollbar-width: none; }
+  .obj-summary::-webkit-scrollbar,
+  .obj-controls::-webkit-scrollbar,
+  .obj-facet-row::-webkit-scrollbar { display: none; }
+  .obj-count, .sort-btn, .ctx-pill { white-space: nowrap; }
+  .obj-item { padding: 12px; gap: 8px; }
+  .obj-actions, .obj-quick-actions { opacity: 1; }
+  .obj-actions { flex-direction: column; }
+  .sel-toolbar { bottom: 76px; }
+}
+[data-theme="eink"] .shell-nav-btn.active,
+[data-theme="eink"] .bottom-nav-btn.active,
+[data-theme="eink"] .card-type-option.active { background: var(--ink) !important; color: var(--surface) !important; border-color: var(--ink) !important; }
+[data-theme="eink"] .desktop-sidebar,
+[data-theme="eink"] .mobile-bottom-nav,
+[data-theme="eink"] .day-stat { background: var(--surface) !important; }
+
 /* ── Select type dropdown ── */
 select {
   background: var(--bg-mid);
@@ -1455,6 +1730,30 @@ select:focus { outline: none; border-color: var(--border-mid); }
 </style>
 </head>
 <body>
+<div class="app-shell">
+  <aside class="desktop-sidebar" aria-label="Hauptnavigation">
+    <div class="sidebar-brand"><div class="sidebar-title">Daily Log</div><div class="sidebar-date" id="sidebarDateLabel">Heute</div></div>
+    <nav>
+      <div class="sidebar-group"><div class="sidebar-group-title">Täglich</div>
+        <button class="shell-nav-btn active" id="snav-sammeln" onclick="switchTab('sammeln')"><span class="nav-icon">＋</span>Sammeln <span class="nav-drawer-badge" id="sbadge-karten">0</span></button>
+        <button class="shell-nav-btn" id="snav-objekte" onclick="switchTab('objekte')"><span class="nav-icon">⬡</span>Objekte <span class="nav-drawer-badge" id="sbadge-objekte">0</span></button>
+        <button class="shell-nav-btn" id="snav-futurelog" onclick="switchTab('futurelog')"><span class="nav-icon">◂</span>Future Log <span class="nav-drawer-badge" id="sbadge-fl" style="display:none">0</span></button>
+        <button class="shell-nav-btn" id="snav-verlauf" onclick="switchTab('verlauf')"><span class="nav-icon">◷</span>Verlauf</button>
+        <button class="shell-nav-btn" id="snav-abschluss" onclick="switchTab('abschluss')"><span class="nav-icon">◆</span>Abschluss <span class="nav-drawer-badge" id="sbadge-review" style="display:none">!</span></button>
+      </div>
+      <div class="sidebar-group"><div class="sidebar-group-title">Woche / Verlauf</div>
+        <button class="shell-nav-btn" id="snav-review" onclick="switchTab('review')"><span class="nav-icon">✓</span>Review</button>
+        <button class="shell-nav-btn" id="snav-kollektionen" onclick="switchTab('kollektionen')"><span class="nav-icon">⬡</span>Kollektionen <span class="nav-drawer-badge" id="sbadge-kollektionen" style="display:none">0</span></button>
+        <button class="shell-nav-btn" id="snav-kontexte" onclick="switchTab('kontexte')"><span class="nav-icon">@</span>Kontexte</button>
+      </div>
+      <div class="sidebar-group"><div class="sidebar-group-title">Werkzeuge</div>
+        <button class="shell-nav-btn" id="snav-plan" onclick="switchTab('plan')"><span class="nav-icon">□</span>Plan</button>
+        <button class="shell-nav-btn" id="snav-zettel" onclick="switchTab('zettel')"><span class="nav-icon">✎</span>Zettel <span class="nav-drawer-badge" id="sbadge-zettel" style="display:none">0</span></button>
+        <button class="shell-nav-btn" id="snav-feed" onclick="switchTab('feed')"><span class="nav-icon">☰</span>Feed <span class="nav-drawer-badge" id="sbadge-feed" style="display:none">0</span></button>
+        <button class="shell-nav-btn" onclick="openModal('settingsModal')"><span class="nav-icon">⚙</span>Settings / Backup / Sync</button>
+      </div>
+    </nav>
+  </aside>
 <div id="app">
 
   <!-- Header -->
@@ -1474,6 +1773,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
     </div>
     <div class="header-right">
       <button class="btn btn-sm btn-ghost" onclick="openSearchModal()" id="btnSearch">⌕ Suche</button>
+      <button class="btn btn-sm btn-ghost mobile-more-btn" onclick="openNavDrawer()">Mehr</button>
       <button class="btn btn-sm btn-ghost" onclick="openModal('settingsModal')">⚙ Einstellungen</button>
     </div>
   </header>
@@ -1511,19 +1811,25 @@ select:focus { outline: none; border-color: var(--border-mid); }
   <!-- Tab: Sammeln                               -->
   <!-- ══════════════════════════════════════════ -->
   <div id="panel-sammeln" class="panel active">
-
+    <div class="mobile-day-status" id="mobileDayStatus"><span>Karten 0</span><span>Objekte 0</span><span>Abschluss offen</span></div>
+    <div class="sammeln-layout">
+      <main class="sammeln-main">
     <!-- Neue Karte hinzufügen -->
-    <div class="section">
+    <div class="section capture-section">
       <div class="section-title">Neue Karte hinzufügen</div>
 
-      <div style="display:flex; gap:8px; margin-bottom:10px; flex-wrap:wrap; align-items:center">
-        <label style="margin:0; white-space:nowrap">Typ:</label>
-        <select id="newCardType">
-          <option value="log">📋 Getippter Log</option>
-          <option value="voice">🎙 Voice-Memo-Export</option>
-          <option value="email">✉ E-Mail-Report</option>
-          <option value="free">📝 Freier Text</option>
-        </select>
+      <label>Kartentyp</label>
+      <select id="newCardType" class="card-type-select" aria-hidden="true" tabindex="-1">
+        <option value="log">📋 Getippter Log</option>
+        <option value="voice">🎙 Voice-Memo-Export</option>
+        <option value="email">✉ E-Mail-Report</option>
+        <option value="free">📝 Freier Text</option>
+      </select>
+      <div class="segmented-card-types" role="radiogroup" aria-label="Kartentyp">
+        <button type="button" class="card-type-option active" data-card-type="log" onclick="setNewCardType('log')">LOG</button>
+        <button type="button" class="card-type-option" data-card-type="voice" onclick="setNewCardType('voice')">VOICE</button>
+        <button type="button" class="card-type-option" data-card-type="email" onclick="setNewCardType('email')">MAIL</button>
+        <button type="button" class="card-type-option" data-card-type="free" onclick="setNewCardType('free')">TEXT</button>
       </div>
 
       <textarea id="newCardText" placeholder="Inhalt hier einfügen – Zeitstempel-Bullets, Voice-Memo-Obsidian-Export, E-Mail-Report, oder freier Text..."></textarea>
@@ -1548,8 +1854,31 @@ select:focus { outline: none; border-color: var(--border-mid); }
       <div style="margin-top:6px; font-family:var(--mono); font-size:0.62rem; color:var(--ink-dim)">Liest .md/.txt lokal ein und fügt sie in das Kartenfeld ein.</div>
     </div>
 
+    <!-- Karten-Liste -->
+    <div class="section">
+      <div class="section-title">
+        Heutige Karten
+        <span style="margin-left:auto; font-family:var(--mono); font-size:0.6rem; color:var(--ink-dim)" id="kartenMeta"></span>
+      </div>
+      <div id="cardList" class="card-list">
+        <div class="empty-state">Noch keine Karten für heute.</div>
+      </div>
+    </div>
+
+      </main>
+      <aside class="sammeln-side">
+    <div class="section day-status-card">
+      <div class="section-title">Tagesstatus</div>
+      <div class="day-status-grid">
+        <div class="day-stat"><div class="day-stat-value" id="statCards">0</div><div class="day-stat-label">Karten</div></div>
+        <div class="day-stat"><div class="day-stat-value" id="statUnprocessed">0</div><div class="day-stat-label">offen</div></div>
+        <div class="day-stat"><div class="day-stat-value" id="statObjects">0</div><div class="day-stat-label">Objekte</div></div>
+        <div class="day-stat"><div class="day-stat-value" id="statClose">offen</div><div class="day-stat-label">Abschluss</div></div>
+      </div>
+    </div>
+
     <!-- Morning Briefing -->
-    <div class="section" style="border-color: var(--border-mid)">
+    <div class="section compact-action-card" style="border-color: var(--border-mid)">
       <div class="section-title">☀ Morning Briefing</div>
       <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:12px">
         Generiert einen Prompt der den bisherigen Tag und die Woche zusammenfasst — für einen schnellen Tagesstart-Chat. Das Ergebnis kannst du als Karte importieren.
@@ -1561,7 +1890,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
     </div>
 
     <!-- Co-Pilot -->
-    <div class="section" id="copilotSection" style="border-color: var(--accent-dim)">
+    <div class="section compact-action-card" id="copilotSection" style="border-color: var(--accent-dim)">
       <div class="section-title">Co-Pilot · Fokus-Modus</div>
       <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:12px">
         Generiert einen Prompt mit dem bisherigen Tag als Kontext — für einen begleitenden Chat der dich durch einen Fokus-Block führt. Den Abschlussbericht importierst du danach als neue Karte.
@@ -1572,15 +1901,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
       </div>
     </div>
 
-    <!-- Karten-Liste -->
-    <div class="section">
-      <div class="section-title">
-        Heutige Karten
-        <span style="margin-left:auto; font-family:var(--mono); font-size:0.6rem; color:var(--ink-dim)" id="kartenMeta"></span>
-      </div>
-      <div id="cardList" class="card-list">
-        <div class="empty-state">Noch keine Karten für heute.</div>
-      </div>
+      </aside>
     </div>
 
   </div>
@@ -1666,8 +1987,8 @@ select:focus { outline: none; border-color: var(--border-mid); }
       <!-- Selection toolbar -->
       <div class="sel-toolbar" id="selToolbar">
         <span class="sel-count" id="selCount">0 ausgewählt</span>
-        <button class="btn btn-sm btn-ghost" onclick="selectAllObjs()">Alle</button>
-        <button class="btn btn-sm btn-ghost" onclick="selectNoneObjs()">Keine</button>
+        <button class="btn btn-sm btn-ghost" onclick="selectAllObjs()">Alle sichtbaren auswählen</button>
+        <button class="btn btn-sm btn-ghost" onclick="selectNoneObjs()">Auswahl leeren</button>
         <div style="flex:1"></div>
         <button class="btn btn-primary btn-sm" onclick="openSelPromptModal()">→ In Prompt einbetten</button>
         <button class="btn btn-sm btn-ghost" onclick="openCollectionReviewModal()">⇄ Mit Kollektionen abgleichen</button>
@@ -1709,8 +2030,17 @@ select:focus { outline: none; border-color: var(--border-mid); }
 
     <div class="review-done-banner" id="reviewDoneBanner" style="display:none"></div>
 
+    <header class="close-header">
+      <div>
+        <div class="close-eyebrow">Tagesabschluss</div>
+        <h2 class="close-title">Den Tag in zwei Formaten sichern</h2>
+        <p class="close-intro">Erstelle zuerst die vollständige Daily Note und danach bei Bedarf die kompakte BuJo-Fassung.</p>
+      </div>
+      <div class="close-route-status is-open" id="closeDayStatus" role="status" aria-live="polite" aria-label="Tagesstatus: Offen">· Offen</div>
+    </header>
+
     <!-- Pipeline Nav -->
-    <div class="pipeline-nav">
+    <div class="pipeline-nav" aria-label="Schritte des Tagesabschlusses">
       <div class="pipe-step" id="pnav-1" onclick="goPipeStep(1)">
         <span class="pipe-icon">✓</span>Aufgaben (alt)
       </div>
@@ -1718,10 +2048,10 @@ select:focus { outline: none; border-color: var(--border-mid); }
         <span class="pipe-icon">📎</span>Scanner
       </div>
       <div class="pipe-step active" id="pnav-3" onclick="goPipeStep(3)">
-        <span class="pipe-icon">📝</span>Daily Note
+        <span class="pipe-icon" aria-hidden="true">1</span>Daily Note
       </div>
       <div class="pipe-step" id="pnav-4" onclick="goPipeStep(4)">
-        <span class="pipe-icon">◦</span>BuJo
+        <span class="pipe-icon" aria-hidden="true">2</span>BuJo
       </div>
       <div class="pipe-step" id="pnav-5" onclick="goPipeStep(5)">
         <span class="pipe-icon">⬡</span>Zettelkasten
@@ -1772,42 +2102,53 @@ select:focus { outline: none; border-color: var(--border-mid); }
 
     <!-- Schritt 3 -->
     <div id="pipe-3" class="pipe-panel">
-      <div class="section">
-        <div class="section-title">Schritt 3 · Daily Note</div>
-        <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
+      <div class="section close-card close-card-primary">
+        <div class="close-step-kicker">1 · Primärer Ausgang</div>
+        <div class="close-card-heading">
+          <div class="close-card-title">Daily Note</div>
+          <span class="close-card-badge">Empfohlen</span>
+        </div>
+        <p class="close-description">
           Vollständige, verlustfreie Daily Note im Obsidian-Markdown-Format.
         </p>
-        <button class="btn btn-primary" onclick="generatePipePrompt(3)">Prompt generieren</button>
+        <button class="btn btn-primary close-primary-action" onclick="generatePipePrompt(3)">Daily-Note-Prompt generieren</button>
         <div id="pipe-out-3" style="display:none">
           <div class="prompt-block">
             <div class="prompt-block-header">
-              <span class="prompt-block-label">Schritt 3 – Daily Note</span>
+              <span class="prompt-block-label">Daily-Note-Prompt</span>
               <button class="btn btn-sm" onclick="copyPipePrompt(3)">Kopieren</button>
             </div>
             <pre id="pipe-text-3"></pre>
           </div>
-          <div class="btn-row"><button class="btn" onclick="goPipeStep(4)">Weiter →</button></div>
+          <div class="close-direct-note">BuJo ist optional. Du kannst den Tag direkt mit der Daily Note abschließen oder zusätzlich die kompakte Fassung erstellen.</div>
+          <div class="btn-row close-output-actions">
+            <button class="btn btn-primary" onclick="finishDay()">Tag ohne BuJo abschließen</button>
+            <button class="btn" onclick="goPipeStep(4)">Weiter zu BuJo →</button>
+          </div>
         </div>
       </div>
     </div>
 
     <!-- Schritt 4 -->
     <div id="pipe-4" class="pipe-panel" style="display:none">
-      <div class="section">
-        <div class="section-title">Schritt 4 · BuJo-Fassung</div>
-        <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
+      <div class="section close-card">
+        <div class="close-step-kicker">2 · Kompakter Ausgang</div>
+        <div class="close-card-heading">
+          <div class="close-card-title">BuJo-Fassung</div>
+        </div>
+        <p class="close-description">
           Kompakte Rapid-Logging-Version für das E-Paper-Tablet.
         </p>
-        <button class="btn btn-primary" onclick="generatePipePrompt(4)">Prompt generieren</button>
+        <button class="btn btn-primary close-primary-action" onclick="generatePipePrompt(4)">BuJo-Prompt generieren</button>
         <div id="pipe-out-4" style="display:none">
           <div class="prompt-block">
             <div class="prompt-block-header">
-              <span class="prompt-block-label">Schritt 4 – BuJo</span>
+              <span class="prompt-block-label">BuJo-Prompt</span>
               <button class="btn btn-sm" onclick="copyPipePrompt(4)">Kopieren</button>
             </div>
             <pre id="pipe-text-4"></pre>
           </div>
-          <div class="btn-row"><button class="btn btn-primary" onclick="finishDay()">Tag abschließen &amp; speichern</button></div>
+          <div class="btn-row close-finish-actions"><span class="close-step-kicker">Prompt gesichert? Dann den Tag schließen.</span><button class="btn btn-primary" onclick="finishDay()">Tag abschließen &amp; speichern</button></div>
         </div>
       </div>
     </div>
@@ -1862,14 +2203,14 @@ select:focus { outline: none; border-color: var(--border-mid); }
         Was soll morgen bedeuten? Hauptfokus, Energie-Intention, woran du dich erinnern willst.
       </p>
       <textarea id="planIntentionen" style="min-height:80px;font-family:var(--serif);font-size:0.9rem"
-        placeholder="z.B. Morgen ist ein Aktivierungstag. Hauptfokus: Bewerbungen. Ich will früh Momentum aufbauen und den Abend für mich lassen." oninput="savePlanField()"></textarea>
+        placeholder="z.B. Morgen ist ein Aktivierungstag. Hauptfokus: Bewerbungen. Ich will früh Momentum aufbauen und den Abend für mich lassen." oninput="savePlanField('intentionen')"></textarea>
     </div>
 
     <!-- Vermeiden (optional) -->
     <div class="section">
       <div class="section-title">Vermeiden (optional)</div>
       <textarea id="planVermeiden" style="min-height:60px;font-family:var(--serif);font-size:0.9rem"
-        placeholder="z.B. Rabbit Holes, Instagram vor 18 Uhr, unnötige Tabs aufmachen…" oninput="savePlanField()"></textarea>
+        placeholder="z.B. Rabbit Holes, Instagram vor 18 Uhr, unnötige Tabs aufmachen…" oninput="savePlanField('vermeiden')"></textarea>
     </div>
 
     <!-- Aufstehzeit + Stundenplan -->
@@ -1878,11 +2219,11 @@ select:focus { outline: none; border-color: var(--border-mid); }
       <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:12px">
         <div style="flex:0 0 auto">
           <label>Aufstehzeit</label>
-          <input type="time" id="planAufstehzeit" value="05:00" style="font-family:var(--mono);font-size:0.82rem;padding:7px 10px;min-height:36px" oninput="savePlanField()">
+          <input type="time" id="planAufstehzeit" value="05:00" style="font-family:var(--mono);font-size:0.82rem;padding:7px 10px;min-height:36px" oninput="savePlanWakeTime()">
         </div>
         <div style="flex:1;min-width:160px">
           <label>Ort</label>
-          <select id="planOrt" style="min-height:36px;font-size:0.78rem" onchange="savePlanField()">
+          <select id="planOrt" style="min-height:36px;font-size:0.78rem" onchange="savePlanField('ort')">
             <option value="">— wählen —</option>
             <option value="Standort">Standort</option>
             <option value="Homeoffice">Homeoffice</option>
@@ -1893,7 +2234,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
       </div>
       <label>Stundenplan / Termine (Format wie gewohnt)</label>
       <textarea id="planStundenplan" style="min-height:100px;font-family:var(--mono);font-size:0.76rem;line-height:1.6"
-        placeholder="08:00–09:30 → Theorie: ITT-Net-IS&#10;09:35–11:05 → Praxis mit Lernbegleitung&#10;12:40–13:25 → Mittagspause&#10;&#10;Oder: 14:00 Arzttermin · 19:00 Lesekreis" oninput="savePlanField()"></textarea>
+        placeholder="08:00–09:30 → Theorie: ITT-Net-IS&#10;09:35–11:05 → Praxis mit Lernbegleitung&#10;12:40–13:25 → Mittagspause&#10;&#10;Oder: 14:00 Arzttermin · 19:00 Lesekreis" oninput="savePlanField('stundenplan')"></textarea>
     </div>
 
     <!-- Aufgaben für morgen -->
@@ -2339,11 +2680,12 @@ select:focus { outline: none; border-color: var(--border-mid); }
 <div class="modal-bg hidden" id="extractModal">
   <div class="modal-box">
     <div class="modal-title">Objekte extrahieren</div>
-    <p style="font-family:var(--serif); font-size:0.88rem; color:var(--ink-mid); line-height:1.7; margin-bottom:14px">
-      1. Kopiere den Prompt unten in ChatGPT oder Claude.<br>
-      2. Füge das JSON-Ergebnis in das Feld darunter ein.<br>
-      3. Klicke "Objekte importieren".
-    </p>
+    <div class="extract-steps">
+      <strong>Eingabe → Aktion → Ergebnis:</strong><br>
+      1. Prompt kopieren oder direkte KI-Extraktion nutzen.<br>
+      2. JSON-Ergebnis unverändert in das Ergebnisfeld einfügen.<br>
+      3. Bestehenden Import mit „Objekte importieren“ abschließen.
+    </div>
 
     <div class="prompt-block" id="extractPromptBlock">
       <div class="prompt-block-header">
@@ -3024,8 +3366,15 @@ function setAutoSyncEnabled(on) {
   localStorage.setItem(AUTO_SYNC_KEY, on ? '1' : '0');
   renderSyncDiagnostics();
 }
-function stampItemEditMeta(item) {
+function touchUpdatedAt(record, timestamp) {
+  if (!record || typeof record !== 'object') return '';
+  var updatedAt = timestamp || new Date().toISOString();
+  record.updatedAt = updatedAt;
+  return updatedAt;
+}
+function stampItemEditMeta(item, timestamp) {
   if (!item || typeof item !== 'object') return item;
+  touchUpdatedAt(item, timestamp);
   item.lastEditedByDeviceId = getDeviceId();
   item.lastEditedByDeviceName = getDeviceName();
   return item;
@@ -3422,17 +3771,22 @@ async function load() {
   if (!S.futurelog) S.futurelog = [];
   if (!S.migrationPuffer) S.migrationPuffer = [];
   if (!TODAY.feedItems) TODAY.feedItems = [];
+  if (!S.deletedIds) S.deletedIds = {};
+  // Expired tombstones must not filter records during the stale-day upsert.
+  pruneDeletedIds(); // remove tombstones older than 90 days
+  // Attach the legacy global feed to the still-loaded day before it is archived.
+  if (S.feedItems && S.feedItems.length && TODAY.feedItems.length === 0) {
+    TODAY.feedItems = S.feedItems;
+    delete S.feedItems;
+  }
+  // Preserve the complete stale day before applying today's feed-only filter.
+  if (TODAY.date !== today()) archiveTodayIfStale();
   // Strip any feedItems that don't belong to today
   TODAY.feedItems = TODAY.feedItems.filter(function(i) {
     var d = i.loadedAt ? i.loadedAt.slice(0,10) : (i.date ? i.date.slice(0,10) : today());
     return d === today();
   });
   if (!TODAY.plan) TODAY.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
-  // One-time migration: move feedItems from old S location to TODAY
-  if (S.feedItems && S.feedItems.length && TODAY.feedItems.length === 0) {
-    TODAY.feedItems = S.feedItems;
-    delete S.feedItems;
-  }
   if (!S.feedLastReadwise) S.feedLastReadwise = '';
   if (!S.feedLastRaindrop) S.feedLastRaindrop = '';
   if (!S.feedLastHighlights) S.feedLastHighlights = '';
@@ -3441,45 +3795,10 @@ async function load() {
   if (!Array.isArray(S.trash.objects)) S.trash.objects = [];
   if (!S.zettels) S.zettels = [];
   if (!S.collections) S.collections = [];
-  if (!S.deletedIds) S.deletedIds = {};
 
   migrateLegacyObjectMetadata();
-  pruneDeletedIds(); // remove tombstones older than 90 days
   cleanOrphanCollectionRefs(); // remove refs to deleted collections
 
-  // Archive and reset if new day
-  if (TODAY.date !== today()) {
-    // Save yesterday's TODAY into S.days before resetting
-    var oldDate = TODAY.date;
-    if (oldDate && (TODAY.cards.length || TODAY.objects.length || (TODAY.feedItems || []).length)) {
-      var alreadyArchived = (S.days||[]).some(function(d){ return d.date === oldDate; });
-      if (!alreadyArchived) {
-        if (!S.days) S.days = [];
-        S.days.unshift({
-          date:       oldDate,
-          cards:      TODAY.cards   || [],
-          objects:    TODAY.objects || [],
-          feedItems:  TODAY.feedItems || [],
-          reviewDone: TODAY.reviewDone || false,
-          plan:       TODAY.plan || {}
-        });
-      } else {
-        // Already archived — merge objects in case there are new ones
-        var existing = S.days.find(function(d){ return d.date === oldDate; });
-        if (existing) {
-          var existingIds = (existing.objects||[]).map(function(o){ return o.id; });
-          (TODAY.objects||[]).forEach(function(o) {
-            if (existingIds.indexOf(o.id) === -1) {
-              existing.objects = existing.objects || [];
-              existing.objects.push(o);
-            }
-          });
-        }
-      }
-    }
-    TODAY = { date: today(), cards: [], objects: [], feedItems: [], reviewDone: false, plan: { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] } };
-    save();
-  }
   getDeviceId();
   getDeviceName();
   loadSyncState();
@@ -3506,8 +3825,9 @@ function migrateLegacyObjectMetadata() {
 
 // Record an id as deleted right now
 function recordDeletion(id) {
+  if (id === undefined || id === null || String(id).trim() === '') return;
   if (!S.deletedIds) S.deletedIds = {};
-  S.deletedIds[id] = new Date().toISOString();
+  S.deletedIds[String(id)] = new Date().toISOString();
 }
 
 // True if id has a deletion tombstone
@@ -3539,7 +3859,7 @@ function filterDeleted(arr) {
   return arr.filter(function(item) { return !isDeleted(item.id); });
 }
 function applyStandardWorkflowVisibility() {
-  ['tab-feed', 'dnav-feed'].forEach(function(id) {
+  ['tab-feed', 'dnav-feed', 'snav-feed'].forEach(function(id) {
     var el = document.getElementById(id);
     if (el) el.style.display = DAILYLOG_SHOW_FEED_TAB ? '' : 'none';
   });
@@ -3571,7 +3891,7 @@ function switchTab(name) {
   if (name === 'kollektionen')  renderKollektionenTab();
   if (name === 'objekte')    renderObjectsTab();
   if (name === 'review')     renderReviewTab();
-  if (name === 'abschluss')  goPipeStep(3);
+  if (name === 'abschluss')  { goPipeStep(3); renderCloseDayStatus(); }
   if (name === 'futurelog')  renderFutureLog();
   if (name === 'verlauf')    renderHistory();
 }
@@ -3582,7 +3902,18 @@ function switchTab(name) {
 document.addEventListener('DOMContentLoaded', function() {
   var ta = document.getElementById('newCardText');
   if (ta) ta.addEventListener('input', updateNewCardMeta);
+  setNewCardType((document.getElementById('newCardType') || {}).value || 'log');
 });
+
+function setNewCardType(type) {
+  var select = document.getElementById('newCardType');
+  if (select) select.value = type;
+  Array.prototype.forEach.call(document.querySelectorAll('.card-type-option'), function(btn) {
+    var active = btn.getAttribute('data-card-type') === type;
+    btn.classList.toggle('active', active);
+    btn.setAttribute('aria-pressed', active ? 'true' : 'false');
+  });
+}
 
 function updateNewCardMeta() {
   var text = document.getElementById('newCardText').value;
@@ -3590,8 +3921,10 @@ function updateNewCardMeta() {
   var lines = text.trim() ? text.split('\n').filter(function(l){ return l.trim(); }).length : 0;
   var wc = document.getElementById('newCardWordCount');
   var lc = document.getElementById('newCardLines');
-  if (wc) wc.textContent = words + ' Wörter';
-  wc.className = words > 0 ? 'lit' : '';
+  if (wc) {
+    wc.textContent = words + ' Wörter';
+    wc.className = words > 0 ? 'lit' : '';
+  }
   if (lc) lc.textContent = lines + ' Zeilen';
 }
 
@@ -4568,10 +4901,14 @@ function importObjects() {
   var detachedManualCount = detachManualDescendantsBeforeReplace(vd, replaceTree.treeIds, currentExtractCardId);
 
   // Legacy-safe replace: remove complete replaceable extraction tree (incl. legacy nodes without source.kind=extract)
+  var removedExtractionIds = [];
   vd.objects = (vd.objects || []).filter(function(o) {
     if (!previousTreeMap[o.id]) return true;
-    return isExplicitManualObject(o);
+    if (isExplicitManualObject(o)) return true;
+    removedExtractionIds.push(o.id);
+    return false;
   });
+  removedExtractionIds.forEach(function(id) { recordDeletion(id); });
 
   var added = 0;
   var insertedIds = [];
@@ -4620,7 +4957,7 @@ function importObjects() {
   console.debug('[extract/import]', {
     cardId: currentExtractCardId,
     foundOldRoots: replaceTree.rootIds.length,
-    removedOldTreeObjects: replaceTree.treeIds.length,
+    removedOldTreeObjects: removedExtractionIds.length,
     detachedManualObjects: detachedManualCount,
     insertedNewObjects: added
   });
@@ -4987,14 +5324,10 @@ function renderObjectListForDate() {
   var counts = {};
   active.forEach(function(o){ counts[o.typ] = (counts[o.typ]||0) + 1; });
   var summaryEl = document.getElementById('objSummary');
-  var allPill = '<span class="obj-count" style="cursor:pointer;' +
-    (activeObjFilter === null ? 'border-color:var(--accent);color:var(--accent)' : '') +
-    '" onclick="setObjFilter(null)">alle · ' + active.length + '</span>';
+  var allPill = '<span class="obj-count' + (activeObjFilter === null ? ' active' : '') + '" style="cursor:pointer" onclick="setObjFilter(null)">Alle · ' + active.length + '</span>';
   var typePills = Object.keys(counts).map(function(k) {
     var isActive = activeObjFilter === k;
-    return '<span class="obj-count t-' + k + '" style="cursor:pointer;' +
-      (isActive ? 'opacity:1;box-shadow:0 0 0 1px currentColor' : 'opacity:0.7') +
-      '" onclick="setObjFilter(\'' + k + '\')">' +
+    return '<span class="obj-count t-' + k + (isActive ? ' active' : '') + '" style="cursor:pointer" onclick="setObjFilter(\'' + k + '\')">' +
       (OBJ_ICONS[k]||'·') + ' ' + k + ' · ' + counts[k] + '</span>';
   }).join('');
   summaryEl.innerHTML = allPill + typePills;
@@ -5072,10 +5405,10 @@ function renderObjItem(obj, depth) {
     ? '<button class="btn btn-sm btn-ghost" style="font-size:0.58rem;padding:2px 6px;min-height:20px;opacity:0.5" onclick="toggleObjSource(\'' + obj.id + '\')" title="Quelle anzeigen/ausblenden">\u00b6 Quelle</button>'
     : '';
   var reviewBadge = obj.needsReview
-    ? '<span style="font-family:var(--mono);font-size:0.58rem;color:var(--orange);border:1px solid var(--orange);border-radius:3px;padding:1px 5px">pr\u00fcfen</span>'
+    ? '<span class="obj-review-badge">pr\u00fcfen</span>'
     : '';
   var importedDoneBadge = (obj.typ === 'aufgabe' && obj.source && obj.source.completionOrigin === 'import')
-    ? '<span style="font-family:var(--mono);font-size:0.58rem;color:var(--ink-dim);border:1px solid var(--border-mid);border-radius:3px;padding:1px 5px">Import</span>'
+    ? '<span class="obj-import-badge">Import</span>'
     : '';
 
   var selClass = selMode ? ' selectable' + (selectedObjIds[obj.id] ? ' selected-for-prompt' : '') : '';
@@ -5090,7 +5423,7 @@ function renderObjItem(obj, depth) {
       '<input class="obj-main-input" id="' + mainInputId + '" type="text" value="' + esc(obj.text) + '"' +
         ' onblur="saveEditMain(\'' + obj.id + '\')" onkeydown="mainInputKey(event,\'' + obj.id + '\')">' +
       // Meta row
-      '<div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px">' +
+      '<div class="obj-meta-row">' +
         '<span class="obj-type-label t-' + obj.typ + '">' + obj.typ + '</span>' +
         (obj.zeit ? '<span class="obj-meta">' + esc(obj.zeit) + '</span>' : '') +
         statusChip(obj.status) +
@@ -5105,9 +5438,11 @@ function renderObjItem(obj, depth) {
         ((obj.signifiers && obj.signifiers.includes('!')) ? '<span style="color:var(--purple);font-family:var(--mono);font-size:0.7rem">!</span>' : '') +
         reviewBadge +
         importedDoneBadge +
-        srcToggle +
-        '<button class="btn btn-sm btn-ghost" style="font-size:0.58rem;padding:2px 6px;min-height:20px;opacity:0.5" onclick="openKolAssignModal(\'' + obj.id + '\')" title="Kollektion zuweisen">⬡</button>' +
-        '<button class="btn btn-sm btn-ghost" style="font-size:0.58rem;padding:2px 6px;min-height:20px;opacity:0.5" onclick="toggleExpand(\'' + obj.id + '\')" title="Ergänzung hinzufügen">+ Ergänzung</button>' +
+        '<span class="obj-quick-actions">' +
+          srcToggle +
+          '<button class="btn btn-sm btn-ghost" style="font-size:0.58rem;padding:2px 6px;min-height:20px" onclick="openKolAssignModal(\'' + obj.id + '\')" title="Kollektion zuweisen">⬡</button>' +
+          '<button class="btn btn-sm btn-ghost" style="font-size:0.58rem;padding:2px 6px;min-height:20px" onclick="toggleExpand(\'' + obj.id + '\')" title="Ergänzung hinzufügen">+ Ergänzung</button>' +
+        '</span>' +
       '</div>' +
       sourcePanel +
       // Status row for aufgaben only
@@ -5514,6 +5849,7 @@ function restoreTrashItem(type, entryId) {
       var restoredCard = JSON.parse(JSON.stringify(entry.data));
       delete restoredCard._deletedLinkedObjectIds;
       delete restoredCard._deletedObjectTree;
+      stampItemEditMeta(restoredCard);
       target.cards.push(restoredCard);
     }
     // ── Lift tombstone for the card ───────────────────────────────────────
@@ -5523,14 +5859,16 @@ function restoreTrashItem(type, entryId) {
     if (objectTree.length) {
       target.objects = target.objects || [];
       objectTree.forEach(function(obj) {
-        if (!target.objects.some(function(o){ return o.id === obj.id; })) target.objects.push(obj);
+        if (!target.objects.some(function(o){ return o.id === obj.id; })) target.objects.push(stampItemEditMeta(obj));
         // ── Lift tombstone for each restored object ───────────────────────
         if (S.deletedIds) delete S.deletedIds[obj.id];
         // ─────────────────────────────────────────────────────────────────
       });
       var linkedIds = objectTree.map(function(o){ return o.id; });
       S.trash.objects = (S.trash.objects || []).filter(function(objEntry) {
-        return linkedIds.indexOf(objEntry.data && objEntry.data.id) === -1;
+        var isLinked = linkedIds.indexOf(objEntry.data && objEntry.data.id) !== -1;
+        if (isLinked) recordDeletion(objEntry.id);
+        return !isLinked;
       });
     } else {
       var linkedIds = (entry.data && entry.data._deletedLinkedObjectIds) || [];
@@ -5539,11 +5877,14 @@ function restoreTrashItem(type, entryId) {
       if (linkedIds.length) {
         S.trash.objects = (S.trash.objects || []).filter(function(objEntry) {
           var isLinked = linkedIds.indexOf(objEntry.data && objEntry.data.id) !== -1;
-          if (isLinked && !target.objects.some(function(o){ return o.id === objEntry.data.id; })) {
-            target.objects.push(objEntry.data);
-            // ── Lift tombstone ────────────────────────────────────────────
-            if (S.deletedIds) delete S.deletedIds[objEntry.data.id];
-            // ─────────────────────────────────────────────────────────────
+          if (isLinked) {
+            recordDeletion(objEntry.id);
+            if (!target.objects.some(function(o){ return o.id === objEntry.data.id; })) {
+              target.objects.push(stampItemEditMeta(objEntry.data));
+              // ── Lift tombstone ──────────────────────────────────────────
+              if (S.deletedIds) delete S.deletedIds[objEntry.data.id];
+              // ───────────────────────────────────────────────────────────
+            }
           }
           return !isLinked;
         });
@@ -5551,11 +5892,12 @@ function restoreTrashItem(type, entryId) {
     }
   } else {
     target.objects = target.objects || [];
-    if (!target.objects.some(function(o){ return o.id === entry.data.id; })) target.objects.push(entry.data);
+    if (!target.objects.some(function(o){ return o.id === entry.data.id; })) target.objects.push(stampItemEditMeta(entry.data));
     // ── Lift tombstone for restored object ────────────────────────────────
     if (S.deletedIds) delete S.deletedIds[entry.data.id];
     // ─────────────────────────────────────────────────────────────────────
   }
+  recordDeletion(entryId);
   arr.splice(idx, 1);
   save();
   renderTrashModal();
@@ -5565,6 +5907,7 @@ function restoreTrashItem(type, entryId) {
 
 function hardDeleteTrashItem(type, entryId) {
   ensureTrash();
+  recordDeletion(entryId);
   if (type === 'card') S.trash.cards = (S.trash.cards || []).filter(function(e){ return e.id !== entryId; });
   if (type === 'object') S.trash.objects = (S.trash.objects || []).filter(function(e){ return e.id !== entryId; });
   save();
@@ -5573,6 +5916,8 @@ function hardDeleteTrashItem(type, entryId) {
 
 function emptyTrash() {
   ensureTrash();
+  (S.trash.cards || []).forEach(function(entry) { if (entry && entry.id) recordDeletion(entry.id); });
+  (S.trash.objects || []).forEach(function(entry) { if (entry && entry.id) recordDeletion(entry.id); });
   S.trash.cards = [];
   S.trash.objects = [];
   save();
@@ -5587,9 +5932,62 @@ function updateBadges() {
   var bk = document.getElementById('badge-karten');
   var bo = document.getElementById('badge-objekte');
   var vd = getViewData();
-  if (bk) bk.textContent = (vd.cards || []).length;
+  var cardCount = (vd.cards || []).length;
+  if (bk) bk.textContent = cardCount;
   var activeObjs = (vd.objects || []).filter(function(o){ return !o.dismissed; }).length;
   if (bo) bo.textContent = activeObjs;
+  updateSammelnStatus();
+}
+
+function setTextIfPresent(id, text) {
+  var el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
+function updateSammelnStatus() {
+  var vd = getViewData();
+  var cards = vd.cards || [];
+  var unprocessed = cards.filter(function(c){ return !c.processed; }).length;
+  var activeObjs = (vd.objects || []).filter(function(o){ return !o.dismissed; }).length;
+  var closeDone = isDayClosed(vd) ? 'fertig' : 'offen';
+  setTextIfPresent('statCards', cards.length);
+  setTextIfPresent('statUnprocessed', unprocessed);
+  setTextIfPresent('statObjects', activeObjs);
+  setTextIfPresent('statClose', closeDone);
+  var mobile = document.getElementById('mobileDayStatus');
+  if (mobile) {
+    mobile.innerHTML = '<span>Karten ' + cards.length + '</span><span>Offen ' + unprocessed + '</span><span>Objekte ' + activeObjs + '</span><span>Abschluss ' + closeDone + '</span>';
+  }
+  setTextIfPresent('sbadge-karten', cards.length);
+  setTextIfPresent('sbadge-objekte', activeObjs);
+}
+
+function isDayClosed(day) {
+  if (day && day.closedAt) return true;
+  if (day === TODAY) {
+    if (hasActiveDayContent(day)) return false;
+    var archivedToday = (S.days || []).find(function(candidate) {
+      return candidate.date === today();
+    });
+    return !!(archivedToday && archivedToday.closedAt);
+  }
+  return false;
+}
+
+function hasActiveDayContent(day) {
+  if (!day) return false;
+  var plan = day.plan || {};
+  var explicitlyEdited = plan.planFieldsExplicitlyEdited || {};
+  return !!(
+    (day.cards && day.cards.length) ||
+    (day.objects && day.objects.some(function(object) { return object && !object.dismissed; })) ||
+    (day.feedItems && day.feedItems.length) ||
+    ['intentionen', 'vermeiden', 'ort', 'stundenplan'].some(function(key) {
+      return (typeof plan[key] === 'string' && !!plan[key].trim()) || explicitlyEdited[key] === true;
+    }) ||
+    (plan.aufstehzeit && (plan.aufstehzeit !== '05:00' || plan.aufstehzeitExplicitlyEdited === true)) ||
+    (plan.tasks && plan.tasks.length)
+  );
 }
 
 // ════════════════════════════════════════════════
@@ -5888,6 +6286,251 @@ function exportAllPipePrompts() {
 // ════════════════════════════════════════════════
 // Finish Day
 // ════════════════════════════════════════════════
+function getCloseDayItemFreshness(item) {
+  var updated = item && item.updatedAt ? Date.parse(item.updatedAt) : NaN;
+  if (isFinite(updated)) return updated;
+  var created = item && item.createdAt ? Date.parse(item.createdAt) : NaN;
+  return isFinite(created) ? created : null;
+}
+
+function mergeCloseDayItems(previousItems, currentItems) {
+  var merged = [];
+  var positionsById = Object.create(null);
+  function add(item, currentWins) {
+    if (!item) return;
+    var id = item.id;
+    if (id && isDeleted(id)) return;
+    if (!id) {
+      merged.push(item);
+      return;
+    }
+    if (Object.prototype.hasOwnProperty.call(positionsById, id)) {
+      var position = positionsById[id];
+      var existingFreshness = getCloseDayItemFreshness(merged[position]);
+      var candidateFreshness = getCloseDayItemFreshness(item);
+      var candidateIsNewer = candidateFreshness !== null &&
+        (existingFreshness === null || candidateFreshness > existingFreshness);
+      var currentWinsTie = currentWins && (
+        candidateFreshness === existingFreshness ||
+        (candidateFreshness === null && existingFreshness === null)
+      );
+      if (candidateIsNewer || currentWinsTie) merged[position] = item;
+      return;
+    }
+    positionsById[id] = merged.length;
+    merged.push(item);
+  }
+  (previousItems || []).forEach(function(item) { add(item, false); });
+  (currentItems || []).forEach(function(item) { add(item, true); });
+  return merged;
+}
+
+function legacyPlanTaskId(task, occurrence) {
+  if (task && task.objectId) return 'plan-object-' + task.objectId;
+  var source = ((task && task.text) || '') + '\u0000' + ((task && task.source) || '');
+  var hash = 2166136261;
+  for (var i = 0; i < source.length; i++) {
+    hash ^= source.charCodeAt(i);
+    hash = Math.imul(hash, 16777619);
+  }
+  return 'plan-legacy-' + (hash >>> 0).toString(36) + '-' + occurrence;
+}
+
+function normalizePlanTasks(tasks) {
+  var occurrences = Object.create(null);
+  return (tasks || []).filter(Boolean).map(function(task, index) {
+    var normalized = Object.assign({}, task);
+    if (typeof normalized.order !== 'number' || !isFinite(normalized.order)) normalized.order = index;
+    if (task.id) return normalized;
+    var base = ((task.text || '') + '\u0000' + (task.source || ''));
+    var occurrence = occurrences[base] || 0;
+    occurrences[base] = occurrence + 1;
+    normalized.id = legacyPlanTaskId(task, occurrence);
+    return normalized;
+  });
+}
+
+function nextPlanTaskOrder(tasks) {
+  return normalizePlanTasks(tasks).reduce(function(max, task) {
+    return task.order > max ? task.order : max;
+  }, -1) + 1;
+}
+
+function mergePlanTasks(previousPlan, currentPlan) {
+  var previous = previousPlan || {};
+  var current = currentPlan || {};
+  var deletedAt = Object.assign({}, previous.planTaskDeletedAt || {});
+  Object.keys(current.planTaskDeletedAt || {}).forEach(function(id) {
+    if (!deletedAt[id] || current.planTaskDeletedAt[id] > deletedAt[id]) deletedAt[id] = current.planTaskDeletedAt[id];
+  });
+  function clearState(plan) {
+    var clearedAt = (plan && plan.planTasksClearedAt) || '';
+    return { clearedAt: clearedAt, explicitLegacy: !clearedAt && !!(plan && plan.planTasksExplicitlyCleared === true) };
+  }
+  var previousClear = clearState(previous);
+  var currentClear = clearState(current);
+  var clearedAt = previousClear.clearedAt > currentClear.clearedAt ? previousClear.clearedAt : currentClear.clearedAt;
+  var explicitLegacyClear = !clearedAt && (previousClear.explicitLegacy || currentClear.explicitLegacy);
+  var byId = Object.create(null);
+  normalizePlanTasks(previous.tasks).concat(normalizePlanTasks(current.tasks)).forEach(function(task) {
+    var existing = byId[task.id];
+    if (!existing) { byId[task.id] = task; return; }
+    var existingAt = existing.updatedAt || existing.createdAt || '';
+    var taskAt = task.updatedAt || task.createdAt || '';
+    if (taskAt > existingAt || (taskAt === existingAt && JSON.stringify(task) > JSON.stringify(existing))) byId[task.id] = task;
+  });
+  var tasks = Object.keys(byId).map(function(id) { return byId[id]; }).filter(function(task) {
+    var taskAt = task.updatedAt || task.createdAt || '';
+    if (deletedAt[task.id] && (!taskAt || deletedAt[task.id] >= taskAt)) return false;
+    if (clearedAt && (!taskAt || clearedAt >= taskAt)) return false;
+    if (explicitLegacyClear && !taskAt) return false;
+    return true;
+  });
+  tasks.sort(function(a, b) {
+    if (a.order !== b.order) return a.order - b.order;
+    var aCreated = a.createdAt || '';
+    var bCreated = b.createdAt || '';
+    if (aCreated !== bCreated) return aCreated < bCreated ? -1 : 1;
+    return a.id < b.id ? -1 : a.id > b.id ? 1 : 0;
+  });
+  return { tasks: tasks, deletedAt: deletedAt, clearedAt: clearedAt, explicitLegacyClear: explicitLegacyClear };
+}
+
+function mergePlanWakeTime(previousPlan, currentPlan) {
+  function state(plan) {
+    var editedAt = (plan && plan.aufstehzeitEditedAt) || '';
+    return {
+      value: (plan && plan.aufstehzeit) || '05:00',
+      editedAt: editedAt,
+      explicitLegacy: !editedAt && !!(plan && plan.aufstehzeitExplicitlyEdited === true)
+    };
+  }
+  var left = state(previousPlan);
+  var right = state(currentPlan);
+  if (left.editedAt !== right.editedAt) return left.editedAt > right.editedAt ? left : right;
+  if (left.value === right.value) {
+    if (left.explicitLegacy !== right.explicitLegacy) return left.explicitLegacy ? left : right;
+    return left;
+  }
+  if (left.explicitLegacy !== right.explicitLegacy) return left.explicitLegacy ? left : right;
+  return left.value > right.value ? left : right;
+}
+
+function mergeCloseDayPlan(previousPlan, currentPlan) {
+  var previous = previousPlan || {};
+  var current = currentPlan || {};
+  var merged = Object.assign({}, previous);
+  var explicitlyEdited = current.planFieldsExplicitlyEdited || {};
+  var clearedAt = Object.assign({}, previous.planFieldClearedAt || {});
+  var editedAt = Object.assign({}, previous.planFieldEditedAt || {});
+  var legacyExplicitClears = Object.assign({}, previous.planFieldsExplicitlyEdited || {});
+  ['intentionen', 'vermeiden', 'ort', 'stundenplan'].forEach(function(key) {
+    var hasCurrentString = Object.prototype.hasOwnProperty.call(current, key) && typeof current[key] === 'string';
+    var currentEdit = current.planFieldEditedAt && current.planFieldEditedAt[key];
+    var currentClear = current.planFieldClearedAt && current.planFieldClearedAt[key] &&
+      !(hasCurrentString && current[key].trim()) ? current.planFieldClearedAt[key] : '';
+    if (hasCurrentString && (explicitlyEdited[key] === true || currentEdit || currentClear || current[key].trim())) {
+      merged[key] = current[key];
+      if (currentEdit) editedAt[key] = currentEdit;
+      if (current[key].trim()) {
+        delete clearedAt[key];
+        delete legacyExplicitClears[key];
+      } else if (currentClear || currentEdit) {
+        clearedAt[key] = currentClear || currentEdit;
+        delete legacyExplicitClears[key];
+      } else if (explicitlyEdited[key] === true) {
+        // An undated legacy clear stays undated; merge helpers must never make
+        // a historical marker look like a current user edit.
+        legacyExplicitClears[key] = true;
+      }
+    }
+    if (currentEdit && (!editedAt[key] || currentEdit > editedAt[key])) editedAt[key] = currentEdit;
+    if (currentClear && (!clearedAt[key] || currentClear > clearedAt[key])) clearedAt[key] = currentClear;
+  });
+  if (Object.keys(legacyExplicitClears).length) merged.planFieldsExplicitlyEdited = legacyExplicitClears;
+  else delete merged.planFieldsExplicitlyEdited;
+  if (Object.keys(editedAt).length) merged.planFieldEditedAt = editedAt;
+  else delete merged.planFieldEditedAt;
+  if (Object.keys(clearedAt).length) merged.planFieldClearedAt = clearedAt;
+  else delete merged.planFieldClearedAt;
+  var wakeTime = mergePlanWakeTime(previous, current);
+  merged.aufstehzeit = wakeTime.value;
+  if (wakeTime.editedAt) merged.aufstehzeitEditedAt = wakeTime.editedAt;
+  else delete merged.aufstehzeitEditedAt;
+  delete merged.aufstehzeitExplicitlyEdited;
+  if (wakeTime.explicitLegacy) merged.aufstehzeitExplicitlyEdited = true;
+  var taskMerge = mergePlanTasks(previous, current);
+  merged.tasks = taskMerge.tasks;
+  if (Object.keys(taskMerge.deletedAt).length) merged.planTaskDeletedAt = taskMerge.deletedAt;
+  else delete merged.planTaskDeletedAt;
+  if (taskMerge.clearedAt) merged.planTasksClearedAt = taskMerge.clearedAt;
+  else delete merged.planTasksClearedAt;
+  delete merged.planTasksExplicitlyCleared;
+  if (taskMerge.explicitLegacyClear) merged.planTasksExplicitlyCleared = true;
+  return merged;
+}
+
+// Merge persisted archive plans conservatively. A recorded explicit clear protects
+// an empty field from stale values; an undated remote clear cannot erase content.
+function mergeArchivedDayPlan(existingPlan, incomingPlan) {
+  var existing = existingPlan || {};
+  var incoming = Object.assign({}, incomingPlan || {});
+  var mergeInput = Object.assign({}, incoming);
+  // Legacy explicit text clears are normalized below without inventing a
+  // current timestamp in mergeCloseDayPlan().
+  delete mergeInput.planFieldsExplicitlyEdited;
+  var merged = mergeCloseDayPlan(existing, mergeInput);
+  var mergedEditedAt = {};
+  var mergedClearedAt = {};
+  function fieldState(plan, key) {
+    var value = typeof plan[key] === 'string' ? plan[key] : '';
+    var editedAt = (plan.planFieldEditedAt && plan.planFieldEditedAt[key]) || '';
+    // Compatibility for states saved by the first freshness implementation:
+    // an empty value with an edit timestamp is an explicit, dated clear even if
+    // planFieldClearedAt had not yet been written.
+    var clearAt = !value.trim() && (
+      (plan.planFieldClearedAt && plan.planFieldClearedAt[key]) || editedAt
+    );
+    if (!editedAt) editedAt = clearAt || '';
+    var explicitLegacy = !editedAt && !value.trim() && !!(
+      plan.planFieldsExplicitlyEdited && plan.planFieldsExplicitlyEdited[key] === true
+    );
+    return { value: value, editedAt: editedAt, clearAt: clearAt || '', explicitLegacy: explicitLegacy };
+  }
+  function chooseFieldState(left, right) {
+    if (left.editedAt && right.editedAt && left.editedAt !== right.editedAt) {
+      return left.editedAt > right.editedAt ? left : right;
+    }
+    if (left.editedAt !== right.editedAt) return left.editedAt ? left : right;
+    if (left.value === right.value) {
+      if (left.clearAt !== right.clearAt) return left.clearAt ? left : right;
+      if (left.explicitLegacy !== right.explicitLegacy) return left.explicitLegacy ? left : right;
+      return left;
+    }
+    // If neither side can prove freshness, preserve existing text over an
+    // undated legacy clear marker. Only dated clears are authoritative.
+    if (!!left.value.trim() !== !!right.value.trim()) return left.value.trim() ? left : right;
+    if (left.explicitLegacy !== right.explicitLegacy) return left.explicitLegacy ? left : right;
+    // Deterministic fallback for equally fresh or undated conflicting legacy values.
+    return left.value > right.value ? left : right;
+  }
+  ['intentionen', 'vermeiden', 'ort', 'stundenplan'].forEach(function(key) {
+    var selected = chooseFieldState(fieldState(existing, key), fieldState(incoming, key));
+    merged[key] = selected.value;
+    if (selected.editedAt) mergedEditedAt[key] = selected.editedAt;
+    if (selected.clearAt) mergedClearedAt[key] = selected.clearAt;
+    if (selected.explicitLegacy) {
+      if (!merged.planFieldsExplicitlyEdited) merged.planFieldsExplicitlyEdited = {};
+      merged.planFieldsExplicitlyEdited[key] = true;
+    }
+  });
+  if (Object.keys(mergedEditedAt).length) merged.planFieldEditedAt = mergedEditedAt;
+  else delete merged.planFieldEditedAt;
+  if (Object.keys(mergedClearedAt).length) merged.planFieldClearedAt = mergedClearedAt;
+  else delete merged.planFieldClearedAt;
+  return merged;
+}
+
 function finishDay() {
   var targetDate = viewDate;          // the day we're closing
   var vd = getViewData();             // data for that day (TODAY ref or S.days ref)
@@ -5898,35 +6541,66 @@ function finishDay() {
   (vd.objects || []).forEach(function(obj) {
     if (obj.typ !== 'aufgabe' || obj.parentId || obj.dismissed) return;
     if (obj.status === '>') {
-      S.migrationPuffer.push({
-        id: uid(),
+      var existingMigration = S.migrationPuffer.find(function(item) {
+        return item && item.objId === obj.id && item.fromDate === targetDate;
+      });
+      var migrationData = {
         text: obj.text + (obj.reviewNote ? '\n→ ' + obj.reviewNote : ''),
         fromDate: targetDate,
         objId: obj.id,
         contexts: obj.contexts || [],
         signifiers: obj.signifiers || [],
         note: obj.reviewNote || ''
-      });
-      migrated++;
+      };
+      if (existingMigration) {
+        var migrationChanged = Object.keys(migrationData).some(function(key) {
+          return JSON.stringify(existingMigration[key]) !== JSON.stringify(migrationData[key]);
+        });
+        if (migrationChanged) {
+          Object.assign(existingMigration, migrationData);
+          touchUpdatedAt(existingMigration);
+        }
+      }
+      else {
+        var migrationCreatedAt = new Date().toISOString();
+        S.migrationPuffer.push(Object.assign({ id: uid(), createdAt: migrationCreatedAt, updatedAt: migrationCreatedAt }, migrationData));
+        migrated++;
+      }
     } else if (obj.status === '<') {
       var flDate = '';
       if (obj.reviewNote) {
         var dateMatch = obj.reviewNote.match(/(\d{4}-\d{2}-\d{2})/);
         if (dateMatch) flDate = dateMatch[1];
       }
-      S.futurelog.push({
-        id: uid(),
+      var existingFuture = S.futurelog.find(function(item) {
+        return item && item.objId === obj.id && item.fromDate === targetDate;
+      });
+      var futureData = {
         text: obj.text,
         note: obj.reviewNote || '',
         date: flDate,
-        month: '',
+        month: flDate ? flDate.slice(0, 7) : '',
         fromDate: targetDate,
         objId: obj.id,
-        contexts: obj.contexts || [],
-        done: false,
-        createdAt: new Date().toISOString()
-      });
-      scheduled++;
+        contexts: obj.contexts || []
+      };
+      if (existingFuture) {
+        var futureChanged = Object.keys(futureData).some(function(key) {
+          return JSON.stringify(existingFuture[key]) !== JSON.stringify(futureData[key]);
+        });
+        if (futureChanged) {
+          Object.assign(existingFuture, futureData);
+          touchUpdatedAt(existingFuture);
+        }
+      }
+      else {
+        var futureCreatedAt = new Date().toISOString();
+        S.futurelog.push(Object.assign({
+          id: uid(), done: false,
+          createdAt: futureCreatedAt, updatedAt: futureCreatedAt
+        }, futureData));
+        scheduled++;
+      }
     }
   });
 
@@ -5941,15 +6615,27 @@ function finishDay() {
   } else {
     // ── 2b. Today: upsert into S.days (never create a duplicate for the same date).
     var existingIdx = (S.days || []).findIndex(function(d){ return d.date === targetDate; });
-    var entry = {
-      id:         existingIdx >= 0 ? (S.days[existingIdx].id || uid()) : uid(),
+    var existingDay = existingIdx >= 0 ? S.days[existingIdx] : {};
+    var entry = Object.assign({}, existingDay, {
+      id:         existingDay.id || uid(),
       date:       targetDate,
-      cards:      JSON.parse(JSON.stringify(TODAY.cards)),
-      objects:    JSON.parse(JSON.stringify(TODAY.objects)),
-      reviewDone: TODAY.reviewDone || false,
+      cards:      mergeCloseDayItems(existingDay.cards, TODAY.cards).sort(function(a, b) {
+        var aCreated = a && a.createdAt ? Date.parse(a.createdAt) : NaN;
+        var bCreated = b && b.createdAt ? Date.parse(b.createdAt) : NaN;
+        var aTime = isFinite(aCreated) ? aCreated : (a && a.id && /^\d{10,}/.test(String(a.id)) ? Number(String(a.id).match(/^(\d{10,})/)[1]) : -Infinity);
+        var bTime = isFinite(bCreated) ? bCreated : (b && b.id && /^\d{10,}/.test(String(b.id)) ? Number(String(b.id).match(/^(\d{10,})/)[1]) : -Infinity);
+        if (aTime !== bTime) return bTime - aTime;
+        var aKey = JSON.stringify(a || {});
+        var bKey = JSON.stringify(b || {});
+        return aKey < bKey ? -1 : aKey > bKey ? 1 : 0;
+      }),
+      objects:    mergeCloseDayItems(existingDay.objects, TODAY.objects),
+      feedItems:  mergeCloseDayItems(existingDay.feedItems, TODAY.feedItems),
+      plan:       mergeArchivedDayPlan(existingDay.plan, TODAY.plan),
+      reviewDone: existingDay.reviewDone || TODAY.reviewDone || false,
       closedAt:   closedAt,
-      createdAt:  existingIdx >= 0 ? (S.days[existingIdx].createdAt || closedAt) : closedAt
-    };
+      createdAt:  existingDay.createdAt || closedAt
+    });
     if (existingIdx >= 0) {
       S.days[existingIdx] = entry;   // update in place — no duplicate
     } else {
@@ -7435,7 +8121,8 @@ async function gistPull(silent, forceOverwrite) {
         }
       }
 
-      var mergedS = parsed.S ? mergeS(S, parsed.S) : S;
+      // Make combined tombstones visible before mergeToday can archive a stale remote TODAY.
+      S.deletedIds = mergeDeletedIds(S.deletedIds || {}, (parsed.S && parsed.S.deletedIds) || {});
       var mergedToday = TODAY;
       if (parsed.TODAY && parsed.TODAY.date === today()) {
         var localObjs  = (TODAY.objects||[]).length + (TODAY.cards||[]).length;
@@ -7443,7 +8130,10 @@ async function gistPull(silent, forceOverwrite) {
         mergedToday = localObjs >= remoteObjs
           ? mergeToday(TODAY, parsed.TODAY)
           : mergeToday(parsed.TODAY, TODAY);
+      } else if (parsed.TODAY) {
+        mergedToday = mergeToday(TODAY, parsed.TODAY);
       }
+      var mergedS = parsed.S ? mergeS(S, parsed.S) : S;
       if (conflicts && conflicts.length) {
         applyConflictResolutions(mergedS, mergedToday, conflicts, decision.resolutions || {});
         pullHadConflictResolution = true;
@@ -7456,8 +8146,12 @@ async function gistPull(silent, forceOverwrite) {
 
     // Apply tombstones to TODAY after any pull/merge
     if (!S.deletedIds) S.deletedIds = {};
+    (S.days || []).forEach(function(day) {
+      day.feedItems = filterDeletedFeedItems(day.feedItems);
+    });
     TODAY.cards   = (TODAY.cards||[]).filter(function(c){ return !isDeleted(c.id); });
     TODAY.objects = (TODAY.objects||[]).filter(function(o){ return !isDeleted(o.id); });
+    TODAY.feedItems = filterDeletedFeedItems(TODAY.feedItems);
 
     // Ensure defaults
     if (!S.days) S.days = [];
@@ -7508,77 +8202,166 @@ async function gistPull(silent, forceOverwrite) {
 // Merge helpers
 // ────────────────────────────────────────────────
 
-function mergeById(localArr, remoteArr, idKey) {
-  // Build map from both arrays, remote wins on same id+timestamp
-  var map = {};
+function canonicalMergeFingerprint(value) {
+  if (value === null) return 'null';
+  if (value === undefined) return 'undefined';
+  if (Array.isArray(value)) {
+    return 'array:[' + value.map(canonicalMergeFingerprint).join(',') + ']';
+  }
+  if (typeof value === 'object') {
+    return 'object:{' + Object.keys(value).sort().map(function(key) {
+      return JSON.stringify(key) + ':' + canonicalMergeFingerprint(value[key]);
+    }).join(',') + '}';
+  }
+  return typeof value + ':' + JSON.stringify(value);
+}
+
+function mergeById(localArr, remoteArr, idKey, sortMode) {
+  var map = Object.create(null);
+  var localLegacy = Object.create(null);
+  var remoteLegacy = Object.create(null);
+  var hasStableId = function(item) {
+    return item && item[idKey] !== undefined && item[idKey] !== null && String(item[idKey]).trim() !== '';
+  };
+  var addLegacy = function(groups, item) {
+    var fingerprint = canonicalMergeFingerprint(item);
+    if (!groups[fingerprint]) groups[fingerprint] = [];
+    groups[fingerprint].push(item);
+  };
+  var addIdentified = function(item) {
+    if (isDeleted(item[idKey])) return;
+    var mapKey = String(item[idKey]);
+    var existing = map[mapKey];
+    if (!existing) {
+      map[mapKey] = item;
+      return;
+    }
+    var existingFreshness = getCloseDayItemFreshness(existing);
+    var itemFreshness = getCloseDayItemFreshness(item);
+    if (itemFreshness !== null && (existingFreshness === null || itemFreshness > existingFreshness)) {
+      map[mapKey] = item;
+    } else if (itemFreshness === existingFreshness && JSON.stringify(item) > JSON.stringify(existing)) {
+      map[mapKey] = item;
+    }
+  };
   (localArr||[]).forEach(function(item) {
-    map[item[idKey]] = item;
+    if (!hasStableId(item)) {
+      addLegacy(localLegacy, item);
+      return;
+    }
+    addIdentified(item);
   });
   (remoteArr||[]).forEach(function(item) {
-    // Never resurrect tombstoned items from remote
-    if (isDeleted(item[idKey])) return;
-    var existing = map[item[idKey]];
-    if (!existing) {
-      map[item[idKey]] = item; // new item from remote
-    } else {
-      // Keep whichever was updated more recently
-      var localTs  = existing.createdAt || existing.updatedAt || '0';
-      var remoteTs = item.createdAt     || item.updatedAt     || '0';
-      if (remoteTs > localTs) map[item[idKey]] = item;
+    if (!hasStableId(item)) {
+      addLegacy(remoteLegacy, item);
+      return;
     }
+    addIdentified(item);
   });
+  // ID-less legacy records cannot be correlated safely. Keep the maximum
+  // occurrence count per canonical content fingerprint across both replicas.
+  var legacy = Object.keys(Object.assign({}, localLegacy, remoteLegacy)).sort().reduce(function(items, fingerprint) {
+    var localItems = localLegacy[fingerprint] || [];
+    var remoteItems = remoteLegacy[fingerprint] || [];
+    var source = localItems.length > remoteItems.length ? localItems : remoteItems.length > localItems.length ? remoteItems :
+      (JSON.stringify(localItems) >= JSON.stringify(remoteItems) ? localItems : remoteItems);
+    return items.concat(source.slice(0, Math.max(localItems.length, remoteItems.length)));
+  }, []);
   // Also filter out any locally tombstoned items that slipped through
-  return Object.values(map).filter(function(item) { return !isDeleted(item[idKey]); });
+  var identified = Object.values(map).filter(function(item) { return !isDeleted(item[idKey]); }).sort(function(a, b) {
+    var aId = String(a[idKey] || '');
+    var bId = String(b[idKey] || '');
+    return aId < bId ? -1 : aId > bId ? 1 : 0;
+  });
+  var result = legacy.concat(identified);
+  if (sortMode === 'cardsNewestFirst') {
+    var cardSortTimestamp = function(card) {
+      var created = card && card.createdAt ? Date.parse(card.createdAt) : NaN;
+      if (isFinite(created)) return created;
+      var idMatch = card && card.id ? String(card.id).match(/^(\d{10,})/) : null;
+      if (idMatch) {
+        var fromId = Number(idMatch[1]);
+        if (isFinite(fromId)) return fromId;
+      }
+      var updated = card && card.updatedAt ? Date.parse(card.updatedAt) : NaN;
+      return isFinite(updated) ? updated : null;
+    };
+    result = result.slice().sort(function(a, b) {
+      var aTime = cardSortTimestamp(a);
+      var bTime = cardSortTimestamp(b);
+      if (aTime !== null && bTime !== null && aTime !== bTime) return bTime - aTime;
+      if (aTime !== null && bTime === null) return -1;
+      if (aTime === null && bTime !== null) return 1;
+      var aKey = canonicalMergeFingerprint(a);
+      var bKey = canonicalMergeFingerprint(b);
+      return aKey < bKey ? -1 : aKey > bKey ? 1 : 0;
+    });
+  }
+  return result;
+}
+
+function filterDeletedFeedItems(items) {
+  return (items || []).filter(function(item) {
+    return !item || !item.id || !isDeleted(item.id);
+  });
+}
+
+function hasRelevantDayContent(day) {
+  if (!day) return false;
+  var plan = day.plan || {};
+  var hasTrueMarker = function(markers) {
+    return Object.keys(markers || {}).some(function(key) { return markers[key] === true; });
+  };
+  return !!(
+    (day.cards || []).some(function(item) { return item && !isDeleted(item.id); }) ||
+    (day.objects || []).some(function(item) { return item && !isDeleted(item.id); }) ||
+    filterDeletedFeedItems(day.feedItems).length || day.reviewDone || day.closedAt ||
+    ['intentionen', 'vermeiden', 'ort', 'stundenplan'].some(function(key) {
+      return typeof plan[key] === 'string' && !!plan[key].trim();
+    }) || Object.keys(plan.planFieldEditedAt || {}).length || Object.keys(plan.planFieldClearedAt || {}).length ||
+    hasTrueMarker(plan.planFieldsExplicitlyEdited) ||
+    (plan.aufstehzeit && plan.aufstehzeit !== '05:00') || plan.aufstehzeitEditedAt || plan.aufstehzeitExplicitlyEdited === true ||
+    (plan.tasks || []).length || Object.keys(plan.planTaskDeletedAt || {}).length ||
+    plan.planTasksClearedAt || plan.planTasksExplicitlyCleared === true
+  );
+}
+
+function mergeArchivedDay(existingDay, incomingDay) {
+  var existing = existingDay || {};
+  var incoming = incomingDay || {};
+  var base = JSON.stringify(existing) >= JSON.stringify(incoming) ? existing : incoming;
+  function validTimestamp(value) { return value && isFinite(Date.parse(value)) ? value : ''; }
+  var existingClosed = validTimestamp(existing.closedAt);
+  var incomingClosed = validTimestamp(incoming.closedAt);
+  var existingCreated = validTimestamp(existing.createdAt);
+  var incomingCreated = validTimestamp(incoming.createdAt);
+  var merged = Object.assign({}, base, {
+    id: existing.id && incoming.id ? (String(existing.id) < String(incoming.id) ? existing.id : incoming.id) : (existing.id || incoming.id),
+    date: existing.date || incoming.date,
+    cards: mergeById(existing.cards || [], incoming.cards || [], 'id', 'cardsNewestFirst'),
+    objects: mergeById(existing.objects || [], incoming.objects || [], 'id'),
+    feedItems: mergeById(existing.feedItems || [], incoming.feedItems || [], 'id'),
+    plan: mergeArchivedDayPlan(existing.plan, incoming.plan),
+    reviewDone: !!(existing.reviewDone || incoming.reviewDone)
+  });
+  var closedAt = existingClosed > incomingClosed ? existingClosed : incomingClosed;
+  var createdAt = existingCreated && incomingCreated
+    ? (existingCreated < incomingCreated ? existingCreated : incomingCreated)
+    : (existingCreated || incomingCreated);
+  if (closedAt) merged.closedAt = closedAt; else delete merged.closedAt;
+  if (createdAt) merged.createdAt = createdAt; else delete merged.createdAt;
+  return merged;
 }
 
 function mergeDays(localDays, remoteDays) {
-  // Build map by date — for each date, keep the version with more objects
-  // (or newer createdAt if same count)
   var map = {};
-  (localDays||[]).forEach(function(day) { map[day.date] = day; });
+  (localDays||[]).forEach(function(day) {
+    var existing = map[day.date];
+    map[day.date] = existing ? mergeArchivedDay(existing, day) : mergeArchivedDay({}, day);
+  });
   (remoteDays||[]).forEach(function(day) {
     var existing = map[day.date];
-    // Filter tombstoned items out of incoming remote day before comparing
-    var remoteCards   = (day.cards||[]).filter(function(c){ return !isDeleted(c.id); });
-    var remoteObjects = (day.objects||[]).filter(function(o){ return !isDeleted(o.id); });
-    if (!existing) {
-      map[day.date] = Object.assign({}, day, { cards: remoteCards, objects: remoteObjects });
-    } else {
-      // closedAt: once set, never lose it (either side wins if one has it)
-      var mergedClosedAt = existing.closedAt || day.closedAt || undefined;
-      var localObjs  = (existing.objects||[]).filter(function(o){ return !isDeleted(o.id); }).length;
-      var remoteObjs = remoteObjects.length;
-      if (remoteObjs > localObjs) {
-        map[day.date] = Object.assign({}, day, {
-          cards: remoteCards, objects: remoteObjects,
-          closedAt: mergedClosedAt,
-          reviewDone: existing.reviewDone || day.reviewDone
-        });
-      } else if (remoteObjs === localObjs) {
-        // Same count — merge objects by id (mergeById already filters tombstones)
-        map[day.date] = Object.assign({}, existing, {
-          objects:    mergeById(existing.objects||[], remoteObjects, 'id'),
-          cards:      mergeById(existing.cards||[],  remoteCards,   'id'),
-          feedItems:  mergeById(existing.feedItems||[], day.feedItems||[], 'id'),
-          reviewDone: existing.reviewDone || day.reviewDone,
-          closedAt:   mergedClosedAt,
-          plan:       (existing.plan && existing.plan.intentionen) ? existing.plan : (day.plan || existing.plan)
-        });
-      } else {
-        // local has more — still filter tombstoned items from local
-        map[day.date] = Object.assign({}, existing, {
-          cards:     (existing.cards||[]).filter(function(c){ return !isDeleted(c.id); }),
-          objects:   (existing.objects||[]).filter(function(o){ return !isDeleted(o.id); }),
-          closedAt:  mergedClosedAt
-        });
-      }
-    }
-  });
-  // Also filter tombstones from local-only days
-  Object.keys(map).forEach(function(date) {
-    var day = map[date];
-    day.cards   = (day.cards||[]).filter(function(c){ return !isDeleted(c.id); });
-    day.objects = (day.objects||[]).filter(function(o){ return !isDeleted(o.id); });
+    map[day.date] = existing ? mergeArchivedDay(existing, day) : mergeArchivedDay({}, day);
   });
   // Sort descending by date
   return Object.values(map).sort(function(a,b){ return b.date > a.date ? 1 : -1; });
@@ -7586,14 +8369,12 @@ function mergeDays(localDays, remoteDays) {
 
 function archiveTodayIfStale() {
   if (!TODAY || !TODAY.date || TODAY.date === today()) return;
-  var alreadyArchived = (S.days||[]).some(function(d){ return d.date === TODAY.date; });
-  if (!alreadyArchived && (
-  (TODAY.objects||[]).length > 0 ||
-  (TODAY.cards||[]).length > 0 ||
-  (TODAY.feedItems||[]).length > 0
-)) {
+  if (hasRelevantDayContent(TODAY)) {
     if (!S.days) S.days = [];
-    S.days.unshift(JSON.parse(JSON.stringify(TODAY)));
+    var existingIndex = S.days.findIndex(function(day) { return day.date === TODAY.date; });
+    var staleToday = mergeArchivedDay({}, TODAY);
+    if (existingIndex >= 0) S.days[existingIndex] = mergeArchivedDay(S.days[existingIndex], staleToday);
+    else S.days.unshift(staleToday);
     S.days.sort(function(a,b){ return b.date > a.date ? 1 : -1; });
   }
   TODAY = {
@@ -7607,34 +8388,14 @@ function mergeToday(local, remote) {
   // If remote TODAY is from a past day, archive it into S.days first
   if (remote && remote.date && remote.date !== today()) {
     var remoteDate = remote.date;
-    // Filter tombstoned items from remote before archiving
-    var remoteCards   = (remote.cards||[]).filter(function(c){ return !isDeleted(c.id); });
-    var remoteObjects = (remote.objects||[]).filter(function(o){ return !isDeleted(o.id); });
+    var hasRelevantRemoteDay = hasRelevantDayContent(remote);
     var already = (S.days||[]).some(function(d){ return d.date === remoteDate; });
-    if (!already && (remoteObjects.length || remoteCards.length || (remote.feedItems||[]).length)) {
+    if (!already && hasRelevantRemoteDay) {
       if (!S.days) S.days = [];
-      S.days.unshift({
-        date:       remoteDate,
-        cards:      remoteCards,
-        objects:    remoteObjects,
-        feedItems:  remote.feedItems || [],
-        reviewDone: remote.reviewDone || false,
-        closedAt:   remote.closedAt || undefined,
-        plan:       remote.plan || {}
-      });
-    } else if (already && (remoteObjects.length || remoteCards.length || (remote.feedItems||[]).length)) {
-      // Merge objects into existing archived day, respecting tombstones
-      var existing = S.days.find(function(d){ return d.date === remoteDate; });
-      if (existing) {
-        var existingIds = (existing.objects||[]).map(function(o){ return o.id; });
-        remoteObjects.forEach(function(o) {
-          if (existingIds.indexOf(o.id) === -1) existing.objects.push(o);
-        });
-        // Preserve closedAt: once set on either side, never lose it
-        if (!existing.closedAt && remote.closedAt) existing.closedAt = remote.closedAt;
-        // Preserve reviewDone the same way
-        if (!existing.reviewDone && remote.reviewDone) existing.reviewDone = remote.reviewDone;
-      }
+      S.days.unshift(mergeArchivedDay({}, remote));
+    } else if (already && hasRelevantRemoteDay) {
+      var existingIndex = S.days.findIndex(function(d){ return d.date === remoteDate; });
+      S.days[existingIndex] = mergeArchivedDay(S.days[existingIndex], remote);
     }
   }
   if (!remote || remote.date !== today()) return local;
@@ -7651,10 +8412,10 @@ function mergeToday(local, remote) {
     reviewDone: local.reviewDone || remote.reviewDone,
     closedAt:   local.closedAt || remote.closedAt || undefined,
     // mergeById already filters tombstones
-    cards:      mergeById(local.cards||[],   remote.cards||[],   'id'),
+    cards:      mergeById(local.cards||[],   remote.cards||[],   'id', 'cardsNewestFirst'),
     objects:    mergeById(local.objects||[], remote.objects||[], 'id'),
     feedItems:  mergedFeed,
-    plan:       (local.plan && local.plan.intentionen) ? local.plan : (remote.plan || local.plan)
+    plan:       mergeArchivedDayPlan(local.plan, remote.plan)
   };
 }
 
@@ -7774,17 +8535,7 @@ async function gistSync() {
 
     // Archive local TODAY into S before merge if it's from a past day
     if (TODAY && TODAY.date && TODAY.date !== today()) {
-      var alreadyIn = (S.days||[]).some(function(d){ return d.date === TODAY.date; });
-      if (!alreadyIn && (
-  (TODAY.objects||[]).length ||
-  (TODAY.cards||[]).length ||
-  (TODAY.feedItems||[]).length
-)) {
-        if (!S.days) S.days = [];
-        S.days.unshift(JSON.parse(JSON.stringify(TODAY)));
-      }
-      TODAY = { date: today(), cards: [], objects: [], feedItems: [], reviewDone: false,
-        plan: { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] } };
+      archiveTodayIfStale();
     }
 
     // ── Snapshot BEFORE merge (before mergeS mutates S.deletedIds as side-effect) ─
@@ -7793,23 +8544,34 @@ async function gistSync() {
     var remoteSnapshot = { S: remote.S || {}, TODAY: remote.TODAY || {} };
 
     var conflicts = detectSyncConflicts(localSnapshot, remoteSnapshot);
+    var decision = null;
     if (conflicts.length) {
       setSyncStatus('conflict', 'Konflikte erkannt', gistTime, conflicts.length);
       recordSyncLog({ action: 'conflict', remoteTime: gistTime, conflictCount: conflicts.length, shortMessage: conflicts.length + ' Konflikte erkannt' });
+      decision = await openSyncConflictModal(conflicts);
+      if (!decision || decision.cancelled) {
+        setSyncStatus('skipped', 'Sync abgebrochen wegen Konflikten', gistTime, conflicts.length);
+        recordSyncLog({ action: 'skip', remoteTime: gistTime, conflictCount: conflicts.length, shortMessage: 'Konflikt-Dialog abgebrochen' });
+        toast('⚠ Sync abgebrochen wegen Konflikten');
+        return;
+      }
     }
 
-    // Merge both sides
-    var mergedS = mergeS(S, remote.S || {});
-
+    // Make combined tombstones visible before mergeToday can archive a stale remote TODAY.
+    S.deletedIds = mergeDeletedIds(S.deletedIds || {}, ((remote.S || {}).deletedIds) || {});
     // For TODAY: never let an empty remote overwrite a populated local
     var localTodayObjs  = (TODAY.objects||[]).length + (TODAY.cards||[]).length;
     var remoteTodayObjs = ((remote.TODAY||{}).objects||[]).length + ((remote.TODAY||{}).cards||[]).length;
     var mergedToday;
-    if (localTodayObjs >= remoteTodayObjs) {
+    if (remote.TODAY && remote.TODAY.date && remote.TODAY.date !== today()) {
+      mergedToday = mergeToday(TODAY, remote.TODAY);
+    } else if (localTodayObjs >= remoteTodayObjs) {
       mergedToday = mergeToday(TODAY, remote.TODAY || {});
     } else {
       mergedToday = mergeToday(remote.TODAY, TODAY);
     }
+    // Merge S after mergeToday so an archived stale remote TODAY is retained.
+    var mergedS = mergeS(S, remote.S || {});
 
     // ── Detect whether the merge actually changed anything ─────────────────
     // Serialize before/after to detect real changes. Avoids unnecessary writes
@@ -7828,14 +8590,11 @@ async function gistSync() {
     // ─────────────────────────────────────────────────────────────────────
 
     if (conflicts.length) {
-      var decision = await openSyncConflictModal(conflicts);
-      if (!decision || decision.cancelled) {
-        setSyncStatus('skipped', 'Sync abgebrochen wegen Konflikten', gistTime, conflicts.length);
-        recordSyncLog({ action: 'skip', remoteTime: gistTime, conflictCount: conflicts.length, shortMessage: 'Konflikt-Dialog abgebrochen' });
-        toast('⚠ Sync abgebrochen wegen Konflikten');
-        return;
-      }
       applyConflictResolutions(mergedS, mergedToday, conflicts, decision.resolutions || {});
+      (mergedS.days || []).forEach(function(day) {
+        day.feedItems = filterDeletedFeedItems(day.feedItems);
+      });
+      mergedToday.feedItems = filterDeletedFeedItems(mergedToday.feedItems);
       afterSnapshot = JSON.stringify({ S: mergedS, TODAY: mergedToday });
       didChange = (beforeSnapshot !== afterSnapshot);
       mergedSnapshotComparable = JSON.stringify({
@@ -7853,6 +8612,7 @@ async function gistSync() {
     // Apply tombstones to TODAY (mergedS already applied them to S.days)
     TODAY.cards   = (TODAY.cards||[]).filter(function(c){ return !isDeleted(c.id); });
     TODAY.objects = (TODAY.objects||[]).filter(function(o){ return !isDeleted(o.id); });
+    TODAY.feedItems = filterDeletedFeedItems(TODAY.feedItems);
 
     // Ensure defaults
     ensurePromptOverrideState();
@@ -8269,6 +9029,7 @@ function addContextToObj(objId, ctx) {
   ctx = ctx.toLowerCase().replace(/^@/, '');
   if (!obj.contexts.includes(ctx)) {
     obj.contexts.push(ctx);
+    touchObj(obj);
     // Register globally
     if (!S.config.contexts) S.config.contexts = [];
     if (!S.config.contexts.includes(ctx)) S.config.contexts.push(ctx);
@@ -8566,8 +9327,7 @@ function findObjGlobal(objId) {
 // Stamp updatedAt on an object so mergeById can resolve conflicts correctly.
 // Call this whenever a field other than text/creation is mutated.
 function touchObj(obj) {
-  obj.updatedAt = new Date().toISOString();
-  stampItemEditMeta(obj);
+  stampItemEditMeta(obj, new Date().toISOString());
 }
 
 function setObjStatus(objId, status) {
@@ -8704,6 +9464,8 @@ function updateReviewBadge() {
     badge.style.display = open.length > 0 ? 'inline-flex' : 'none';
     badge.textContent = open.length;
   }
+  syncBadge('badge-review', 'dbadge-review');
+  syncBadge('badge-review', 'sbadge-review');
   // Update abschluss banner
   renderAbschlussBanner();
 }
@@ -8857,6 +9619,8 @@ function updateFLBadge() {
     badge.style.display = total > 0 ? 'inline-flex' : 'none';
     badge.textContent = total;
   }
+  syncBadge('badge-fl', 'dbadge-fl');
+  syncBadge('badge-fl', 'sbadge-fl');
 }
 
 function renderFutureLog() {
@@ -8909,6 +9673,7 @@ function acceptPuffer(id) {
     createdAt: new Date().toISOString(),
     source: { kind: 'manual', createdManually: true, from: 'migrationPuffer' }
   }));
+  recordDeletion(id);
   S.migrationPuffer = S.migrationPuffer.filter(function(p){ return p.id !== id; });
   save();
   renderPuffer();
@@ -8918,6 +9683,7 @@ function acceptPuffer(id) {
 }
 
 function dismissPuffer(id) {
+  recordDeletion(id);
   S.migrationPuffer = (S.migrationPuffer||[]).filter(function(p){ return p.id !== id; });
   save();
   renderPuffer();
@@ -8931,6 +9697,7 @@ function acceptAllPuffer() {
 }
 
 function dismissAllPuffer() {
+  (S.migrationPuffer||[]).forEach(function(item) { if (item && item.id) recordDeletion(item.id); });
   S.migrationPuffer = [];
   save();
   renderPuffer();
@@ -8958,6 +9725,7 @@ function addFutureLogEntry() {
   if (!text) { toast('Kein Text eingegeben.'); return; }
   var date  = document.getElementById('flDate') ? document.getElementById('flDate').value : '';
   var month = document.getElementById('flMonth') ? document.getElementById('flMonth').value : '';
+  var createdAt = new Date().toISOString();
   S.futurelog.push({
     id: uid(),
     text: text,
@@ -8965,7 +9733,8 @@ function addFutureLogEntry() {
     month: month || (date ? date.slice(0,7) : ''),
     fromDate: today(),
     done: false,
-    createdAt: new Date().toISOString()
+    createdAt: createdAt,
+    updatedAt: createdAt
   });
   document.getElementById('flText').value = '';
   if (document.getElementById('flDate')) document.getElementById('flDate').value = '';
@@ -9066,6 +9835,7 @@ function pullFLToday(id) {
     source: { kind: 'manual', createdManually: true, from: 'futurelog' }
   }));
   entry.done = true;
+  touchUpdatedAt(entry);
   save();
   renderFLList();
   updateBadges();
@@ -9075,12 +9845,12 @@ function pullFLToday(id) {
 
 function doneFLEntry(id) {
   var entry = (S.futurelog||[]).find(function(e){ return e.id === id; });
-  if (entry) { entry.done = true; save(); renderFLList(); updateFLBadge(); toast('Erledigt'); }
+  if (entry && !entry.done) { entry.done = true; touchUpdatedAt(entry); save(); renderFLList(); updateFLBadge(); toast('Erledigt'); }
 }
 
 function undoFLEntry(id) {
   var entry = (S.futurelog||[]).find(function(e){ return e.id === id; });
-  if (entry) { entry.done = false; save(); renderFLList(); updateFLBadge(); }
+  if (entry && entry.done) { entry.done = false; touchUpdatedAt(entry); save(); renderFLList(); updateFLBadge(); }
 }
 
 // Show puffer in morning review
@@ -9940,6 +10710,7 @@ function confirmFeedAdopt(id) {
   item.status = 'adopted';
   item.objId = newObj.id;
   item._showAdopt = false;
+  touchUpdatedAt(item);
   save();
   renderFeedList();
   updateBadges();
@@ -9949,16 +10720,21 @@ function confirmFeedAdopt(id) {
 
 function ignoreFeedItem(id) {
   var item = (getViewData().feedItems||[]).find(function(i){ return i.id === id; });
-  if (item) { item.status = 'ignored'; save(); renderFeedList(); updateFeedBadge(); }
+  if (item && item.status !== 'ignored') { item.status = 'ignored'; touchUpdatedAt(item); save(); renderFeedList(); updateFeedBadge(); }
 }
 
 function restoreFeedItem(id) {
   var item = (getViewData().feedItems||[]).find(function(i){ return i.id === id; });
-  if (item) { item.status = 'open'; save(); renderFeedList(); updateFeedBadge(); }
+  if (item && item.status !== 'open') { item.status = 'open'; touchUpdatedAt(item); save(); renderFeedList(); updateFeedBadge(); }
 }
 
 function clearFeedIgnored() {
-  var vdfi = getViewData(); vdfi.feedItems = (vdfi.feedItems||[]).filter(function(i){ return i.status !== 'ignored'; });
+  var vdfi = getViewData();
+  var removedIgnored = (vdfi.feedItems || []).filter(function(i){ return i.status === 'ignored'; });
+  removedIgnored.forEach(function(item) {
+    if (item.id) recordDeletion(item.id);
+  });
+  vdfi.feedItems = (vdfi.feedItems||[]).filter(function(i){ return i.status !== 'ignored'; });
   save(); renderFeedList(); updateFeedBadge();
   toast('Ignorierte entfernt');
 }
@@ -10002,10 +10778,12 @@ async function loadReadwise() {
 
     var added = 0;
     results.forEach(function(doc) {
-      var existing = (TODAY.feedItems||[]).find(function(i){ return i.id === 'rw-' + doc.id; });
+      var itemId = 'rw-' + doc.id;
+      if (isDeleted(itemId)) return;
+      var existing = (TODAY.feedItems||[]).find(function(i){ return i.id === itemId; });
       if (existing) return;
       TODAY.feedItems.push({
-        id: 'rw-' + doc.id,
+        id: itemId,
         source: 'readwise',
         title: doc.title || doc.source_url || '',
         body: doc.summary || doc.notes || '',
@@ -10056,12 +10834,14 @@ async function loadRaindrop() {
 
     var added = 0;
     items.forEach(function(drop) {
-      var existing = (TODAY.feedItems||[]).find(function(i){ return i.id === 'rd-' + drop._id; });
+      var itemId = 'rd-' + drop._id;
+      if (isDeleted(itemId)) return;
+      var existing = (TODAY.feedItems||[]).find(function(i){ return i.id === itemId; });
       if (existing) return;
       // Skip if already imported (by date comparison)
       if (S.feedLastRaindrop && drop.created && drop.created < S.feedLastRaindrop) return;
       TODAY.feedItems.push({
-        id: 'rd-' + drop._id,
+        id: itemId,
         source: 'raindrop',
         title: drop.title || '',
         body: drop.excerpt || drop.note || '',
@@ -10119,6 +10899,8 @@ async function loadHighlights() {
 
     var added = 0;
     results.forEach(function(hl) {
+      var itemId = 'hl-' + hl.id;
+      if (isDeleted(itemId)) return;
       var itemDate = (hl.updated_at || hl.created_at || '').slice(0, 10) || today();
 var targetDay;
 
@@ -10141,11 +10923,12 @@ if (itemDate === today()) {
   }
 }
 
-var existing = (targetDay.feedItems||[]).find(function(i){ return i.id === 'hl-' + hl.id; });
+var existing = (targetDay.feedItems||[]).find(function(i){ return i.id === itemId; });
 if (existing) return;
 
+if (!Array.isArray(targetDay.feedItems)) targetDay.feedItems = [];
 targetDay.feedItems.push({
-  id: 'hl-' + hl.id,
+  id: itemId,
   source: 'highlight',
   title: hl.title || hl.document_title || hl.document_note || '',
   body: hl.content || hl.text || '',
@@ -10233,6 +11016,7 @@ function saveHighlightAsZettel() {
 
   var item = currentHighlightId ? (getViewData().feedItems||[]).find(function(i){ return i.id === currentHighlightId; }) : null;
 
+  var createdAt = new Date().toISOString();
   S.zettels.push({
     id: uid(),
     title: title || body.slice(0,80),
@@ -10242,10 +11026,11 @@ function saveHighlightAsZettel() {
     sourceText: item ? (item.body || '') : '',
     date: today(),
     kept: true,
-    createdAt: new Date().toISOString()
+    createdAt: createdAt,
+    updatedAt: createdAt
   });
 
-  if (item) { item.status = 'adopted'; }
+  if (item) { item.status = 'adopted'; touchUpdatedAt(item); }
   save();
   updateZettelBadge();
   closeModal('highlightReflModal');
@@ -10267,7 +11052,7 @@ function saveHighlightAsObj() {
     dismissed: false, createdAt: new Date().toISOString(),
     source: { kind: 'manual', createdManually: true, from: 'highlight' }
   }));
-  if (item) item.status = 'adopted';
+  if (item) { item.status = 'adopted'; touchUpdatedAt(item); }
   save();
   updateBadges();
   closeModal('highlightReflModal');
@@ -10319,15 +11104,16 @@ function renderZettelTab() {
 
 function keepZettel(id) {
   var z = (S.zettels||[]).find(function(z){ return z.id === id; });
-  if (z) { z.kept = true; save(); renderZettelTab(); updateZettelBadge(); toast('Behalten'); }
+  if (z && !z.kept) { z.kept = true; touchUpdatedAt(z); save(); renderZettelTab(); updateZettelBadge(); toast('Behalten'); }
 }
 
 function discardZettel(id) {
   var z = (S.zettels||[]).find(function(z){ return z.id === id; });
-  if (z) { z.kept = false; save(); renderZettelTab(); updateZettelBadge(); }
+  if (z && z.kept) { z.kept = false; touchUpdatedAt(z); save(); renderZettelTab(); updateZettelBadge(); }
 }
 
 function deleteZettel(id) {
+  recordDeletion(id);
   S.zettels = (S.zettels||[]).filter(function(z){ return z.id !== id; });
   save(); renderZettelTab(); updateZettelBadge();
 }
@@ -10358,10 +11144,13 @@ function addZettelManual() {
 
   if (editId) {
     var z = (S.zettels||[]).find(function(z){ return z.id === editId; });
-    if (z) { z.title = title; z.body = body; z.tags = tags; }
+    if (z && (z.title !== title || (z.body || '') !== body || JSON.stringify(z.tags || []) !== JSON.stringify(tags))) {
+      z.title = title; z.body = body; z.tags = tags; touchUpdatedAt(z);
+    }
     if (modal) delete modal.dataset.editId;
   } else {
-    S.zettels.push({ id: uid(), title: title, body: body, tags: tags, source: 'manuell', date: today(), kept: true, createdAt: new Date().toISOString() });
+    var createdAt = new Date().toISOString();
+    S.zettels.push({ id: uid(), title: title, body: body, tags: tags, source: 'manuell', date: today(), kept: true, createdAt: createdAt, updatedAt: createdAt });
   }
 
   save();
@@ -10452,10 +11241,12 @@ function updateCollectionFields(colId, patch) {
     }
   }
 
+  var changed = col.name !== nextName || col.description !== nextDescription || col.summary !== nextSummary;
+  if (!changed) return col;
   col.name = nextName;
   col.description = nextDescription;
   col.summary = nextSummary;
-  col.updatedAt = new Date().toISOString();
+  touchUpdatedAt(col);
   save();
 
   var wasActive = activeKolId === colId;
@@ -10471,6 +11262,7 @@ function deleteCurrentCollection() {
   if (!confirm('Kollektion „' + col.name + '" löschen? Die Objekte bleiben erhalten.')) return;
   // Remove collectionId from all objects
   removeCollectionFromAllObjects(activeKolId);
+  recordDeletion(activeKolId);
   S.collections = S.collections.filter(function(c){ return c.id !== activeKolId; });
   activeKolId = null;
   save();
@@ -10500,6 +11292,7 @@ function removeObjFromCollection(objId, colId) {
   var result = findObjGlobal(objId);
   if (!result) return;
   if (!result.obj.collectionIds) return;
+  if (result.obj.collectionIds.indexOf(colId) === -1) return;
   result.obj.collectionIds = result.obj.collectionIds.filter(function(id){ return id !== colId; });
   touchObj(result.obj);  // stamp updatedAt so mergeById picks this version
   result.save();
@@ -10509,12 +11302,18 @@ function removeObjFromCollection(objId, colId) {
 function removeCollectionFromAllObjects(colId) {
   // Sweep TODAY
   (TODAY.objects||[]).forEach(function(o) {
-    if (o.collectionIds) o.collectionIds = o.collectionIds.filter(function(id){ return id !== colId; });
+    if (o.collectionIds && o.collectionIds.indexOf(colId) !== -1) {
+      o.collectionIds = o.collectionIds.filter(function(id){ return id !== colId; });
+      touchObj(o);
+    }
   });
   // Sweep all S.days
   (S.days||[]).forEach(function(day) {
     (day.objects||[]).forEach(function(o) {
-      if (o.collectionIds) o.collectionIds = o.collectionIds.filter(function(id){ return id !== colId; });
+      if (o.collectionIds && o.collectionIds.indexOf(colId) !== -1) {
+        o.collectionIds = o.collectionIds.filter(function(id){ return id !== colId; });
+        touchObj(o);
+      }
     });
   });
 }
@@ -11429,6 +12228,7 @@ var planShowSelectedOnly = false;
 function ensurePlanState() {
   var vdp = getViewData();
   if (!vdp.plan) vdp.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
+  vdp.plan.tasks = normalizePlanTasks(vdp.plan.tasks);
   if (!TODAY.plan.tasks) TODAY.plan.tasks = [];
 }
 
@@ -11451,7 +12251,7 @@ function renderPlanTab() {
   renderPlanTaskList();
 }
 
-function savePlanField() {
+function savePlanField(editedField) {
   ensurePlanState();
   ensurePlanState();
   var f = getViewData().plan;
@@ -11461,7 +12261,44 @@ function savePlanField() {
   el = document.getElementById('planAufstehzeit');  if (el) f.aufstehzeit = el.value;
   el = document.getElementById('planOrt');          if (el) f.ort = el.value;
   el = document.getElementById('planStundenplan');  if (el) f.stundenplan = el.value;
+  var allowedFields = ['intentionen', 'vermeiden', 'ort', 'stundenplan'];
+  if (allowedFields.indexOf(editedField) !== -1) {
+    var editedAt = new Date().toISOString();
+    if (!f.planFieldEditedAt) f.planFieldEditedAt = {};
+    f.planFieldEditedAt[editedField] = editedAt;
+    if (typeof f[editedField] === 'string' && !f[editedField].trim()) {
+      if (!f.planFieldClearedAt) f.planFieldClearedAt = {};
+      f.planFieldClearedAt[editedField] = editedAt;
+    } else if (f.planFieldClearedAt) {
+      delete f.planFieldClearedAt[editedField];
+      if (!Object.keys(f.planFieldClearedAt).length) delete f.planFieldClearedAt;
+    }
+  }
+  if (isViewingToday() && allowedFields.indexOf(editedField) !== -1) {
+    if (!f.planFieldsExplicitlyEdited) f.planFieldsExplicitlyEdited = {};
+    f.planFieldsExplicitlyEdited[editedField] = true;
+  } else if (!isViewingToday() && allowedFields.indexOf(editedField) !== -1 && f.planFieldsExplicitlyEdited) {
+    delete f.planFieldsExplicitlyEdited[editedField];
+    if (!Object.keys(f.planFieldsExplicitlyEdited).length) delete f.planFieldsExplicitlyEdited;
+  }
   save();
+  if (isViewingToday() && allowedFields.indexOf(editedField) !== -1) renderCloseDayStatus();
+}
+
+function savePlanWakeTime() {
+  ensurePlanState();
+  var plan = getViewData().plan;
+  var input = document.getElementById('planAufstehzeit');
+  if (!input) return;
+  plan.aufstehzeit = input.value;
+  plan.aufstehzeitEditedAt = new Date().toISOString();
+  if (isViewingToday() && input.value) {
+    plan.aufstehzeitExplicitlyEdited = true;
+  } else {
+    delete plan.aufstehzeitExplicitlyEdited;
+  }
+  save();
+  if (isViewingToday()) renderCloseDayStatus();
 }
 
 function isPlanTaskClosed(task) {
@@ -11541,16 +12378,20 @@ function reloadMigratedTasks() {
   var added = 0;
   (S.migrationPuffer||[]).forEach(function(p) {
     if (existing.indexOf(p.text) === -1) {
-      getViewData().plan.tasks.push({ text: p.text, selected: false, source: 'von ' + p.fromDate, objectId: p.objId || '' });
+      var pTime = new Date().toISOString();
+      var pTasks = getViewData().plan.tasks;
+      pTasks.push({ id: p.objId ? 'plan-object-' + p.objId : uid(), text: p.text, selected: false, source: 'von ' + p.fromDate, objectId: p.objId || '', createdAt: pTime, updatedAt: pTime, order: nextPlanTaskOrder(pTasks) });
       added++;
     }
   });
 
-  // Load from today's > objects
+  // Load from current-day > objects
   TODAY.objects.forEach(function(o) {
     if (o.typ !== 'aufgabe' || o.parentId || o.dismissed) return;
     if (o.status === '>' && existing.indexOf(o.text) === -1) {
-      getViewData().plan.tasks.push({ text: o.text, selected: false, source: 'migriert', objectId: o.id });
+      var oTime = new Date().toISOString();
+      var oTasks = getViewData().plan.tasks;
+      oTasks.push({ id: 'plan-object-' + o.id, text: o.text, selected: false, source: 'migriert', objectId: o.id, createdAt: oTime, updatedAt: oTime, order: nextPlanTaskOrder(oTasks) });
       added++;
     }
   });
@@ -11565,6 +12406,7 @@ function togglePlanTask(idx, checked) {
   var pt = getViewData().plan;
   if (pt && pt.tasks && pt.tasks[idx]) {
     pt.tasks[idx].selected = checked;
+    pt.tasks[idx].updatedAt = new Date().toISOString();
     save();
     renderPlanTaskList();
   }
@@ -11576,13 +12418,20 @@ function setPlanTaskStatus(idx, status) {
   if (!pt || !pt.tasks || !pt.tasks[idx] || !pt.tasks[idx].objectId) return;
   setObjStatus(pt.tasks[idx].objectId, status);
   pt.tasks[idx].selected = false;
+  pt.tasks[idx].updatedAt = new Date().toISOString();
   save();
   renderPlanTaskList();
 }
 
 function removePlanTask(idx) {
   ensurePlanState();
-  var pt2 = getViewData().plan; if (pt2 && pt2.tasks) pt2.tasks.splice(idx, 1);
+  var pt2 = getViewData().plan;
+  if (pt2 && pt2.tasks && pt2.tasks[idx]) {
+    var removed = pt2.tasks[idx];
+    if (!pt2.planTaskDeletedAt) pt2.planTaskDeletedAt = {};
+    pt2.planTaskDeletedAt[removed.id] = new Date().toISOString();
+    pt2.tasks.splice(idx, 1);
+  }
   save();
   renderPlanTaskList();
 }
@@ -11592,7 +12441,8 @@ function addPlanTask() {
   var inp = document.getElementById('planNewTask');
   if (!inp || !inp.value.trim()) return;
   var pt3 = getViewData().plan; if (!pt3.tasks) pt3.tasks = [];
-  pt3.tasks.push({ text: inp.value.trim(), selected: true, source: '' });
+  var createdAt = new Date().toISOString();
+  pt3.tasks.push({ id: uid(), text: inp.value.trim(), selected: true, source: '', createdAt: createdAt, updatedAt: createdAt, order: nextPlanTaskOrder(pt3.tasks) });
   inp.value = '';
   save();
   renderPlanTaskList();
@@ -11693,9 +12543,40 @@ function copyPlanPrompt() {
 
 function clearPlanPrompt() {
   ensurePlanState();
-  var vdc = getViewData(); vdc.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
+  var vdc = getViewData();
+  var previousTasks = normalizePlanTasks((vdc.plan && vdc.plan.tasks) || []);
+  var previousTaskDeletedAt = Object.assign({}, (vdc.plan && vdc.plan.planTaskDeletedAt) || {});
+  vdc.plan = { intentionen: '', vermeiden: '', aufstehzeit: '05:00', ort: '', stundenplan: '', tasks: [] };
+  var clearedAt = new Date().toISOString();
+  previousTasks.forEach(function(task) { previousTaskDeletedAt[task.id] = clearedAt; });
+  if (Object.keys(previousTaskDeletedAt).length) vdc.plan.planTaskDeletedAt = previousTaskDeletedAt;
+  vdc.plan.planTasksClearedAt = clearedAt;
+  vdc.plan.aufstehzeitEditedAt = clearedAt;
+  vdc.plan.planFieldEditedAt = {
+    intentionen: clearedAt,
+    vermeiden: clearedAt,
+    ort: clearedAt,
+    stundenplan: clearedAt
+  };
+  vdc.plan.planFieldClearedAt = {
+    intentionen: clearedAt,
+    vermeiden: clearedAt,
+    ort: clearedAt,
+    stundenplan: clearedAt
+  };
+  if (isViewingToday()) {
+    vdc.plan.planFieldsExplicitlyEdited = {
+      intentionen: true,
+      vermeiden: true,
+      ort: true,
+      stundenplan: true
+    };
+    vdc.plan.aufstehzeitExplicitlyEdited = true;
+    vdc.plan.planTasksExplicitlyCleared = true;
+  }
   save();
   renderPlanTab();
+  if (isViewingToday()) renderCloseDayStatus();
   var textEl = document.getElementById('planPromptText');
   var placeholder = document.getElementById('planPromptPlaceholder');
   if (textEl) { textEl.textContent = ''; textEl.style.display = 'none'; }
@@ -11728,24 +12609,30 @@ function updateDrawerActive(name) {
   currentTab = name;
   var tabs = ['sammeln','feed','objekte','plan','review','abschluss','futurelog','kontexte','zettel','kollektionen','verlauf'];
   tabs.forEach(function(t) {
-    var el = document.getElementById('dnav-' + t);
-    if (el) el.classList.toggle('active', t === name);
+    ['dnav-', 'snav-', 'mnav-'].forEach(function(prefix) {
+      var el = document.getElementById(prefix + t);
+      if (el) el.classList.toggle('active', t === name);
+    });
   });
 }
 
+function syncBadge(sourceId, targetId) {
+  var src = document.getElementById(sourceId);
+  var dst = document.getElementById(targetId);
+  if (src && dst) { dst.style.display = src.style.display; dst.textContent = src.textContent; }
+}
+
 function syncDrawerBadges() {
-  // Sync feed badge
-  var fb = document.getElementById('badge-feed');
-  var dfb = document.getElementById('dbadge-feed');
-  if (fb && dfb) { dfb.style.display = fb.style.display; dfb.textContent = fb.textContent; }
-  // Sync FL badge
-  var flb = document.getElementById('badge-fl');
-  var dflb = document.getElementById('dbadge-fl');
-  if (flb && dflb) { dflb.style.display = flb.style.display; dflb.textContent = flb.textContent; }
-  // Sync zettel badge
-  var zb = document.getElementById('badge-zettel');
-  var dzb = document.getElementById('dbadge-zettel');
-  if (zb && dzb) { dzb.style.display = zb.style.display; dzb.textContent = zb.textContent; }
+  syncBadge('badge-feed', 'dbadge-feed');
+  syncBadge('badge-feed', 'sbadge-feed');
+  syncBadge('badge-fl', 'dbadge-fl');
+  syncBadge('badge-fl', 'sbadge-fl');
+  syncBadge('badge-zettel', 'dbadge-zettel');
+  syncBadge('badge-zettel', 'sbadge-zettel');
+  syncBadge('badge-review', 'dbadge-review');
+  syncBadge('badge-review', 'sbadge-review');
+  syncBadge('badge-kollektionen', 'sbadge-kollektionen');
+  updateSammelnStatus();
 }
 
 
@@ -11801,6 +12688,25 @@ function navToDate(date) {
   refreshAllTabs();
 }
 
+function renderCloseDayStatus() {
+  var status = document.getElementById('closeDayStatus');
+  if (!status) return;
+  var viewData = getViewData();
+  // Closing today archives the completed snapshot in S.days and resets TODAY.
+  // Use that snapshot only while the reset working state is still empty.
+  var archivedDay = (S.days || []).find(function(day) { return day.date === viewDate; });
+  var hasActiveTodayContent = hasActiveDayContent(TODAY);
+  var useTodayArchive = viewDate === today() && !hasActiveTodayContent;
+  var isClosed = !!(
+    (viewData && viewData.closedAt) ||
+    (useTodayArchive && archivedDay && archivedDay.closedAt)
+  );
+  status.textContent = isClosed ? '✓ Abgeschlossen' : '· Offen';
+  status.setAttribute('aria-label', 'Tagesstatus: ' + (isClosed ? 'Abgeschlossen' : 'Offen'));
+  status.classList.toggle('is-closed', isClosed);
+  status.classList.toggle('is-open', !isClosed);
+}
+
 function updateDateNav() {
   var picker = document.getElementById('dateNavPicker');
   var todayBtn = document.getElementById('btnDateToday');
@@ -11833,6 +12739,7 @@ function updateDateNav() {
     }
     bannerText.innerHTML = '📅 ' + esc(label) + statusStr;
   }
+  renderCloseDayStatus();
   renderCalendarDots();
 }
 
@@ -11861,6 +12768,7 @@ function updateBadgesForView() {
   // Objekte badge
   var ob = document.getElementById('badge-objekte');
   if (ob) ob.textContent = (data.objects||[]).filter(function(o){ return !o.parentId && !o.dismissed; }).length;
+  updateSammelnStatus();
 }
 
 
@@ -11999,23 +12907,11 @@ function importFileAndMerge(input) {
           var existing = (S.days||[]).find(function(d){ return d.date === remoteTODAY.date; });
           if (!existing) {
             if (!S.days) S.days = [];
-            S.days.unshift({
-              date: remoteTODAY.date,
-              cards: remoteTODAY.cards || [],
-              objects: remoteTODAY.objects || [],
-              feedItems: remoteTODAY.feedItems || [],
-              reviewDone: remoteTODAY.reviewDone || false,
-              plan: remoteTODAY.plan || {}
-            });
+            S.days.unshift(mergeArchivedDay({}, remoteTODAY));
             S.days.sort(function(a,b){ return b.date > a.date ? 1 : -1; });
           } else {
-            existing.objects   = mergeById(existing.objects||[], remoteTODAY.objects||[], 'id');
-            existing.cards     = mergeById(existing.cards||[], remoteTODAY.cards||[], 'id');
-            existing.feedItems = mergeById(existing.feedItems||[], remoteTODAY.feedItems||[], 'id');
-            existing.reviewDone = existing.reviewDone || remoteTODAY.reviewDone;
-            if ((!existing.plan || !existing.plan.intentionen) && remoteTODAY.plan) {
-              existing.plan = remoteTODAY.plan;
-            }
+            var existingIndex = S.days.indexOf(existing);
+            S.days[existingIndex] = mergeArchivedDay(existing, remoteTODAY);
           }
         }
       }
@@ -12061,21 +12957,11 @@ function importFileAndOverwrite(input) {
           if (!S.days) S.days = [];
           var existing = (S.days||[]).find(function(d){ return d.date === TODAY.date; });
           if (!existing) {
-            S.days.unshift({
-              date: TODAY.date,
-              cards: TODAY.cards || [],
-              objects: TODAY.objects || [],
-              feedItems: TODAY.feedItems || [],
-              reviewDone: TODAY.reviewDone || false,
-              plan: TODAY.plan || {}
-            });
+            S.days.unshift(mergeArchivedDay({}, TODAY));
             S.days.sort(function(a,b){ return b.date > a.date ? 1 : -1; });
           } else {
-            existing.objects = mergeById(existing.objects||[], TODAY.objects||[], 'id');
-            existing.cards = mergeById(existing.cards||[], TODAY.cards||[], 'id');
-            existing.feedItems = mergeById(existing.feedItems||[], TODAY.feedItems||[], 'id');
-            existing.reviewDone = existing.reviewDone || TODAY.reviewDone;
-            if ((!existing.plan || !existing.plan.intentionen) && TODAY.plan) existing.plan = TODAY.plan;
+            var existingIndex = S.days.indexOf(existing);
+            S.days[existingIndex] = mergeArchivedDay(existing, TODAY);
           }
         }
         TODAY = freshToday();
@@ -12154,6 +13040,16 @@ if ('serviceWorker' in navigator) {
 </script>
 
 <!-- Nav Drawer (Mobile) -->
+</div>
+
+<nav class="mobile-bottom-nav" aria-label="Hauptnavigation mobil">
+  <button class="bottom-nav-btn active" id="mnav-sammeln" onclick="switchTab('sammeln')"><span>＋</span><span>Sammeln</span></button>
+  <button class="bottom-nav-btn" id="mnav-objekte" onclick="switchTab('objekte')"><span>⬡</span><span>Objekte</span></button>
+  <button class="bottom-nav-btn" id="mnav-futurelog" onclick="switchTab('futurelog')"><span>◂</span><span>Future</span></button>
+  <button class="bottom-nav-btn" id="mnav-verlauf" onclick="switchTab('verlauf')"><span>◷</span><span>Verlauf</span></button>
+  <button class="bottom-nav-btn" id="mnav-abschluss" onclick="switchTab('abschluss')"><span>◆</span><span>Abschluss</span></button>
+</nav>
+
 <div class="nav-overlay" id="navOverlay" onclick="closeNavDrawer()"></div>
 <div class="nav-drawer" id="navDrawer">
   <div class="nav-drawer-header">
@@ -12168,7 +13064,7 @@ if ('serviceWorker' in navigator) {
     <button class="nav-drawer-item" id="dnav-objekte" onclick="drawerNav('objekte')">⬡ Objekte</button>
     <button class="nav-drawer-item" id="dnav-plan" onclick="drawerNav('plan')">📅 Plan</button>
     <button class="nav-drawer-item" id="dnav-review" onclick="drawerNav('review')">✓ Review</button>
-    <button class="nav-drawer-item" id="dnav-abschluss" onclick="drawerNav('abschluss')">◆ Abschluss</button>
+    <button class="nav-drawer-item" id="dnav-abschluss" onclick="drawerNav('abschluss')">◆ Abschluss <span class="nav-drawer-badge" id="dbadge-review" style="display:none">!</span></button>
     <button class="nav-drawer-item" id="dnav-futurelog" onclick="drawerNav('futurelog')">
       ◂ Future Log <span class="nav-drawer-badge" id="dbadge-fl" style="display:none">0</span>
     </button>
