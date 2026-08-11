@@ -770,7 +770,7 @@ function planEditorContext(isToday, initialPlan, values = {}) {
     today: () => iso, uid: () => 'day-id', isDeleted: () => false,
     document: { getElementById: () => null }, save() {}, renderCardList() {}, updateBadges() {},
     updateDateNav() {}, renderCalendarDots() {}, updateDrawerActive() {}, syncDrawerBadges() {},
-    updateFLBadge() {}, toast() {}, switchTab() {},
+    updateFLBadge() {}, toast() {}, switchTab() {}, showHistoryMonthForDate() {},
     getViewData: null
   });
   c.getViewData = () => c.TODAY;
@@ -801,7 +801,7 @@ function planEditorContext(isToday, initialPlan, values = {}) {
     viewDate: targetDate, TODAY: { date: '2099-01-01' }, S: { days: [day], migrationPuffer: [], futurelog: [] },
     pipeStepsDone: {}, today: () => '2099-01-01', uid: () => `generated-${++uidCounter}`, isDeleted: () => false, Date: ControlledDate,
     document: { getElementById: () => null }, save() {}, renderCardList() {}, updateBadges() {}, updateDateNav() {},
-    renderCalendarDots() {}, updateDrawerActive() {}, syncDrawerBadges() {}, updateFLBadge() {}, toast() {}, switchTab() {},
+    renderCalendarDots() {}, updateDrawerActive() {}, syncDrawerBadges() {}, updateFLBadge() {}, toast() {}, switchTab() {}, showHistoryMonthForDate() {},
     getViewData: () => day
   });
   c.finishDay();
@@ -1268,5 +1268,82 @@ function planEditorContext(isToday, initialPlan, values = {}) {
   await c.loadHighlights();
   assert.equal(c.S.days[0].feedItems.length, 2);
   assert.equal(saves, 2);
+  // History pagination exposes every archived day without mutating the archive.
+  {
+    const days = [];
+    for (const month of ['2026-08', '2026-06', '2026-05']) {
+      const limit = month === '2026-05' ? 15 : 30;
+      for (let day = 1; day <= limit; day++) {
+        days.push({ date: `${month}-${String(day).padStart(2, '0')}`, cards: [{ text: month }], objects: [], plan: {} });
+      }
+    }
+    assert.ok(days.length > 60);
+    const original = JSON.stringify(days);
+    const elements = {
+      historyList: { innerHTML: '' },
+      historySelectionCount: { textContent: '' }
+    };
+    const c = context([
+      'historyMonthKey', 'getHistoryMonths', 'getHistoryDaysForMonth', 'resolveHistoryMonth',
+      'showHistoryMonthForDate', 'changeHistoryMonth', 'historyPager', 'updateHistorySelectionCount',
+      'dayHasPromptData', 'getSelectedHistoryDays', 'renderHistory', 'toggleExportDay',
+      'clearSelectedExportDays', 'selectVisiblePromptDays', 'getPromptTypeInstruction',
+      'formatObjForPrompt', 'getDayWeekdayLabel', 'formatDayForPrompt', 'buildMultiDayPrompt'
+    ], {
+      S: { days, zettels: [], futurelog: [] }, selectedExportDays: {}, historyMonth: '',
+      document: { getElementById: id => elements[id] || null }, esc: value => String(value || '')
+    });
+
+    assert.deepEqual(plain(c.getHistoryMonths()), ['2026-08', '2026-06', '2026-05']);
+    assert.equal(c.resolveHistoryMonth(), '2026-08');
+    assert.equal(c.getHistoryDaysForMonth('2026-08')[0].date, '2026-08-30');
+    assert.equal(c.getHistoryDaysForMonth('2026-05').length, 15);
+    c.renderHistory();
+    assert.match(elements.historyList.innerHTML, /August 2026/i);
+    assert.match(elements.historyList.innerHTML, /Neueren gespeicherten Monat anzeigen"[^>]* disabled/);
+    assert.match(elements.historyList.innerHTML, /navToDate\('2026-08-30'\)/);
+    assert.equal((elements.historyList.innerHTML.match(/aria-label="Verlaufsmonate"/g) || []).length, 2);
+
+    c.changeHistoryMonth(1);
+    assert.equal(c.historyMonth, '2026-06'); // July is absent and therefore skipped.
+    c.changeHistoryMonth(-1);
+    assert.equal(c.historyMonth, '2026-08');
+    c.changeHistoryMonth(1);
+    c.changeHistoryMonth(1);
+    assert.equal(c.historyMonth, '2026-05');
+    assert.match(elements.historyList.innerHTML, /Älteren gespeicherten Monat anzeigen"[^>]* disabled/);
+    assert.match(elements.historyList.innerHTML, /2026-05-01/); // oldest day remains reachable.
+
+    c.toggleExportDay('2026-05-01', true);
+    c.changeHistoryMonth(-1);
+    c.toggleExportDay('2026-06-02', true);
+    c.renderHistory();
+    c.changeHistoryMonth(1);
+    assert.match(elements.historyList.innerHTML, /checked[^>]*2026-05-01|2026-05-01[\s\S]*checked/);
+    assert.equal(elements.historySelectionCount.textContent, '2 Tage ausgewählt');
+    c.selectVisiblePromptDays();
+    assert.equal(c.selectedExportDays['2026-06-02'], true); // selection on another page survives.
+    assert.equal(c.getSelectedHistoryDays().length, 16);
+
+    const prompt = c.buildMultiDayPrompt({
+      intention: 'Test', promptType: 'review', includeObjects: false, includeCards: true,
+      includeFeed: false, includePlan: false, includeZettels: false, includeFuture: false
+    });
+    assert.ok(prompt.indexOf('2026-05-01') < prompt.indexOf('2026-06-02'));
+    assert.equal((prompt.match(/### 2026-05-01/g) || []).length, 1);
+    c.clearSelectedExportDays();
+    assert.equal(c.getSelectedHistoryDays().length, 0);
+    assert.equal(elements.historySelectionCount.textContent, '0 Tage ausgewählt');
+    c.showHistoryMonthForDate('2026-06-02');
+    assert.equal(c.historyMonth, '2026-06');
+    assert.equal(JSON.stringify(days), original);
+
+    const one = context(['historyMonthKey', 'getHistoryMonths', 'resolveHistoryMonth', 'historyPager'], {
+      S: { days: [{ date: '2026-02-03' }] }, historyMonth: '', esc: value => value
+    });
+    const onePager = one.historyPager(one.resolveHistoryMonth());
+    assert.equal((onePager.match(/ disabled/g) || []).length, 2);
+  }
+
   console.log('regression tests passed');
 })().catch(err => { console.error(err); process.exitCode = 1; });
