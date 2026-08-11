@@ -2552,6 +2552,7 @@ select:focus { outline: none; border-color: var(--border-mid); }
         <button class="btn btn-primary btn-sm" onclick="openMultiDayPromptModal()">Auswahl als Prompt</button>
         <button class="btn btn-sm btn-ghost" onclick="selectVisiblePromptDays()">Alle sichtbaren mit Daten</button>
         <button class="btn btn-sm btn-ghost" onclick="clearSelectedExportDays()">Auswahl leeren</button>
+        <span id="historySelectionCount" style="font-family:var(--mono);font-size:0.65rem;color:var(--ink-dim);align-self:center">0 Tage ausgewählt</span>
       </div>
     </div>
 
@@ -6666,6 +6667,7 @@ function finishDay() {
   if (migrated)  msg += ' · ' + migrated  + ' migriert';
   if (scheduled) msg += ' · ' + scheduled + ' terminiert';
   toast(msg);
+  showHistoryMonthForDate(targetDate);
   switchTab('verlauf');
 }
 
@@ -6673,6 +6675,65 @@ function finishDay() {
 // History
 // ════════════════════════════════════════════════
 var selectedExportDays = {};
+var historyMonth = '';
+
+function historyMonthKey(date) {
+  var match = String(date || '').match(/^(\d\d\d\d)-(\d\d)-\d\d$/);
+  return match ? match[1] + '-' + match[2] : '';
+}
+
+function getHistoryMonths() {
+  var seen = {};
+  (S.days || []).forEach(function(day) {
+    var month = historyMonthKey(day && day.date);
+    if (month) seen[month] = true;
+  });
+  return Object.keys(seen).sort().reverse();
+}
+
+function getHistoryDaysForMonth(month) {
+  return (S.days || []).filter(function(day) {
+    return historyMonthKey(day && day.date) === month;
+  }).slice().sort(function(a, b) {
+    return a.date < b.date ? 1 : a.date > b.date ? -1 : 0;
+  });
+}
+
+function resolveHistoryMonth() {
+  var months = getHistoryMonths();
+  if (months.indexOf(historyMonth) < 0) historyMonth = months[0] || '';
+  return historyMonth;
+}
+
+function showHistoryMonthForDate(date) {
+  var month = historyMonthKey(date);
+  if (month && getHistoryMonths().indexOf(month) >= 0) historyMonth = month;
+}
+
+function changeHistoryMonth(delta) {
+  var months = getHistoryMonths();
+  var index = months.indexOf(resolveHistoryMonth());
+  var next = index + delta;
+  if (index >= 0 && next >= 0 && next < months.length) historyMonth = months[next];
+  renderHistory();
+}
+
+function historyPager(month) {
+  var months = getHistoryMonths();
+  var index = months.indexOf(month);
+  var parts = month.split('-');
+  var label = new Date(Number(parts[0]), Number(parts[1]) - 1, 1)
+    .toLocaleDateString('de-DE', { month: 'long', year: 'numeric' });
+  return '<nav aria-label="Verlaufsmonate" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0">' +
+    '<button class="btn btn-sm btn-ghost" aria-label="Neueren gespeicherten Monat anzeigen" onclick="changeHistoryMonth(-1)"' + (index <= 0 ? ' disabled' : '') + '>← neuer</button>' +
+    '<strong style="font-family:var(--serif);text-align:center">' + esc(label) + '</strong>' +
+    '<button class="btn btn-sm btn-ghost" aria-label="Älteren gespeicherten Monat anzeigen" onclick="changeHistoryMonth(1)"' + (index < 0 || index >= months.length - 1 ? ' disabled' : '') + '>älter →</button></nav>';
+}
+
+function updateHistorySelectionCount() {
+  var el = document.getElementById('historySelectionCount');
+  if (el) el.textContent = getSelectedHistoryDays().length + ' Tage ausgewählt';
+}
 
 function dayHasPromptData(day) {
   if (!day) return false;
@@ -6703,11 +6764,14 @@ function getSelectedHistoryDays() {
 
 function renderHistory() {
   var container = document.getElementById('historyList');
+  updateHistorySelectionCount();
   if (!S.days || !S.days.length) {
     container.innerHTML = '<div class="empty-state">Noch keine gespeicherten Tage.</div>';
     return;
   }
-  container.innerHTML = S.days.slice(0, 60).map(function(day) {
+  var month = resolveHistoryMonth();
+  var pager = historyPager(month);
+  container.innerHTML = pager + getHistoryDaysForMonth(month).map(function(day) {
     var objCount  = day.objects ? day.objects.filter(function(o){ return !o.dismissed; }).length : 0;
     var cardCount = day.cards ? day.cards.length : 0;
     var hasPromptData = dayHasPromptData(day);
@@ -6755,12 +6819,13 @@ function renderHistory() {
       '</div>' +
       statusBadge +
     '</div>';
-  }).join('');
+  }).join('') + pager;
 }
 
 function toggleExportDay(date, checked) {
   if (checked) selectedExportDays[date] = true;
   else delete selectedExportDays[date];
+  updateHistorySelectionCount();
 }
 
 function selectAllDays() {
@@ -6776,7 +6841,7 @@ function clearSelectedExportDays() {
 }
 
 function selectVisiblePromptDays() {
-  (S.days||[]).slice(0, 60).forEach(function(day) {
+  getHistoryDaysForMonth(resolveHistoryMonth()).forEach(function(day) {
     if (dayHasPromptData(day)) selectedExportDays[day.date] = true;
   });
   renderHistory();
@@ -12115,6 +12180,7 @@ function searchGoToObj(date, objId) {
     }, 150);
   } else {
     toast('Objekt von ' + date + ' — im Verlauf-Tab zu sehen');
+    showHistoryMonthForDate(date);
     switchTab('verlauf');
   }
 }
